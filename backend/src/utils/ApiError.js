@@ -21,6 +21,10 @@ class ApiError extends Error {
     return new ApiError(404, message);
   }
 
+  static conflict(message = 'Conflicto con el estado actual del recurso', details) {
+    return new ApiError(409, message, details);
+  }
+
   static notImplemented(message = 'No implementado') {
     return new ApiError(501, message);
   }

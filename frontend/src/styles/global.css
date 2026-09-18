@@ -174,6 +174,166 @@ img {
   }
 }
 
+/* Encabezados de página y barras de acciones */
+.encabezado-pagina {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: var(--espacio);
+}
+
+.encabezado-pagina h1 {
+  margin: 0;
+}
+
+.acciones-pagina,
+.barra-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.barra-herramientas {
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+/* Pestañas de "Datos del programa": desplazables en móvil */
+.pestanas {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  margin-bottom: var(--espacio);
+  border-bottom: 1px solid var(--color-borde);
+}
+
+.pestanas button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font: inherit;
+  color: var(--color-texto-suave);
+  cursor: pointer;
+}
+
+.pestanas button.activa {
+  border-bottom-color: var(--color-acento);
+  color: var(--color-texto);
+  font-weight: 600;
+}
+
+/* Tablas de datos */
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.num,
+td.nowrap {
+  white-space: nowrap;
+}
+
+td.acciones {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.tabla-compacta th,
+.tabla-compacta td {
+  padding: 0.35rem 0.5rem;
+}
+
+.btn-enlace {
+  border: none;
+  background: none;
+  padding: 0.25rem 0.5rem;
+  color: var(--color-primario-claro);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-enlace.peligro {
+  color: var(--color-error);
+}
+
+/* Formularios en rejilla: una columna en móvil, dos en escritorio */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 1rem;
+}
+
+@media (min-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .form-grid .campo-ancho {
+    grid-column: 1 / -1;
+  }
+}
+
+.campo-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+}
+
+.texto-exito {
+  color: var(--color-exito);
+}
+
+.lista-mensajes {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+}
+
+.resultado-importacion {
+  margin-top: var(--espacio);
+}
+
+.lista-valores {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+}
+
+.lista-valores dt {
+  color: var(--color-texto-suave);
+}
+
+.lista-valores dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.modal {
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
 .tabla-scroll {
   overflow-x: auto;
 }

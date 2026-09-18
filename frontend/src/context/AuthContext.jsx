@@ -1,11 +1,11 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { jwtDecode } from 'jwt-decode'
 import { TOKEN_KEY } from '../api/client'
 import * as authApi from '../api/authApi'
 
 const AuthContext = createContext(null)
 
-// Lee el token guardado y lo descarta si expiró. Payload esperado: { sub, rol, exp }.
+// Lee el token guardado y lo descarta si expiró. Payload: { sub, rol, nombre, exp }.
 const leerSesion = () => {
   const token = localStorage.getItem(TOKEN_KEY)
   if (!token) return null
@@ -21,6 +21,13 @@ const leerSesion = () => {
 
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(leerSesion)
+
+  // El cliente HTTP avisa cuando el API rechaza el token (expirado o usuario desactivado).
+  useEffect(() => {
+    const cerrar = () => setUsuario(null)
+    window.addEventListener('maie:sesion-expirada', cerrar)
+    return () => window.removeEventListener('maie:sesion-expirada', cerrar)
+  }, [])
 
   const login = useCallback(async (email, password) => {
     const { data } = await authApi.login(email, password)

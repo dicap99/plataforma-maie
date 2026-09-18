@@ -6,6 +6,11 @@ export default function DocenteDashboard() {
       <h1>Panel Docente</h1>
       <div className="grid-tarjetas">
         <article className="card">
+          <h2>Mi perfil</h2>
+          <p className="texto-suave">Formación, líneas de investigación y cursos en los que ha apoyado a la maestría.</p>
+          <Link to="perfil">Actualizar perfil</Link>
+        </article>
+        <article className="card">
           <h2>Calificar rúbricas</h2>
           <p className="texto-suave">Evalúe a los estudiantes de sus cursos con la rúbrica de cada RA.</p>
           <Link to="rubricas">Ir a rúbricas</Link>

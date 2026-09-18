@@ -24,6 +24,18 @@ INSERT INTO modulos_curriculares (nombre, descripcion) VALUES
 ('Electivo', 'Componente electivo (MaIE-CE1, MaIE-CE2)'),
 ('Investigativo', 'Componente investigativo (MaIE-CI1, MaIE-CI2, Tesis I, Tesis II)');
 
+-- Parámetros del programa (valores de la hoja "Estadísticas MaIE 2025-B"; editables por Coordinación)
+INSERT INTO parametros_programa (clave, valor, descripcion) VALUES
+('smmlv_2025', 1400000, 'Salario mínimo mensual legal vigente 2025 (COP)'),
+('pct_transferencia_central', 15, '% del saldo presupuestal transferido a la administración central'),
+('pct_transferencia_viis', 5, '% del saldo presupuestal transferido a la VIIS'),
+('pct_fondo_investigaciones', 50, '% del saldo presupuestal destinado al Fondo de Investigaciones'),
+('pct_unidad_academica', 30, '% del saldo presupuestal destinado a la Unidad Académica'),
+('creditos_semestre_1', 12, 'Número de créditos del I semestre'),
+('creditos_semestre_2', 19.2, 'Número de créditos del II semestre'),
+('creditos_semestre_3', 16, 'Número de créditos del III semestre'),
+('creditos_semestre_4', 12, 'Número de créditos del IV semestre');
+
 -- Usuario coordinador inicial. Hash bcrypt (costo 10) compatible con bcryptjs.
 -- CAMBIAR LA CONTRASEÑA tras el primer ingreso.
 INSERT INTO usuarios (identificacion, nombres, apellidos, email, password_hash, rol) VALUES

@@ -7,8 +7,7 @@ const controller = require('./plantillas.controller');
 const { COORDINADOR } = ROLES;
 const router = Router();
 
-// Montado en /api/v1/admin/plantillas
-router.get('/', authenticate, authorize(COORDINADOR), controller.listar);
-router.get('/:tipo', authenticate, authorize(COORDINADOR), controller.descargar);
+// Montado en /api/v1/admin/plantillas  (?datos=true exporta los datos actuales)
+router.get('/', authenticate, authorize(COORDINADOR), controller.descargar);
 
 module.exports = router;

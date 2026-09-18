@@ -6,7 +6,8 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    host: '0.0.0.0',
+    // Todas las interfaces (IPv4 e IPv6): los navegadores resuelven "localhost" a ::1.
+    host: true,
     // En Docker se usa VITE_PORT=80 (docker-compose.yml); en local, 5173.
     port: Number(process.env.VITE_PORT) || 5173,
   },

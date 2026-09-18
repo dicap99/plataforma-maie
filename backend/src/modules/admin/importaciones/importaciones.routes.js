@@ -9,12 +9,6 @@ const { COORDINADOR } = ROLES;
 const router = Router();
 
 // Montado en /api/v1/admin/importaciones
-router.post(
-  '/',
-  authenticate,
-  authorize(COORDINADOR),
-  upload.single('archivo'),
-  controller.importar,
-);
+router.post('/', authenticate, authorize(COORDINADOR), upload.single('archivo'), controller.importar);
 
 module.exports = router;

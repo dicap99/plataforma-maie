@@ -15,5 +15,13 @@ router.post(
   controller.login,
 );
 router.get('/me', authenticate, controller.me);
+router.put(
+  '/password',
+  authenticate,
+  body('actual').notEmpty().withMessage('Contraseña actual requerida'),
+  body('nueva').isLength({ min: 8 }).withMessage('La nueva contraseña debe tener al menos 8 caracteres'),
+  validate,
+  controller.cambiarPassword,
+);
 
 module.exports = router;

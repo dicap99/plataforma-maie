@@ -7,14 +7,17 @@ export const INICIO_POR_ROL = {
 
 export const MENU_POR_ROL = {
   coordinador: [
-    { to: '/coordinacion', label: 'Panel', end: true },
-    { to: '/coordinacion/cohortes', label: 'Cohortes y cursos' },
+    { to: '/coordinacion', label: 'Estadísticas', end: true },
+    { to: '/coordinacion/datos', label: 'Datos del programa' },
     { to: '/coordinacion/presupuesto', label: 'Presupuesto' },
+    { to: '/coordinacion/usuarios', label: 'Usuarios' },
     { to: '/coordinacion/ra', label: 'Resultados de aprendizaje' },
     { to: '/coordinacion/evaluacion-coordinacion', label: 'Evaluación (EC)' },
   ],
   docente: [
     { to: '/docente', label: 'Panel', end: true },
+    { to: '/docente/perfil', label: 'Mi perfil' },
+    { to: '/docente/datos', label: 'Datos del programa' },
     { to: '/docente/rubricas', label: 'Calificar rúbricas' },
     { to: '/docente/autoevaluacion', label: 'Autoevaluación (AE)' },
     { to: '/docente/resultados', label: 'Mis resultados' },

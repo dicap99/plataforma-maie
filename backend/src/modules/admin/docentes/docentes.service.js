@@ -1,16 +1,20 @@
-// RF-ADM-06 — Perfil histórico del docente
-// Lógica de negocio del sub-módulo; el acceso a datos va en ./docentes.repository.js
-const pendiente = require('../../../utils/pendiente');
+// RF-ADM-06 — Perfil histórico del docente (vista del propio docente)
+const ApiError = require('../../../utils/ApiError');
+const repository = require('./docentes.repository');
+
+const sinPerfil = () =>
+  ApiError.notFound('Su usuario no está vinculado a un perfil docente; solicítelo a Coordinación');
 
 module.exports = {
-  // Listado de docentes vinculados al programa.
-  listar: pendiente('docentes.listar'),
-  // Perfil del docente autenticado.
-  obtenerPerfilPropio: pendiente('docentes.obtenerPerfilPropio'),
-  // El docente actualiza su información básica y formación académica.
-  actualizarPerfilPropio: pendiente('docentes.actualizarPerfilPropio'),
-  // Perfil e historial de vinculación de un docente.
-  obtenerPerfil: pendiente('docentes.obtenerPerfil'),
-  // Actualización del perfil de un docente por Coordinación.
-  actualizarPerfil: pendiente('docentes.actualizarPerfil'),
+  async obtenerPerfilPropio({ user }) {
+    const perfil = await repository.findByUsuario(user.id);
+    if (!perfil) throw sinPerfil();
+    return perfil;
+  },
+
+  async actualizarPerfilPropio({ user, body }) {
+    const perfil = await repository.updateByUsuario(user.id, body);
+    if (!perfil) throw sinPerfil();
+    return perfil;
+  },
 };

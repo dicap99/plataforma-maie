@@ -13,4 +13,9 @@ const me = asyncHandler(async (req, res) => {
   success(res, await service.me(requestContext(req)));
 });
 
-module.exports = { login, me };
+// PUT /api/v1/auth/password
+const cambiarPassword = asyncHandler(async (req, res) => {
+  success(res, await service.cambiarPassword(requestContext(req)));
+});
+
+module.exports = { login, me, cambiarPassword };

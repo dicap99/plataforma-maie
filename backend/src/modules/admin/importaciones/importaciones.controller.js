@@ -5,7 +5,8 @@ const service = require('./importaciones.service');
 
 // POST /api/v1/admin/importaciones
 const importar = asyncHandler(async (req, res) => {
-  success(res, await service.importar(requestContext(req)), 201);
+  const resultado = await service.importar(requestContext(req));
+  success(res, resultado, resultado.simulacion ? 200 : 201);
 });
 
 module.exports = { importar };

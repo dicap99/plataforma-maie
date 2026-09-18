@@ -32,9 +32,9 @@ describe('API MaIE — esqueleto', () => {
     expect(res.status).toBe(403);
   });
 
-  it('rol permitido sobre endpoint pendiente → 501', async () => {
+  it('rol permitido sobre endpoint pendiente (módulo 2) → 501', async () => {
     const res = await request(app)
-      .get('/api/v1/admin/presupuesto/resumen')
+      .get('/api/v1/ra/reportes')
       .set('Authorization', `Bearer ${tokenPara('coordinador')}`);
     expect(res.status).toBe(501);
   });
