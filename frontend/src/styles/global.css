@@ -1,0 +1,191 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--fuente);
+  color: var(--color-texto);
+  background: var(--color-fondo);
+  line-height: 1.5;
+}
+
+h1, h2, h3 {
+  line-height: 1.25;
+  margin: 0 0 0.75rem;
+}
+
+a {
+  color: var(--color-primario-claro);
+}
+
+img {
+  max-width: 100%;
+}
+
+/* Componentes visuales estándar (RNF-USA-01) */
+.card {
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: calc(var(--espacio) * 1.25);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px; /* objetivo táctil móvil */
+  padding: 0 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primario {
+  background: var(--color-primario);
+  color: #fff;
+}
+
+.btn-primario:hover {
+  background: var(--color-primario-claro);
+}
+
+.btn-secundario {
+  background: transparent;
+  border-color: var(--color-borde);
+  color: var(--color-texto);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: var(--espacio);
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  font: inherit;
+}
+
+.alerta-error {
+  color: var(--color-error);
+  font-size: 0.9rem;
+}
+
+.texto-suave {
+  color: var(--color-texto-suave);
+}
+
+.pendiente {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: #fff4d6;
+  color: #8a5a00;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Modal (CsvUploaderModal) */
+.modal-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--espacio);
+  background: rgba(16, 24, 40, 0.5);
+}
+
+.modal {
+  width: 100%;
+  max-width: 480px;
+}
+
+.modal-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: var(--espacio);
+}
+
+.zona-arrastre {
+  padding: 2rem 1rem;
+  border: 2px dashed var(--color-borde);
+  border-radius: var(--radio);
+  text-align: center;
+  color: var(--color-texto-suave);
+  cursor: pointer;
+}
+
+.zona-arrastre.activa {
+  border-color: var(--color-primario-claro);
+  background: var(--color-fondo);
+}
+
+/* Encuestas del Acuerdo 058: opciones apiladas en móvil, en fila en escritorio */
+.pregunta {
+  margin: 0 0 var(--espacio);
+  padding: var(--espacio);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+
+.pregunta legend {
+  font-weight: 600;
+}
+
+.escala {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.opcion-escala {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+}
+
+@media (min-width: 768px) {
+  .escala {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+}
+
+.tabla-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.6rem;
+  border-bottom: 1px solid var(--color-borde);
+  text-align: left;
+}

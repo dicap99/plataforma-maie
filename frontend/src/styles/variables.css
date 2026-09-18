@@ -1,0 +1,20 @@
+:root {
+  --color-primario: #0b3d6b;       /* azul institucional */
+  --color-primario-claro: #1f5f99;
+  --color-acento: #f2a900;
+  --color-fondo: #f4f6f9;
+  --color-superficie: #ffffff;
+  --color-texto: #1d2733;
+  --color-texto-suave: #5b6878;
+  --color-borde: #d9dee5;
+  --color-error: #b3261e;
+  --color-exito: #1e7b34;
+
+  --radio: 8px;
+  --sombra: 0 1px 3px rgba(16, 24, 40, 0.1);
+  --espacio: 1rem;
+  --ancho-sidebar: 240px;
+  --alto-header: 56px;
+
+  --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}

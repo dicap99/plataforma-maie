@@ -1,0 +1,5 @@
+/* Tailwind v4 SIN preflight: solo tema + utilidades, para no resetear el CSS propio.
+   Se usa en las figuras/gráficas (components/charts, HistogramaRAChart, PresupuestoDashboard). */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
