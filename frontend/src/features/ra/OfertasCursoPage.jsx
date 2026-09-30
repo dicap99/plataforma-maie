@@ -13,6 +13,7 @@ import { periodoAcademico } from '../../utils/periodo'
 import { porcentaje } from '../../utils/formato'
 
 const ESTADOS = ['inscrito', 'matriculado', 'egresado', 'graduado', 'retirado']
+const OTRO = '__otro__'
 const nombreDe = (u) => `${u.apellidos} ${u.nombres}`
 
 // Formulario de oferta: la clase (que fija el curso del plan y sus RA), la promoción, el semestre
@@ -479,6 +480,7 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
 export default function OfertasCursoPage() {
   const [pestana, setPestana] = useState('semestre')
   const [periodo, setPeriodo] = useState(periodoAcademico())
+  const [otroSemestre, setOtroSemestre] = useState(false)
   const [filtro, setFiltro] = useState({ cohorte: '', docente: '' })
   const [editando, setEditando] = useState(null) // null | 'nueva' | oferta
   const [asignando, setAsignando] = useState(null)
@@ -570,10 +572,26 @@ export default function OfertasCursoPage() {
             <div className="flex flex-wrap items-end gap-space-sm">
               <div className="campo">
                 <label htmlFor="f-semestre">Semestre académico</label>
-                <input id="f-semestre" list="lista-semestres" value={periodo} pattern="[0-9]{4}-[AB]"
-                  onChange={(e) => setPeriodo(e.target.value.toUpperCase())} />
-                <datalist id="lista-semestres">{semestres.map((p) => <option key={p} value={p} />)}</datalist>
+                <select id="f-semestre" value={otroSemestre ? OTRO : periodo}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setOtroSemestre(v === OTRO)
+                    if (v !== OTRO) setPeriodo(v)
+                  }}>
+                  {semestres.map((p) => {
+                    const info = (periodos.data ?? []).find((x) => x.periodo === p)
+                    return <option key={p} value={p}>{p}{info ? ` · ${info.cursos} clase(s)` : ''}{p === periodoAcademico() ? ' (actual)' : ''}</option>
+                  })}
+                  <option value={OTRO}>Otro semestre…</option>
+                </select>
               </div>
+              {otroSemestre && (
+                <div className="campo">
+                  <label htmlFor="f-semestre-otro">Nuevo semestre (AAAA-A o AAAA-B)</label>
+                  <input id="f-semestre-otro" value={periodo} placeholder="2027-A" pattern="[0-9]{4}-[AB]"
+                    onChange={(e) => setPeriodo(e.target.value.toUpperCase())} />
+                </div>
+              )}
               <div className="campo">
                 <label htmlFor="f-cohorte">Promoción</label>
                 <select id="f-cohorte" value={filtro.cohorte} onChange={(e) => setFiltro((f) => ({ ...f, cohorte: e.target.value }))}>
