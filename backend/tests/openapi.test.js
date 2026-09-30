@@ -27,6 +27,15 @@ describe('Documentación OpenAPI', () => {
     expect(esquema.properties.periodo_inicio.pattern).toBe('^\\d{4}-[AB]$');
   });
 
+  it('documenta el Módulo 2 implementado (ya no como pendiente)', () => {
+    for (const ruta of ['/ra/rubricas', '/ra/rubricas/{idRa}', '/ra/evaluaciones', '/ra/reportes', '/ra/reportes/exportar', '/admin/cursos', '/admin/cursos/{id}/estudiantes']) {
+      expect(openapi.paths[ruta]).toBeDefined();
+    }
+    const tags = Object.values(openapi.paths).flatMap((r) => Object.values(r).flatMap((op) => op.tags ?? []));
+    expect(tags.some((t) => t.includes('Resultados de Aprendizaje (pendiente)'))).toBe(false);
+    expect(openapi.paths['/ra/evaluaciones'].post.responses[501]).toBeUndefined();
+  });
+
   it('sirve Swagger UI y el JSON', async () => {
     expect((await request(app).get('/api/docs/openapi.json')).body.openapi).toBe('3.0.3');
     const ui = await request(app).get('/api/docs/');

@@ -11,7 +11,7 @@ Requisitos: SRS IEEE 830 (Actividad 1). Diseño: Documento Técnico (Actividad 2
 | Autenticación, usuarios y RBAC | ✅ Implementado |
 | 1. Procesos Administrativos (RF-ADM-01 a 06) | ✅ Implementado: panel general del coordinador, hojas separadas en *Información académica* y *Presupuesto y finanzas*, importación Excel/CSV, plantilla/exportación, detalle de producción científica |
 | 1. Reporte oficial de presupuesto (PDF PSP-GEF-FR-04) | 🟡 Tablas creadas (`presupuesto_ingresos*`); lector de PDF pendiente |
-| 2. Resultados de Aprendizaje | ⬜ Esqueleto (responde `501`) |
+| 2. Resultados de Aprendizaje (RF-RA-01 a 04) | ✅ Implementado: catálogo y ofertas de curso, matrícula, rúbricas RA1–RA7, calificación por criterio, reportes por nivel y exportación |
 | 3. Evaluación Docente | ⬜ Esqueleto (responde `501`); categorización del Acuerdo 058 implementada |
 
 ## Stack
@@ -42,6 +42,22 @@ cd frontend && npm install && npm run dev                           # http://loc
 
 Usuario inicial (seed): `coordinacion.maie@udenar.edu.co` / `CambiarMaIE2026`. **Cambiar tras el primer ingreso.**
 
+> **Cambios de esquema:** no hay migraciones; `init.sql` y `seed.sql` solo corren al crear el volumen de la BD.
+> Tras actualizar el esquema (p. ej. el Módulo 2), recree la base con `docker compose down -v && docker compose up -d db`
+> y vuelva a importar el libro del Módulo 1.
+
+Datos sintéticos del Módulo 2 (promociones «Sintética I…V», docentes y estudiantes con correos `@sintetico.maie.local`,
+ofertas y notas de rúbrica; misma semilla → mismos datos):
+
+```bash
+cd backend
+npm run datos:sinteticos                  # borra los sintéticos anteriores y carga la semilla 2026
+npm run datos:sinteticos -- --semilla 7   # otra semilla
+npm run datos:sinteticos -- --limpiar     # solo borra los datos sintéticos (no toca los reales)
+```
+
+Los usuarios sintéticos usan la contraseña de `SINTETICO_PASSWORD` (por defecto `MaIE-Sintetico-2026`).
+
 Carga inicial de datos: *Procesos administrativos › Información académica › Importar Excel/CSV* con el libro «Estadísticas MaIE»
 tal como lo maneja Coordinación. Las hojas financieras se consultan y editan en *Presupuesto y finanzas*.
 
@@ -52,14 +68,15 @@ tal como lo maneja Coordinación. Las hojas financieras se consultan y editan en
 
 ```bash
 cd backend
-npm test                   # unitarias (sin BD): estadísticas, validación, API, validez de la especificación OpenAPI
-npm run test:integracion   # contra PostgreSQL (docker compose up -d db); recrea la base maie_test
+npm test                   # unitarias (sin BD): estadísticas, rúbricas RA, generador sintético, API, OpenAPI
+npm run test:integracion   # contra PostgreSQL (docker compose up -d db); recrea maie_test (Módulo 1)
+                           # y maie_test_ra (Módulo 2, poblada con datos sintéticos y verificada contra un cálculo independiente)
 ```
 
 ## Estructura
 
 ```
-database/        init.sql (esquema) · seed.sql (RA, estrategias, módulos, parámetros, coordinador)
+database/        init.sql (esquema) · seed.sql (RA, estrategias, catálogo de cursos, rúbricas RA1–RA7, parámetros, coordinador)
 backend/src/
   app.js, server.js            # app Express / arranque (Swagger UI en /api/docs)
   docs/openapi.js              # especificación OpenAPI 3 (rutas del Módulo 1 generadas desde recursos.definicion.js)
@@ -74,7 +91,15 @@ backend/src/
       plantillas/              # plantilla .xlsx y exportación de datos
       reportes/                # estadisticas.js (fórmulas puras) + /reportes/estadisticas, /presupuesto/resumen
       docentes/                # perfil propio del docente (/docentes/me/perfil)
-    ra/ evalDocente/           # esqueleto de los módulos 2 y 3
+      cursos/ matriculas/      # catálogo del plan, ofertas por promoción, docentes y matrícula
+    ra/
+      rubrica.js               # reglas puras: niveles, total ponderado, distribución, validación
+      propiedad.js             # regla «sus cursos» del docente
+      resultados/ estrategias/ rubricas/ evaluaciones/ reportes/
+    evalDocente/               # esqueleto del módulo 3
+backend/scripts/
+  sintetico/                   # generador con semilla y cargador de datos sintéticos
+  poblarSintetico.js           # npm run datos:sinteticos
 frontend/src/
   api/ context/ hooks/ routes/ layouts/ pages/ utils/ styles/
   styles/index.css             # punto de entrada único: CSS propio en la capa base + tokens de Tailwind (tailwind.css)
@@ -83,6 +108,8 @@ frontend/src/
   features/admin/              # EstadisticasDashboard (panel general), DatosProgramaPage (hojas académicas),
                                # PresupuestoDashboard (resumen + hojas financieras), RecursoTabla/RecursoFormulario,
                                # CsvUploaderModal, UsuariosPage, PerfilDocentePage
+  features/ra/                 # ConsolidadoRAPage, MatrizRubricasPage, OfertasCursoPage, MisCursosPage,
+                               # PlanillaRubricaPage (+ planilla/: evaluación por estudiante y resumen general)
   features/admin/panel/        # BannerPrograma, FranjaAviso, TarjetaKpi, TarjetaLateral, LineasInvestigacion
 ```
 
@@ -110,7 +137,11 @@ Las rutas de las hojas del Módulo 1 se generan desde `recursos.definicion.js` (
 | Importación | `POST /admin/importaciones` (multipart `archivo`; `?simular=true`; `?recurso=` para CSV) | Coord |
 | Plantilla / exportación | `GET /admin/plantillas` (`?datos=true` incluye los datos actuales) | Coord |
 | Estadísticas | `GET /admin/reportes/estadisticas`, `GET /admin/presupuesto/resumen` | Coord |
-| RA | `GET /ra/resultados`, `/ra/estrategias`, `/ra/rubricas`; `/ra/evaluaciones`; `/ra/reportes` | Docente, Coord (pendiente) |
+| Catálogo y ofertas | `GET /admin/cursos/catalogo`; CRUD `/admin/cursos`; `PUT /admin/cursos/:id/docentes`, `/:id/estudiantes`; `POST /:id/estudiantes/cohorte` | Coord (Docente: sus ofertas) |
+| Estudiantes por promoción | `GET/PUT /admin/cohortes/:id/estudiantes` | Coord |
+| RA y rúbricas | `GET /ra/resultados`, `/ra/estrategias`, `/ra/rubricas`; `PUT /ra/rubricas/:idRa` (pesos = 100 %) | Coord, Docente (edición: Coord) |
+| Calificación | `GET /ra/evaluaciones?curso=`; `POST /ra/evaluaciones` (lote; `null` borra) | Docente del curso (Coord: lectura) |
+| Reportes RA | `GET /ra/reportes?agrupar=&cohorte&periodo&modulo&catalogo&curso&ra&estudiante&momento`, `/ra/reportes/exportar` | Coord |
 | Evaluación docente | `/eval-docente/periodos`, `/formularios/:tipo`, `/respuestas`, `/resultados` | según tipo (pendiente) |
 
 Respuesta estándar: `{ "status": "success", "data": … }` o `{ "status": "error", "error": { "message", "details" } }`.

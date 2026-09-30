@@ -3,6 +3,7 @@
 // la validación y la importación), así la documentación no se desfasa al agregar una hoja.
 const { RECURSOS } = require('../modules/admin/recursos/recursos.definicion');
 const { TODOS } = require('../utils/roles');
+const moduloRA = require('./openapi.ra');
 
 const PERIODO = { type: 'string', pattern: '^\\d{4}-[AB]$', example: '2024-A' };
 
@@ -157,11 +158,6 @@ const UsuarioEntrada = {
 };
 
 const PENDIENTES = [
-  ['/ra/resultados', 'get', 'Resultados de aprendizaje RA1–RA7'],
-  ['/ra/estrategias', 'get', 'Estrategias de evaluación E1–E6'],
-  ['/ra/rubricas', 'get', 'Matriz de rúbricas'],
-  ['/ra/evaluaciones', 'post', 'Registrar calificaciones por rúbrica'],
-  ['/ra/reportes', 'get', 'Reportes de resultados de aprendizaje'],
   ['/eval-docente/periodos', 'get', 'Periodos de evaluación docente'],
   ['/eval-docente/formularios/{tipo}', 'get', 'Formulario EE/EC/AE del Acuerdo 058'],
   ['/eval-docente/respuestas', 'post', 'Enviar un formulario de evaluación'],
@@ -171,7 +167,7 @@ const PENDIENTES = [
 const rutasPendientes = () => {
   const rutas = {};
   for (const [ruta, metodo, resumen] of PENDIENTES) {
-    const tag = ruta.startsWith('/ra') ? 'Módulo 2 · Resultados de Aprendizaje (pendiente)' : 'Módulo 3 · Evaluación Docente (pendiente)';
+    const tag = 'Módulo 3 · Evaluación Docente (pendiente)';
     rutas[ruta] = {
       ...(ruta.includes('{tipo}')
         ? { parameters: [{ name: 'tipo', in: 'path', required: true, schema: { type: 'string', enum: ['EE', 'EC', 'AE'] } }] }
@@ -188,6 +184,7 @@ const rutasPendientes = () => {
 const construir = () => {
   const esquemasRecursos = Object.assign({}, ...RECURSOS.map(esquemasRecurso));
   const rutasRecursos = Object.assign({}, ...RECURSOS.map(rutasRecurso));
+  const ra = moduloRA({ exito, errores, cuerpo, roles, ref, PERIODO });
   const respuestaError = (descripcion) => ({ description: descripcion, content: { 'application/json': { schema: ref('Error') } } });
 
   return {
@@ -206,6 +203,7 @@ const construir = () => {
       { name: 'Autenticación' },
       { name: 'Usuarios' },
       { name: 'Módulo 1 · General', description: 'Metadatos, importación, plantilla y estadísticas' },
+      ...ra.tags,
     ],
     paths: {
       '/auth/login': {
@@ -312,6 +310,7 @@ const construir = () => {
           responses: { 200: exito(ref('Docentes')), ...errores(400, 401, 403, 404) },
         },
       },
+      ...ra.paths,
       ...rutasPendientes(),
     },
     components: {
@@ -341,6 +340,7 @@ const construir = () => {
           },
         },
         ...esquemasRecursos,
+        ...ra.schemas,
       },
       responses: {
         E400: respuestaError('Datos inválidos'),
