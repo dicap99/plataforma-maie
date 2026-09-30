@@ -97,11 +97,4 @@ describe('Rúbricas RA — consolidación y distribución (RF-RA-04)', () => {
     expect(r.validacion({ Alto: 5, Medio: 1, evaluados: 10 }, 70)).toBe('En riesgo');
     expect(r.validacion({ evaluados: 0 }, 70)).toBe('Sin datos');
   });
-
-  it('traduce los momentos de análisis a semestre tope', () => {
-    expect(r.semestreTope('inicio-III')).toBe(2);
-    expect(r.semestreTope('fin-IV')).toBe(4);
-    expect(r.semestreTope(undefined)).toBeNull();
-    expect(() => r.semestreTope('otro')).toThrow(RangeError);
-  });
 });

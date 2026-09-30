@@ -3,7 +3,7 @@
 // cursos_catalogo, modulos_curriculares, cohortes, usuarios, parametros_programa
 const db = require('../../../config/db');
 
-// Filtros combinables ($1…$8). El semestre tope aplica los momentos de análisis (inicio III, fin IV).
+// Filtros combinables ($1…$7); el periodo es el semestre académico de la oferta.
 const FILTROS = `
       ($1::int IS NULL OR c.id_cohorte = $1)
   AND ($2::text IS NULL OR c.periodo = $2)
@@ -11,10 +11,9 @@ const FILTROS = `
   AND ($4::int IS NULL OR c.id_catalogo = $4)
   AND ($5::int IS NULL OR c.id_curso = $5)
   AND ($6::int IS NULL OR r.id_ra = $6)
-  AND ($7::uuid IS NULL OR u.id_usuario = $7)
-  AND ($8::int IS NULL OR k.semestre <= $8)`;
+  AND ($7::uuid IS NULL OR u.id_usuario = $7)`;
 
-const parametros = (f) => [f.cohorte, f.periodo, f.modulo, f.catalogo, f.curso, f.ra, f.estudiante, f.semestreTope]
+const parametros = (f) => [f.cohorte, f.periodo, f.modulo, f.catalogo, f.curso, f.ra, f.estudiante]
   .map((v) => (v === undefined ? null : v));
 
 const JOINS = `

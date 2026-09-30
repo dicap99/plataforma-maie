@@ -17,10 +17,6 @@ const CLAVES_NIVEL = NIVELES.map((n) => n.nivel);
 const NOTA_MIN = 0;
 const NOTA_MAX = 5;
 
-// Momentos de análisis (documento RA: «al iniciar el semestre III y finalizar semestre IV»):
-// cada momento considera los cursos del catálogo hasta el semestre indicado.
-const MOMENTOS = { 'inicio-III': 2, 'fin-IV': 4 };
-
 const centesimas = (x) => Math.round(x * 100);
 
 // Redondeo a 2 decimales, mitad hacia arriba (4.495 → 4.5).
@@ -127,16 +123,9 @@ const validacion = (fila, metaPct) => {
   return logro >= centesimas(metaPct) ? 'Cumple' : 'En riesgo';
 };
 
-const semestreTope = (momento) => {
-  if (momento === undefined || momento === null || momento === '' || momento === 'todos') return null;
-  if (!(momento in MOMENTOS)) throw new RangeError(`Momento desconocido: ${momento}`);
-  return MOMENTOS[momento];
-};
-
 module.exports = {
   NIVELES,
   CLAVES_NIVEL,
-  MOMENTOS,
   NOTA_MIN,
   NOTA_MAX,
   redondear2,
@@ -148,5 +137,4 @@ module.exports = {
   agruparUnidades,
   distribucion,
   validacion,
-  semestreTope,
 };

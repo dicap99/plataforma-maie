@@ -1,7 +1,7 @@
 // OpenAPI del Módulo 2 (Resultados de Aprendizaje) y de las ofertas de curso que lo sostienen.
 // Recibe los ayudantes de openapi.js para compartir el formato de respuestas y errores.
 const { AGRUPACIONES } = require('../modules/ra/reportes/reportes.service');
-const { MOMENTOS, CLAVES_NIVEL } = require('../modules/ra/rubrica');
+const { CLAVES_NIVEL } = require('../modules/ra/rubrica');
 
 const TAG_CURSOS = 'Módulo 2 · Cursos y matrícula';
 const TAG_RA = 'Módulo 2 · Resultados de Aprendizaje';
@@ -130,6 +130,7 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
         grupo: {}, etiqueta: { type: 'string' }, evaluados: { type: 'integer' }, ...porNivel,
         pct: { type: 'object', properties: Object.fromEntries(CLAVES_NIVEL.map((n) => [n, { type: 'number', description: 'Fracción 0–1' }])) },
         promedio: { type: 'number', nullable: true },
+        detalle: { type: 'object', description: 'Solo con agrupar=estudiante: { RAx: { total, nivel } }' },
         validacion: { type: 'string', enum: ['Cumple', 'En riesgo', 'Sin datos'] },
       },
     },
@@ -148,16 +149,25 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
         },
         porRA: { type: 'array', items: ref('FilaDistribucion'), description: 'Siempre RA1–RA7' },
         filas: { type: 'array', items: ref('FilaDistribucion'), description: 'Según `agrupar`' },
+        detalleEstudiante: {
+          type: 'array', description: 'Solo con ?estudiante=: su resultado en cada RA de cada curso, incluidas las rúbricas incompletas',
+          items: {
+            type: 'object',
+            properties: {
+              curso_codigo: { type: 'string' }, curso_nombre: { type: 'string' }, periodo: PERIODO, cohorte: { type: 'string' }, ra: { type: 'string' },
+              total: { type: 'number', nullable: true }, nivel: { type: 'string', enum: CLAVES_NIVEL, nullable: true }, completo: { type: 'boolean' },
+            },
+          },
+        },
       },
     },
   };
 
   const filtrosReporte = [
     { name: 'agrupar', in: 'query', schema: { type: 'string', enum: AGRUPACIONES, default: 'ra' } },
-    { name: 'momento', in: 'query', schema: { type: 'string', enum: ['todos', ...Object.keys(MOMENTOS)] }, description: 'inicio-III: cursos de semestres I–II; fin-IV: I–IV' },
     entero('cohorte', 'Promoción'), entero('modulo', 'Módulo curricular'), entero('catalogo', 'Curso del plan'),
     entero('curso', 'Oferta'), entero('ra', 'Resultado de aprendizaje'),
-    { name: 'periodo', in: 'query', schema: PERIODO },
+    { name: 'periodo', in: 'query', schema: PERIODO, description: 'Semestre académico de la oferta' },
     { name: 'estudiante', in: 'query', schema: { type: 'string', format: 'uuid' } },
   ];
 

@@ -3,7 +3,7 @@
 // Unidad de análisis: el nivel de un estudiante en un RA (promedio de sus rúbricas completas dentro
 // de los filtros). Agrupado por curso o por módulo, la unidad se toma dentro de cada grupo.
 const ExcelJS = require('exceljs');
-const { NIVELES, CLAVES_NIVEL, agruparUnidades, distribucion, validacion, semestreTope } = require('../rubrica');
+const { NIVELES, CLAVES_NIVEL, agruparUnidades, distribucion, validacion, nivelDeNota } = require('../rubrica');
 const repository = require('./reportes.repository');
 
 const META_POR_DEFECTO = 70;
@@ -35,7 +35,6 @@ const filtrosDe = (query) => ({
   curso: query.curso,
   ra: query.ra,
   estudiante: query.estudiante,
-  semestreTope: semestreTope(query.momento),
 });
 
 const comparar = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
@@ -74,6 +73,17 @@ const consultar = async (query) => {
     validacion: porRAconDatos.get(r.codigo)?.validacion ?? 'Sin datos',
   }));
 
+  let filas = agrupar === 'ra' ? porRA : tabla(completas, DIMENSIONES[agrupar], meta);
+  if (agrupar === 'estudiante') {
+    // Nota y nivel de cada estudiante en cada RA, para la tabla estudiante × RA.
+    const detalle = new Map();
+    for (const u of unidades(completas, DIMENSIONES.estudiante)) {
+      if (!detalle.has(u.id_estudiante)) detalle.set(u.id_estudiante, {});
+      detalle.get(u.id_estudiante)[u.ra] = { total: u.total, nivel: u.nivel };
+    }
+    filas = filas.map((f) => ({ ...f, detalle: detalle.get(f.grupo) ?? {} }));
+  }
+
   const unidadesRA = unidades(completas, DIMENSIONES.ra);
   const logro = unidadesRA.filter((u) => u.nivel === 'Alto' || u.nivel === 'Medio').length;
 
@@ -90,7 +100,14 @@ const consultar = async (query) => {
       rubricas_incompletas: todas.length - completas.length,
     },
     porRA,
-    filas: agrupar === 'ra' ? porRA : tabla(completas, DIMENSIONES[agrupar], meta),
+    filas,
+    // Perfil de un estudiante: su resultado en cada RA de cada curso, incluidas rúbricas sin terminar.
+    ...(query.estudiante ? {
+      detalleEstudiante: todas.map((f) => ({
+        curso_codigo: f.curso_codigo, curso_nombre: f.curso_nombre, periodo: f.periodo, cohorte: f.cohorte, ra: f.ra,
+        total: f.completo ? f.total : null, nivel: f.completo ? nivelDeNota(f.total) : null, completo: f.completo,
+      })),
+    } : {}),
     _completas: completas,
   };
 };

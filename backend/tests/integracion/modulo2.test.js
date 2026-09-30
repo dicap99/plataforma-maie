@@ -34,7 +34,7 @@ let coord;
 let rubricas; // { RA1: [{ id_criterio, orden, peso_porcentaje }] }
 
 // Oráculo: reproduce en JS, a partir de los datos generados, lo que deben devolver los reportes.
-const oraculo = ({ cohorte, modulo, semestreTope } = {}, catalogo = []) => {
+const oraculo = ({ cohorte, modulo, periodo } = {}, catalogo = []) => {
   const cursos = new Map(datos.cursos.map((c) => [c.clave, c]));
   const kat = new Map(catalogo.map((k) => [k.codigo, k]));
   const celdas = new Map();
@@ -43,7 +43,7 @@ const oraculo = ({ cohorte, modulo, semestreTope } = {}, catalogo = []) => {
     const k = kat.get(c.catalogo);
     if (cohorte && c.cohorte !== cohorte) continue;
     if (modulo && k.modulo !== modulo) continue;
-    if (semestreTope && k.semestre > semestreTope) continue;
+    if (periodo && c.periodo !== periodo) continue;
     const clave = `${n.curso}|${n.estudiante}|${n.ra}`;
     if (!celdas.has(clave)) celdas.set(clave, { estudiante: n.estudiante, ra: n.ra, notas: {} });
     const criterio = rubricas[n.ra].find((x) => x.orden === n.orden);
@@ -134,15 +134,29 @@ describe('Reportes consolidados (RF-RA-03, RF-RA-04)', () => {
     expect(meta.meta_satisfactorio_pct).toBe(70);
   });
 
-  it('combina filtros de promoción, módulo y momento de análisis', async () => {
+  it('combina filtros de promoción, componente de formación y semestre académico', async () => {
     const { id_cohorte: idCohorte } = await idDe("SELECT id_cohorte FROM cohortes WHERE nombre = 'Sintética II'");
     const { id_modulo: idModulo } = await idDe("SELECT id_modulo FROM modulos_curriculares WHERE nombre = 'Investigativo'");
-    const res = await coord.get(`/ra/reportes?cohorte=${idCohorte}&modulo=${idModulo}&momento=fin-IV`);
-    comparar(res.body.data.porRA, oraculo({ cohorte: 'Sintética II', modulo: 'Investigativo', semestreTope: 4 }, catalogo));
+    const res = await coord.get(`/ra/reportes?cohorte=${idCohorte}&modulo=${idModulo}`);
+    comparar(res.body.data.porRA, oraculo({ cohorte: 'Sintética II', modulo: 'Investigativo' }, catalogo));
 
-    const inicio = await coord.get('/ra/reportes?momento=inicio-III');
-    comparar(inicio.body.data.porRA, oraculo({ semestreTope: 2 }, catalogo));
-    expect(inicio.body.data.porRA.find((r) => r.grupo === 'RA5').evaluados).toBe(0); // RA5 se evalúa desde el semestre III
+    const semestre = await coord.get('/ra/reportes?periodo=2024-B');
+    comparar(semestre.body.data.porRA, oraculo({ periodo: '2024-B' }, catalogo));
+  });
+
+  it('agrupado por estudiante trae su nota y nivel en cada RA, y el perfil de un estudiante', async () => {
+    const res = await coord.get('/ra/reportes?agrupar=estudiante');
+    const totalUnidades = oraculo({}, catalogo).reduce((s, u) => s + u.evaluados, 0);
+    const conDetalle = res.body.data.filas.reduce((s, f) => s + Object.keys(f.detalle).length, 0);
+    expect(conDetalle).toBe(totalUnidades);
+    for (const f of res.body.data.filas) expect(Object.keys(f.detalle).length).toBe(f.evaluados);
+
+    const { id_usuario: idEst } = await idDe('SELECT id_usuario FROM usuarios WHERE email = $1', [datos.estudiantes[0].email]);
+    const perfil = (await coord.get(`/ra/reportes?estudiante=${idEst}`)).body.data;
+    const propias = new Set(datos.calificaciones.filter((n) => n.estudiante === datos.estudiantes[0].email).map((n) => `${n.curso}|${n.ra}`));
+    expect(perfil.detalleEstudiante).toHaveLength(propias.size);
+    expect(perfil.detalleEstudiante.every((d) => (d.completo ? d.nivel !== null : d.total === null))).toBe(true);
+    expect((await coord.get('/ra/reportes')).body.data).not.toHaveProperty('detalleEstudiante');
   });
 
   it('agrupa por curso, módulo, promoción y estudiante', async () => {
