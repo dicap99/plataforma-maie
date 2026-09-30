@@ -32,11 +32,42 @@ describe('API MaIE — esqueleto', () => {
     expect(res.status).toBe(403);
   });
 
-  it('rol permitido sobre endpoint pendiente (módulo 2) → 501', async () => {
+  it('rol permitido sobre endpoint pendiente (módulo 3) → 501', async () => {
     const res = await request(app)
-      .get('/api/v1/ra/reportes')
+      .get('/api/v1/eval-docente/periodos')
       .set('Authorization', `Bearer ${tokenPara('coordinador')}`);
     expect(res.status).toBe(501);
+  });
+
+  it.each(['/api/v1/ra/rubricas', '/api/v1/ra/evaluaciones?curso=1', '/api/v1/ra/reportes', '/api/v1/admin/cursos'])(
+    'estudiante no consulta resultados de aprendizaje: %s → 403',
+    async (ruta) => {
+      const res = await request(app).get(ruta).set('Authorization', `Bearer ${tokenPara('estudiante')}`);
+      expect(res.status).toBe(403);
+    },
+  );
+
+  it('calificación fuera de 0–5 → 400 antes de tocar la base de datos', async () => {
+    const res = await request(app)
+      .post('/api/v1/ra/evaluaciones')
+      .set('Authorization', `Bearer ${tokenPara('docente')}`)
+      .send({ id_curso: 1, calificaciones: [{ id_estudiante: '6f1c1a52-8d0b-4f7e-9a51-3f0c2a7d9b10', id_criterio: 1, calificacion: 5.01 }] });
+    expect(res.status).toBe(400);
+  });
+
+  it('coordinación no registra calificaciones de rúbrica (las registra el docente) → 403', async () => {
+    const res = await request(app)
+      .post('/api/v1/ra/evaluaciones')
+      .set('Authorization', `Bearer ${tokenPara('coordinador')}`)
+      .send({});
+    expect(res.status).toBe(403);
+  });
+
+  it('agrupación de reporte desconocida → 400', async () => {
+    const res = await request(app)
+      .get('/api/v1/ra/reportes?agrupar=profesor')
+      .set('Authorization', `Bearer ${tokenPara('coordinador')}`);
+    expect(res.status).toBe(400);
   });
 
   it('login con datos inválidos → 400', async () => {
