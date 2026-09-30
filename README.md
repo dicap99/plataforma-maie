@@ -43,8 +43,9 @@ cd frontend && npm install && npm run dev                           # http://loc
 Usuario inicial (seed): `coordinacion.maie@udenar.edu.co` / `CambiarMaIE2026`. **Cambiar tras el primer ingreso.**
 
 > **Cambios de esquema:** no hay migraciones; `init.sql` y `seed.sql` solo corren al crear el volumen de la BD.
-> Tras actualizar el esquema (p. ej. el Módulo 2), recree la base con `docker compose down -v && docker compose up -d db`
-> y vuelva a importar el libro del Módulo 1.
+> Para conservar los datos de una base existente aplique los scripts de `database/migraciones/` (respalde antes con
+> `pg_dump`), p. ej. `docker compose exec -T db psql -v ON_ERROR_STOP=1 -U maie_admin -d maie_db < database/migraciones/2026-09-30_modulo2_ra.sql`.
+> La alternativa es recrear la base (`docker compose down -v && docker compose up -d db`) y reimportar el libro del Módulo 1.
 
 Datos sintéticos del Módulo 2 (promociones «Sintética I…V», docentes y estudiantes con correos `@sintetico.maie.local`,
 ofertas y notas de rúbrica; misma semilla → mismos datos):
