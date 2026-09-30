@@ -25,7 +25,11 @@ export const MENU_POR_ROL = {
     {
       grupo: 'Resultados de aprendizaje',
       icono: 'fact_check',
-      items: [{ to: '/coordinacion/ra', label: 'Consolidado académico', icono: 'analytics' }],
+      items: [
+        { to: '/coordinacion/ra', label: 'Consolidado académico', icono: 'analytics', end: true },
+        { to: '/coordinacion/ra/rubricas', label: 'Matriz de rúbricas', icono: 'rule' },
+        { to: '/coordinacion/ra/cursos', label: 'Cursos y matrícula', icono: 'menu_book' },
+      ],
     },
     {
       grupo: 'Evaluación docente',

@@ -14,7 +14,9 @@ import UsuariosPage from '../features/admin/UsuariosPage.jsx'
 import PerfilDocentePage from '../features/admin/PerfilDocentePage.jsx'
 import MisCursosPage from '../features/ra/MisCursosPage.jsx'
 import PlanillaRubricaPage from '../features/ra/PlanillaRubricaPage.jsx'
-import HistogramaRAChart from '../features/ra/HistogramaRAChart.jsx'
+import ConsolidadoRAPage from '../features/ra/ConsolidadoRAPage.jsx'
+import MatrizRubricasPage from '../features/ra/MatrizRubricasPage.jsx'
+import OfertasCursoPage from '../features/ra/OfertasCursoPage.jsx'
 import FormularioAcuerdo058 from '../features/evalDocente/FormularioAcuerdo058.jsx'
 import DocenteResultadoView from '../features/evalDocente/DocenteResultadoView.jsx'
 
@@ -37,7 +39,10 @@ export default function AppRouter() {
             <Route path="datos" element={<DatosProgramaPage />} />
             <Route path="presupuesto" element={<PresupuestoDashboard />} />
             <Route path="usuarios" element={<UsuariosPage />} />
-            <Route path="ra" element={<HistogramaRAChart />} />
+            <Route path="ra" element={<ConsolidadoRAPage />} />
+            <Route path="ra/rubricas" element={<MatrizRubricasPage />} />
+            <Route path="ra/cursos" element={<OfertasCursoPage />} />
+            <Route path="ra/cursos/:idCurso" element={<PlanillaRubricaPage soloLectura />} />
             <Route path="evaluacion-coordinacion" element={<FormularioAcuerdo058 tipo="EC" />} />
           </Route>
 
