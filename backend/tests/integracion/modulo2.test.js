@@ -34,7 +34,7 @@ let coord;
 let rubricas; // { RA1: [{ id_criterio, orden, peso_porcentaje }] }
 
 // Oráculo: reproduce en JS, a partir de los datos generados, lo que deben devolver los reportes.
-const oraculo = ({ cohorte, modulo, periodo } = {}, catalogo = []) => {
+const oraculo = ({ cohorte, modulo, periodo, clase, docente } = {}, catalogo = []) => {
   const cursos = new Map(datos.cursos.map((c) => [c.clave, c]));
   const kat = new Map(catalogo.map((k) => [k.codigo, k]));
   const celdas = new Map();
@@ -44,6 +44,8 @@ const oraculo = ({ cohorte, modulo, periodo } = {}, catalogo = []) => {
     if (cohorte && c.cohorte !== cohorte) continue;
     if (modulo && k.modulo !== modulo) continue;
     if (periodo && c.periodo !== periodo) continue;
+    if (clase && c.clase !== clase) continue;
+    if (docente && !c.docentes.includes(docente)) continue;
     const clave = `${n.curso}|${n.estudiante}|${n.ra}`;
     if (!celdas.has(clave)) celdas.set(clave, { estudiante: n.estudiante, ra: n.ra, notas: {} });
     const criterio = rubricas[n.ra].find((x) => x.orden === n.orden);
@@ -144,6 +146,14 @@ describe('Reportes consolidados (RF-RA-03, RF-RA-04)', () => {
     comparar(semestre.body.data.porRA, oraculo({ periodo: '2024-B' }, catalogo));
   });
 
+  it('filtra por clase y por docente asignado en cada semestre', async () => {
+    const { id_clase: idClase } = await idDe("SELECT id_clase FROM clases WHERE nombre = 'Robótica'");
+    comparar((await coord.get(`/ra/reportes?clase=${idClase}`)).body.data.porRA, oraculo({ clase: 'Robótica' }, catalogo));
+    const email = datos.docentes[2].email;
+    const { id_usuario: idDoc } = await idDe('SELECT id_usuario FROM usuarios WHERE email = $1', [email]);
+    comparar((await coord.get(`/ra/reportes?docente=${idDoc}`)).body.data.porRA, oraculo({ docente: email }, catalogo));
+  });
+
   it('agrupado por estudiante trae su nota y nivel en cada RA, y el perfil de un estudiante', async () => {
     const res = await coord.get('/ra/reportes?agrupar=estudiante');
     const totalUnidades = oraculo({}, catalogo).reduce((s, u) => s + u.evaluados, 0);
@@ -183,6 +193,35 @@ describe('Reportes consolidados (RF-RA-03, RF-RA-04)', () => {
   });
 });
 
+describe('Clases con identificador único (RF-ADM-01)', () => {
+  it('lista las clases del PEP ligadas a su curso del plan', async () => {
+    const res = await coord.get('/admin/clases');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(19);
+    expect(res.body.data.find((c) => c.nombre === 'Robótica')).toMatchObject({ codigo: 'CE2-01', curso_plan: 'MaIE-CE2', ras: ['RA2'] });
+    expect(res.body.data.find((c) => c.nombre === 'Robótica').ofertas).toBeGreaterThan(0);
+  });
+
+  it('genera el código, exige nombre único y protege las clases ya ofertadas', async () => {
+    const { id_catalogo: ce2 } = await idDe("SELECT id_catalogo FROM cursos_catalogo WHERE codigo = 'MaIE-CE2'");
+    const { id_catalogo: ce1 } = await idDe("SELECT id_catalogo FROM cursos_catalogo WHERE codigo = 'MaIE-CE1'");
+    const nueva = await coord.post('/admin/clases', { nombre: 'Visión por Computador', id_catalogo: ce2 });
+    expect(nueva.status).toBe(201);
+    expect(nueva.body.data).toMatchObject({ codigo: 'CE2-04', ofertas: 0, activa: true });
+    expect((await coord.post('/admin/clases', { nombre: 'visión por computador', id_catalogo: ce1 })).status).toBe(409);
+
+    const docente = conToken(await login(datos.docentes[0].email));
+    expect((await docente.post('/admin/clases', { nombre: 'X', id_catalogo: ce2 })).status).toBe(403);
+
+    const { id_clase: robotica } = await idDe("SELECT id_clase FROM clases WHERE nombre = 'Robótica'");
+    expect((await coord.put(`/admin/clases/${robotica}`, { nombre: 'Robótica', id_catalogo: ce1 })).status).toBe(409);
+    expect((await coord.delete(`/admin/clases/${robotica}`)).status).toBe(409);
+    expect((await coord.put(`/admin/clases/${nueva.body.data.id_clase}`, { nombre: 'Visión Artificial', id_catalogo: ce1, activa: false })).body.data)
+      .toMatchObject({ nombre: 'Visión Artificial', curso_plan: 'MaIE-CE1', activa: false });
+    expect((await coord.delete(`/admin/clases/${nueva.body.data.id_clase}`)).status).toBe(200);
+  });
+});
+
 describe('Ofertas de curso, matrícula y calificación (RF-RA-02)', () => {
   const cohorte = 'Sintética V';
   let idCohorte;
@@ -199,15 +238,16 @@ describe('Ofertas de curso, matrícula y calificación (RF-RA-02)', () => {
   });
 
   it('Coordinación crea una oferta con docente y matricula a la promoción (sin retirados)', async () => {
-    const { id_catalogo: idCatalogo } = await idDe("SELECT id_catalogo FROM cursos_catalogo WHERE codigo = 'MaIE-CE2'");
+    const { id_clase: idClase } = await idDe("SELECT id_clase FROM clases WHERE nombre = 'Aprendizaje Profundo'");
     const { id_usuario: idDocente } = await idDe('SELECT id_usuario FROM usuarios WHERE email = $1', [docenteA.email]);
     const res = await coord.post('/admin/cursos', {
-      id_catalogo: idCatalogo, id_cohorte: idCohorte, periodo: '2027-A', nombre: 'Aprendizaje Profundo', docentes: [idDocente],
+      id_clase: idClase, id_cohorte: idCohorte, periodo: '2027-A', docentes: [idDocente],
     });
     expect(res.status).toBe(201);
     oferta = res.body.data;
-    expect(oferta).toMatchObject({ codigo: 'MaIE-CE2', nombre: 'Aprendizaje Profundo', ras: ['RA2'], criterios: 4 });
-    expect((await coord.post('/admin/cursos', { id_catalogo: idCatalogo, id_cohorte: idCohorte, periodo: '2027-A' })).status).toBe(409);
+    expect(oferta).toMatchObject({ codigo: 'MaIE-CE2', clase_codigo: 'CE2-02', nombre: 'Aprendizaje Profundo', ras: ['RA2'], criterios: 4 });
+    expect((await coord.post('/admin/cursos', { id_clase: idClase, id_cohorte: idCohorte, periodo: '2027-A' })).status).toBe(409);
+    expect((await coord.get(`/admin/cursos?periodo=2027-A&docente=${idDocente}`)).body.data.map((c) => c.id_curso)).toEqual([oferta.id_curso]);
 
     const activos = datos.estudiantes.filter((e) => e.cohorte === cohorte && e.estado !== 'retirado').length;
     const mat = await coord.post(`/admin/cursos/${oferta.id_curso}/estudiantes/cohorte`);

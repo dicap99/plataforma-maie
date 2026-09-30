@@ -17,6 +17,16 @@ const validarRol = async (ids, rol, etiqueta) => {
 const detalle = async (id) => ({ ...(await repository.get(id)), estudiantes: await repository.estudiantes(id) });
 
 const guardar = async (id, body) => {
+  const clase = await repository.clase(body.id_clase);
+  if (!clase) throw ApiError.badRequest('La clase no existe');
+  if (!clase.activa && !id) throw ApiError.badRequest('La clase está inactiva; actívela para ofertarla');
+  if (id) {
+    const actual = await repository.get(id);
+    if (!actual) throw ApiError.notFound('Curso no encontrado');
+    if (actual.id_catalogo !== clase.id_catalogo && (await repository.contarNotas(id))) {
+      throw ApiError.conflict('No se puede cambiar a una clase de otro curso del plan: la oferta ya tiene calificaciones');
+    }
+  }
   const docentes = unicos(body.docentes);
   await validarRol(docentes, ROLES.DOCENTE, 'docente');
   const idCurso = await db.withTransaction(async (cliente) => {
@@ -40,7 +50,9 @@ module.exports = {
       cohorte: query.cohorte ?? null,
       periodo: query.periodo ?? null,
       catalogo: query.catalogo ?? null,
-      docente: docenteFiltro(user),
+      clase: query.clase ?? null,
+      // El docente solo ve sus ofertas; Coordinación puede consultar la carga de un docente.
+      docente: docenteFiltro(user) ?? query.docente ?? null,
     }),
 
   async obtener({ params, user }) {

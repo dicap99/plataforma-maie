@@ -15,9 +15,10 @@ const filtros = [
   authenticate,
   authorize(COORDINADOR),
   query('agrupar').optional().isIn(AGRUPACIONES).withMessage(`agrupar debe ser uno de: ${AGRUPACIONES.join(', ')}`),
-  ...['cohorte', 'modulo', 'catalogo', 'curso', 'ra'].map((q) => query(q).optional().isInt({ min: 1 }).withMessage(`${q} inválido`).toInt()),
+  ...['cohorte', 'modulo', 'catalogo', 'curso', 'ra', 'clase'].map((q) => query(q).optional().isInt({ min: 1 }).withMessage(`${q} inválido`).toInt()),
   query('periodo').optional().matches(/^[0-9]{4}-[AB]$/).withMessage('Periodo con formato AAAA-A o AAAA-B'),
   query('estudiante').optional().isUUID().withMessage('Estudiante inválido'),
+  query('docente').optional().isUUID().withMessage('Docente inválido'),
   validate,
 ];
 

@@ -216,16 +216,31 @@ CREATE TABLE cursos_catalogo (
     orden SMALLINT UNIQUE NOT NULL
 );
 
--- Oferta de un curso del catálogo a una promoción en un periodo (base para los módulos 2 y 3)
+-- Clases: asignatura concreta con identificador único (p. ej. «Robótica»), ligada al único curso del
+-- plan que cubre (y por él a los RA que evalúa). El código lo genera la plataforma (CE2-01, CB1-01…).
+CREATE TABLE clases (
+    id_clase SERIAL PRIMARY KEY,
+    codigo VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(150) NOT NULL,
+    id_catalogo INT NOT NULL REFERENCES cursos_catalogo(id_catalogo),
+    descripcion TEXT,
+    activa BOOLEAN NOT NULL DEFAULT TRUE,
+    CONSTRAINT unq_clase_catalogo UNIQUE (id_clase, id_catalogo)
+);
+CREATE UNIQUE INDEX unq_clase_nombre ON clases (LOWER(nombre));
+
+-- Oferta: una clase dictada a una promoción en un semestre académico, con sus docentes (que cambian
+-- por periodo). id_catalogo se guarda por comodidad y la FK compuesta lo mantiene igual al de la clase.
 CREATE TABLE cursos (
     id_curso SERIAL PRIMARY KEY,
-    id_catalogo INT NOT NULL REFERENCES cursos_catalogo(id_catalogo),
+    id_clase INT NOT NULL,
+    id_catalogo INT NOT NULL,
     id_cohorte INT NOT NULL REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,
     periodo periodo_academico NOT NULL,
-    nombre VARCHAR(150), -- nombre propio de la oferta, p. ej. electivas: 'Aprendizaje Profundo'
     grupo SMALLINT NOT NULL DEFAULT 1 CHECK (grupo > 0),
     creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unq_oferta UNIQUE (id_catalogo, id_cohorte, periodo, grupo)
+    FOREIGN KEY (id_clase, id_catalogo) REFERENCES clases(id_clase, id_catalogo) ON UPDATE CASCADE,
+    CONSTRAINT unq_oferta UNIQUE (id_clase, id_cohorte, periodo, grupo)
 );
 
 -- Una oferta puede tener varios docentes (p. ej. cursos compartidos con invitados externos)

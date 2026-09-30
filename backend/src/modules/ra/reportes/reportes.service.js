@@ -35,6 +35,8 @@ const filtrosDe = (query) => ({
   curso: query.curso,
   ra: query.ra,
   estudiante: query.estudiante,
+  clase: query.clase,
+  docente: query.docente,
 });
 
 const comparar = (a, b) => (a < b ? -1 : a > b ? 1 : 0);

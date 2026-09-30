@@ -28,7 +28,7 @@ describe('Documentación OpenAPI', () => {
   });
 
   it('documenta el Módulo 2 implementado (ya no como pendiente)', () => {
-    for (const ruta of ['/ra/rubricas', '/ra/rubricas/{idRa}', '/ra/evaluaciones', '/ra/reportes', '/ra/reportes/exportar', '/admin/cursos', '/admin/cursos/{id}/estudiantes', '/ra/periodos', '/ra/periodos/{periodo}']) {
+    for (const ruta of ['/ra/rubricas', '/ra/rubricas/{idRa}', '/ra/evaluaciones', '/ra/reportes', '/ra/reportes/exportar', '/admin/cursos', '/admin/cursos/{id}/estudiantes', '/ra/periodos', '/ra/periodos/{periodo}', '/admin/clases', '/admin/clases/{id}']) {
       expect(openapi.paths[ruta]).toBeDefined();
     }
     const tags = Object.values(openapi.paths).flatMap((r) => Object.values(r).flatMap((op) => op.tags ?? []));

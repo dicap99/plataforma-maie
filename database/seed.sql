@@ -43,6 +43,33 @@ FROM (VALUES
 ) AS c(codigo, nombre, modulo, semestre, orden)
 JOIN modulos_curriculares m ON m.nombre = c.modulo;
 
+-- Clases con su identificador (PEP, sección 3.3: cursos vigentes y los que se han ofertado en
+-- profundización y electivas). Coordinación agrega nuevas clases desde la plataforma.
+INSERT INTO clases (codigo, nombre, id_catalogo)
+SELECT v.codigo, v.nombre, k.id_catalogo
+FROM (VALUES
+  ('CB1-01', 'Sistemas Lineales de Múltiples Variables', 'MaIE-CB1'),
+  ('CB2-01', 'Optimización', 'MaIE-CB2'),
+  ('CP1-01', 'Introducción a la Profundización', 'MaIE-CP1'),
+  ('CP2-01', 'Control Inteligente', 'MaIE-CP2'),
+  ('CP2-02', 'Comunicaciones Inalámbricas', 'MaIE-CP2'),
+  ('CP2-03', 'Microrredes', 'MaIE-CP2'),
+  ('CP3-01', 'Optimización Distribuida', 'MaIE-CP3'),
+  ('CP3-02', 'Procesos Estocásticos', 'MaIE-CP3'),
+  ('CP3-03', 'Smart Grids', 'MaIE-CP3'),
+  ('CE1-01', 'Reinforcement Learning', 'MaIE-CE1'),
+  ('CE1-02', 'Ingeniería de RF', 'MaIE-CE1'),
+  ('CE1-03', 'Sistemas Fotovoltaicos con Machine Learning', 'MaIE-CE1'),
+  ('CE2-01', 'Robótica', 'MaIE-CE2'),
+  ('CE2-02', 'Aprendizaje Profundo', 'MaIE-CE2'),
+  ('CE2-03', 'Teoría de Juegos', 'MaIE-CE2'),
+  ('CI1-01', 'Formulación de Proyectos de Investigación', 'MaIE-CI1'),
+  ('TESIS-I-01', 'Tesis I', 'MaIE-Tesis-I'),
+  ('CI2-01', 'Redacción de Artículos Científicos', 'MaIE-CI2'),
+  ('TESIS-II-01', 'Tesis II', 'MaIE-Tesis-II')
+) AS v(codigo, nombre, curso)
+JOIN cursos_catalogo k ON k.codigo = v.curso;
+
 -- Estrategias de evaluación sugeridas por RA (Tabla 4)
 INSERT INTO ra_estrategias (id_ra, id_estrategia)
 SELECT r.id_ra, e.id_estrategia

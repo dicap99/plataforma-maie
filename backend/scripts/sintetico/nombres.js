@@ -16,7 +16,7 @@ const APELLIDOS = [
   'Rojas', 'Salcedo', 'Serna', 'Solano', 'Tobón', 'Trujillo', 'Urrego', 'Valencia', 'Villegas', 'Zuluaga',
 ];
 
-// Temas posibles de las ofertas cuyo nombre cambia en cada promoción (profundización y electivas).
+// Clases posibles de los cursos del plan con varias opciones (profundización y electivas), como en seed.sql.
 const TEMAS = {
   'MaIE-CP2': ['Control Inteligente', 'Comunicaciones Inalámbricas', 'Microrredes'],
   'MaIE-CP3': ['Optimización Distribuida', 'Procesos Estocásticos', 'Smart Grids'],

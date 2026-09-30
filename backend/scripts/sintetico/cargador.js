@@ -61,12 +61,14 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
       datos.estudiantes.map((e) => e.estado)],
   );
 
-  const catalogo = mapa((await cliente.query('SELECT id_catalogo, codigo FROM cursos_catalogo')).rows, 'codigo', 'id_catalogo');
+  const clases = new Map((await cliente.query('SELECT id_clase, id_catalogo, nombre FROM clases')).rows.map((c) => [c.nombre, c]));
   const cursos = new Map();
   for (const c of datos.cursos) {
+    const clase = clases.get(c.clase);
+    if (!clase) throw new Error(`No existe la clase «${c.clase}» (seed.sql)`);
     const { rows } = await cliente.query(
-      'INSERT INTO cursos (id_catalogo, id_cohorte, periodo, nombre) VALUES ($1, $2, $3, $4) RETURNING id_curso',
-      [catalogo.get(c.catalogo), cohortes.get(c.cohorte), c.periodo, c.nombre],
+      'INSERT INTO cursos (id_clase, id_catalogo, id_cohorte, periodo) VALUES ($1, $2, $3, $4) RETURNING id_curso',
+      [clase.id_clase, clase.id_catalogo, cohortes.get(c.cohorte), c.periodo],
     );
     cursos.set(c.clave, rows[0].id_curso);
   }

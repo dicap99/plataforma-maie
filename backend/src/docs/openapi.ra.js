@@ -39,9 +39,10 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
     Oferta: {
       type: 'object',
       properties: {
-        id_curso: { type: 'integer' }, id_catalogo: { type: 'integer' }, codigo: { type: 'string' },
-        nombre: { type: 'string', description: 'Nombre de la oferta o, si no tiene, el del catálogo' },
-        nombre_catalogo: { type: 'string' }, nombre_oferta: { type: 'string', nullable: true },
+        id_curso: { type: 'integer' }, id_clase: { type: 'integer' }, clase_codigo: { type: 'string', example: 'CE2-01' },
+        nombre: { type: 'string', description: 'Nombre de la clase', example: 'Robótica' },
+        id_catalogo: { type: 'integer' }, codigo: { type: 'string', description: 'Curso del plan', example: 'MaIE-CE2' },
+        nombre_catalogo: { type: 'string' },
         id_cohorte: { type: 'integer' }, cohorte: { type: 'string' }, periodo: PERIODO, grupo: { type: 'integer' },
         semestre: { type: 'integer' }, modulo: { type: 'string' },
         calificacion_abierta: { type: 'boolean', description: 'Si Coordinación abrió la calificación del semestre de la oferta' },
@@ -54,12 +55,31 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
     },
     OfertaEntrada: {
       type: 'object',
-      required: ['id_catalogo', 'id_cohorte', 'periodo'],
+      required: ['id_clase', 'id_cohorte', 'periodo'],
       properties: {
-        id_catalogo: { type: 'integer' }, id_cohorte: { type: 'integer' }, periodo: PERIODO,
-        nombre: { type: 'string', nullable: true, maxLength: 150, example: 'Aprendizaje Profundo' },
+        id_clase: { type: 'integer', description: 'Clase a ofertar (define el curso del plan y sus RA)' },
+        id_cohorte: { type: 'integer' }, periodo: PERIODO,
         grupo: { type: 'integer', minimum: 1, default: 1 },
         docentes: { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Usuarios con rol docente' },
+      },
+    },
+    Clase: {
+      type: 'object',
+      properties: {
+        id_clase: { type: 'integer' }, codigo: { type: 'string', example: 'CE2-01', description: 'Generado por la plataforma' },
+        nombre: { type: 'string', example: 'Robótica' }, descripcion: { type: 'string', nullable: true }, activa: { type: 'boolean' },
+        id_catalogo: { type: 'integer' }, curso_plan: { type: 'string', example: 'MaIE-CE2' }, curso_plan_nombre: { type: 'string' },
+        semestre: { type: 'integer' }, id_modulo: { type: 'integer' }, modulo: { type: 'string' },
+        ras: { type: 'array', items: { type: 'string' } }, ofertas: { type: 'integer' },
+      },
+    },
+    ClaseEntrada: {
+      type: 'object',
+      required: ['nombre', 'id_catalogo'],
+      properties: {
+        nombre: { type: 'string', maxLength: 150, description: 'Único (sin distinguir mayúsculas)' },
+        id_catalogo: { type: 'integer', description: 'Curso del plan que cubre; no se cambia si la clase ya se ofertó' },
+        descripcion: { type: 'string', nullable: true }, activa: { type: 'boolean', default: true },
       },
     },
     EstudianteMatriculado: {
@@ -166,7 +186,8 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
   const filtrosReporte = [
     { name: 'agrupar', in: 'query', schema: { type: 'string', enum: AGRUPACIONES, default: 'ra' } },
     entero('cohorte', 'Promoción'), entero('modulo', 'Módulo curricular'), entero('catalogo', 'Curso del plan'),
-    entero('curso', 'Oferta'), entero('ra', 'Resultado de aprendizaje'),
+    entero('curso', 'Oferta'), entero('ra', 'Resultado de aprendizaje'), entero('clase', 'Clase'),
+    { name: 'docente', in: 'query', schema: { type: 'string', format: 'uuid' }, description: 'Ofertas dictadas por el docente' },
     { name: 'periodo', in: 'query', schema: PERIODO, description: 'Semestre académico de la oferta' },
     { name: 'estudiante', in: 'query', schema: { type: 'string', format: 'uuid' } },
   ];
@@ -179,10 +200,31 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
         responses: { 200: exito({ type: 'array', items: ref('CursoCatalogo') }), ...errores(401, 403) },
       },
     },
+    '/admin/clases': {
+      get: {
+        tags: [TAG_CURSOS], summary: 'Clases con identificador único', description: roles(['coordinador', 'docente']),
+        parameters: [entero('catalogo', 'Curso del plan')],
+        responses: { 200: exito({ type: 'array', items: ref('Clase') }), ...errores(400, 401, 403) },
+      },
+      post: {
+        tags: [TAG_CURSOS], summary: 'Crear clase (código generado)', description: `409 si el nombre ya existe. ${roles(['coordinador'])}`,
+        requestBody: cuerpo(ref('ClaseEntrada')), responses: { 201: exito(ref('Clase'), 'Creada'), ...errores(400, 401, 403, 409) },
+      },
+    },
+    '/admin/clases/{id}': {
+      parameters: [entero('id', 'id_clase', true)],
+      get: { tags: [TAG_CURSOS], summary: 'Obtener clase', responses: { 200: exito(ref('Clase')), ...errores(401, 403, 404) } },
+      put: { tags: [TAG_CURSOS], summary: 'Actualizar clase', description: roles(['coordinador']), requestBody: cuerpo(ref('ClaseEntrada')), responses: { 200: exito(ref('Clase')), ...errores(400, 401, 403, 404, 409) } },
+      delete: { tags: [TAG_CURSOS], summary: 'Eliminar clase', description: `409 si ya se ofertó (desactívela). ${roles(['coordinador'])}`, responses: { 200: exito({ type: 'object' }), ...errores(401, 403, 404, 409) } },
+    },
     '/admin/cursos': {
       get: {
         tags: [TAG_CURSOS], summary: 'Ofertas de curso', description: `El docente recibe solo sus ofertas. ${roles(['coordinador', 'docente'])}`,
-        parameters: [entero('cohorte', 'Promoción'), entero('catalogo', 'Curso del plan'), { name: 'periodo', in: 'query', schema: PERIODO }],
+        parameters: [
+          entero('cohorte', 'Promoción'), entero('catalogo', 'Curso del plan'), entero('clase', 'Clase'),
+          { name: 'periodo', in: 'query', schema: PERIODO },
+          { name: 'docente', in: 'query', schema: { type: 'string', format: 'uuid' }, description: 'Carga de un docente (solo Coordinación)' },
+        ],
         responses: { 200: exito({ type: 'array', items: ref('Oferta') }), ...errores(400, 401, 403) },
       },
       post: {

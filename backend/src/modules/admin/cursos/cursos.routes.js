@@ -20,10 +20,9 @@ const listaUuid = (campo) => [
 ];
 
 const reglasOferta = [
-  body('id_catalogo').isInt({ min: 1 }).withMessage('Curso del catálogo requerido').toInt(),
+  body('id_clase').isInt({ min: 1 }).withMessage('Clase requerida').toInt(),
   body('id_cohorte').isInt({ min: 1 }).withMessage('Promoción requerida').toInt(),
   body('periodo').matches(PERIODO).withMessage('Periodo con formato AAAA-A o AAAA-B'),
-  body('nombre').optional({ values: 'null' }).isString().trim().isLength({ max: 150 }),
   body('grupo').optional().isInt({ min: 1, max: 99 }).toInt(),
   body('docentes').optional().isArray().withMessage('docentes debe ser una lista'),
   body('docentes.*').isUUID().withMessage('docentes contiene identificadores inválidos'),
@@ -33,6 +32,8 @@ const reglasOferta = [
 const filtros = [
   query('cohorte').optional().isInt({ min: 1 }).toInt(),
   query('catalogo').optional().isInt({ min: 1 }).toInt(),
+  query('clase').optional().isInt({ min: 1 }).toInt(),
+  query('docente').optional().isUUID().withMessage('Docente inválido'),
   query('periodo').optional().matches(PERIODO).withMessage('Periodo con formato AAAA-A o AAAA-B'),
   validate,
 ];

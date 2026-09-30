@@ -1,5 +1,5 @@
 // Acceso a datos (PostgreSQL) — RF-ADM-01 / RF-RA-02 — Catálogo de cursos y ofertas por promoción
-// Tablas: cursos_catalogo, catalogo_ra, catalogo_ra_estrategias, cursos (oferta), curso_docentes,
+// Tablas: cursos_catalogo, catalogo_ra, catalogo_ra_estrategias, clases, cursos (oferta), curso_docentes,
 // curso_estudiantes, cohorte_estudiantes
 const db = require('../../../config/db');
 
@@ -22,8 +22,8 @@ const listCatalogo = async () =>
 
 // Oferta con catálogo, promoción, docentes, RA evaluados y avance de la calificación.
 const SELECT_OFERTA = `
-  SELECT c.id_curso, c.id_catalogo, k.codigo, k.nombre AS nombre_catalogo, c.nombre AS nombre_oferta,
-         COALESCE(c.nombre, k.nombre) AS nombre, c.id_cohorte, h.nombre AS cohorte, c.periodo, c.grupo,
+  SELECT c.id_curso, c.id_clase, cl.codigo AS clase_codigo, cl.nombre, c.id_catalogo, k.codigo,
+         k.nombre AS nombre_catalogo, c.id_cohorte, h.nombre AS cohorte, c.periodo, c.grupo,
          k.semestre, m.nombre AS modulo,
          COALESCE((SELECT p.abierto FROM periodos_calificacion_ra p WHERE p.periodo = c.periodo), FALSE)
            AS calificacion_abierta,
@@ -40,20 +40,22 @@ const SELECT_OFERTA = `
          (SELECT COUNT(*)::int FROM catalogo_ra cr JOIN rubricas_criterios rc USING (id_ra)
           WHERE cr.id_catalogo = c.id_catalogo) AS criterios
   FROM cursos c
+  JOIN clases cl ON cl.id_clase = c.id_clase
   JOIN cursos_catalogo k ON k.id_catalogo = c.id_catalogo
   JOIN modulos_curriculares m ON m.id_modulo = k.id_modulo
   JOIN cohortes h ON h.id_cohorte = c.id_cohorte`;
 
-const list = async ({ cohorte = null, periodo = null, catalogo = null, docente = null } = {}) =>
+const list = async ({ cohorte = null, periodo = null, catalogo = null, clase = null, docente = null } = {}) =>
   (await db.query(
     `${SELECT_OFERTA}
      WHERE ($1::int IS NULL OR c.id_cohorte = $1)
        AND ($2::text IS NULL OR c.periodo = $2)
        AND ($3::int IS NULL OR c.id_catalogo = $3)
-       AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM curso_docentes cd
-                                         WHERE cd.id_curso = c.id_curso AND cd.id_docente = $4))
-     ORDER BY c.periodo DESC, h.periodo_inicio DESC, k.orden, c.grupo`,
-    [cohorte, periodo, catalogo, docente],
+       AND ($4::int IS NULL OR c.id_clase = $4)
+       AND ($5::uuid IS NULL OR EXISTS (SELECT 1 FROM curso_docentes cd
+                                         WHERE cd.id_curso = c.id_curso AND cd.id_docente = $5))
+     ORDER BY c.periodo DESC, h.periodo_inicio DESC, k.orden, cl.nombre, c.grupo`,
+    [cohorte, periodo, catalogo, clase, docente],
   )).rows;
 
 const get = async (id) => (await db.query(`${SELECT_OFERTA} WHERE c.id_curso = $1`, [id])).rows[0] ?? null;
@@ -72,16 +74,17 @@ const estudiantes = async (id) =>
 
 const create = async (cliente, o) =>
   (await cliente.query(
-    `INSERT INTO cursos (id_catalogo, id_cohorte, periodo, nombre, grupo)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id_curso`,
-    [o.id_catalogo, o.id_cohorte, o.periodo, o.nombre || null, o.grupo ?? 1],
+    `INSERT INTO cursos (id_clase, id_catalogo, id_cohorte, periodo, grupo)
+     SELECT id_clase, id_catalogo, $2, $3, $4 FROM clases WHERE id_clase = $1
+     RETURNING id_curso`,
+    [o.id_clase, o.id_cohorte, o.periodo, o.grupo ?? 1],
   )).rows[0].id_curso;
 
 const update = async (cliente, id, o) =>
   (await cliente.query(
-    `UPDATE cursos SET id_catalogo = $2, id_cohorte = $3, periodo = $4, nombre = $5, grupo = $6
-     WHERE id_curso = $1`,
-    [id, o.id_catalogo, o.id_cohorte, o.periodo, o.nombre || null, o.grupo ?? 1],
+    `UPDATE cursos c SET id_clase = cl.id_clase, id_catalogo = cl.id_catalogo, id_cohorte = $3, periodo = $4, grupo = $5
+     FROM clases cl WHERE c.id_curso = $1 AND cl.id_clase = $2`,
+    [id, o.id_clase, o.id_cohorte, o.periodo, o.grupo ?? 1],
   )).rowCount;
 
 const remove = async (id) => (await db.query('DELETE FROM cursos WHERE id_curso = $1', [id])).rowCount > 0;
@@ -129,6 +132,10 @@ const esDocenteDe = async (idCurso, idUsuario) =>
   (await db.query('SELECT 1 FROM curso_docentes WHERE id_curso = $1 AND id_docente = $2', [idCurso, idUsuario]))
     .rowCount > 0;
 
+// Datos de la clase para validar la oferta (existe, activa, curso del plan).
+const clase = async (idClase) =>
+  (await db.query('SELECT id_clase, id_catalogo, activa FROM clases WHERE id_clase = $1', [idClase])).rows[0] ?? null;
+
 const existe = async (id) => (await db.query('SELECT 1 FROM cursos WHERE id_curso = $1', [id])).rowCount > 0;
 
 // Ids de la lista que no son usuarios con el rol indicado.
@@ -162,6 +169,7 @@ module.exports = {
   setEstudiantes,
   matricularCohorte,
   esDocenteDe,
+  clase,
   existe,
   noSonDelRol,
   fueraDeCohorte,

@@ -22,6 +22,16 @@ const CATALOGO = [
   { codigo: 'MaIE-CI2', semestre: 4, ras: ['RA5', 'RA6', 'RA7'] },
   { codigo: 'MaIE-Tesis-II', semestre: 4, ras: ['RA5', 'RA6', 'RA7'] },
 ];
+// Clase de los cursos del plan que tienen una sola (las demás se eligen de TEMAS), como en seed.sql.
+const CLASE_UNICA = {
+  'MaIE-CB1': 'Sistemas Lineales de Múltiples Variables',
+  'MaIE-CB2': 'Optimización',
+  'MaIE-CP1': 'Introducción a la Profundización',
+  'MaIE-CI1': 'Formulación de Proyectos de Investigación',
+  'MaIE-Tesis-I': 'Tesis I',
+  'MaIE-CI2': 'Redacción de Artículos Científicos',
+  'MaIE-Tesis-II': 'Tesis II',
+};
 const CRITERIOS_POR_RA = 4;
 // Dificultad relativa de cada RA: hace que algunos RA queden por debajo de la meta del programa,
 // como el caso que motivó los reportes («no salen altos… ¿por qué?»).
@@ -93,7 +103,7 @@ const generar = ({
         catalogo: k.codigo,
         cohorte: nombre,
         periodo: aPeriodo(periodo),
-        nombre: TEMAS[k.codigo] ? azar.elegir(TEMAS[k.codigo]) : null,
+        clase: TEMAS[k.codigo] ? azar.elegir(TEMAS[k.codigo]) : CLASE_UNICA[k.codigo],
         docentes: equipo,
       });
 
@@ -127,4 +137,4 @@ const generar = ({
   return { semilla, cohortes, docentes, estudiantes, cursos, inscripciones, calificaciones, periodosAbiertos };
 };
 
-module.exports = { generar, CATALOGO, CRITERIOS_POR_RA, DOMINIO, PREFIJO_COHORTE, aIndice, aPeriodo };
+module.exports = { generar, CATALOGO, CLASE_UNICA, CRITERIOS_POR_RA, DOMINIO, PREFIJO_COHORTE, aIndice, aPeriodo };

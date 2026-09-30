@@ -3,7 +3,7 @@
 // cursos_catalogo, modulos_curriculares, cohortes, usuarios, parametros_programa
 const db = require('../../../config/db');
 
-// Filtros combinables ($1…$7); el periodo es el semestre académico de la oferta.
+// Filtros combinables ($1…$9); el periodo es el semestre académico de la oferta.
 const FILTROS = `
       ($1::int IS NULL OR c.id_cohorte = $1)
   AND ($2::text IS NULL OR c.periodo = $2)
@@ -11,14 +11,17 @@ const FILTROS = `
   AND ($4::int IS NULL OR c.id_catalogo = $4)
   AND ($5::int IS NULL OR c.id_curso = $5)
   AND ($6::int IS NULL OR r.id_ra = $6)
-  AND ($7::uuid IS NULL OR u.id_usuario = $7)`;
+  AND ($7::uuid IS NULL OR u.id_usuario = $7)
+  AND ($8::int IS NULL OR c.id_clase = $8)
+  AND ($9::uuid IS NULL OR EXISTS (SELECT 1 FROM curso_docentes cd WHERE cd.id_curso = c.id_curso AND cd.id_docente = $9))`;
 
-const parametros = (f) => [f.cohorte, f.periodo, f.modulo, f.catalogo, f.curso, f.ra, f.estudiante]
+const parametros = (f) => [f.cohorte, f.periodo, f.modulo, f.catalogo, f.curso, f.ra, f.estudiante, f.clase, f.docente]
   .map((v) => (v === undefined ? null : v));
 
 const JOINS = `
   JOIN resultados_aprendizaje r ON r.id_ra = v.id_ra
   JOIN cursos c ON c.id_curso = v.id_curso
+  JOIN clases cl ON cl.id_clase = c.id_clase
   JOIN cursos_catalogo k ON k.id_catalogo = c.id_catalogo
   JOIN modulos_curriculares m ON m.id_modulo = k.id_modulo
   JOIN cohortes h ON h.id_cohorte = c.id_cohorte
@@ -29,7 +32,7 @@ const resultados = async (filtros) =>
   (await db.query(
     `SELECT v.id_curso, v.id_estudiante, v.id_ra, v.total, (v.calificados = v.criterios) AS completo,
             r.codigo AS ra, r.descripcion AS ra_descripcion,
-            c.periodo, c.grupo, c.id_catalogo, k.codigo AS curso_codigo, COALESCE(c.nombre, k.nombre) AS curso_nombre,
+            c.periodo, c.grupo, c.id_catalogo, c.id_clase, k.codigo AS curso_codigo, cl.nombre AS curso_nombre,
             k.semestre, k.orden AS curso_orden, m.id_modulo, m.nombre AS modulo,
             h.id_cohorte, h.nombre AS cohorte, h.periodo_inicio,
             u.identificacion, u.apellidos || ' ' || u.nombres AS estudiante
@@ -42,7 +45,7 @@ const resultados = async (filtros) =>
 // Notas por criterio con los mismos filtros (hoja de detalle de la exportación).
 const detalleCriterios = async (filtros) =>
   (await db.query(
-    `SELECT h.nombre AS cohorte, c.periodo, k.codigo AS curso_codigo, COALESCE(c.nombre, k.nombre) AS curso_nombre,
+    `SELECT h.nombre AS cohorte, c.periodo, k.codigo AS curso_codigo, cl.nombre AS curso_nombre,
             r.codigo AS ra, rc.orden, rc.nombre_criterio, rc.peso_porcentaje,
             u.identificacion, u.apellidos || ' ' || u.nombres AS estudiante, e.calificacion, e.nivel
      FROM evaluaciones_ra_estudiante e
