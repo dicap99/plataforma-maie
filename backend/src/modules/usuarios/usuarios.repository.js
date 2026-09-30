@@ -8,7 +8,8 @@ const SELECT = `
   FROM usuarios u
   LEFT JOIN docentes_perfil d ON d.id_usuario = u.id_usuario`;
 
-const list = async () => (await db.query(`${SELECT} ORDER BY u.rol, u.apellidos, u.nombres`)).rows;
+const list = async ({ rol = null } = {}) =>
+  (await db.query(`${SELECT} WHERE ($1::tipo_rol IS NULL OR u.rol = $1) ORDER BY u.rol, u.apellidos, u.nombres`, [rol])).rows;
 
 const get = async (id) => (await db.query(`${SELECT} WHERE u.id_usuario = $1`, [id])).rows[0] ?? null;
 

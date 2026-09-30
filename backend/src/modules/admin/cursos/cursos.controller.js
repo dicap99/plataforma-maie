@@ -3,6 +3,11 @@ const requestContext = require('../../../utils/requestContext');
 const { success } = require('../../../utils/apiResponse');
 const service = require('./cursos.service');
 
+// GET /api/v1/admin/cursos/catalogo
+const catalogo = asyncHandler(async (req, res) => {
+  success(res, await service.catalogo(requestContext(req)));
+});
+
 // GET /api/v1/admin/cursos
 const listar = asyncHandler(async (req, res) => {
   success(res, await service.listar(requestContext(req)));
@@ -28,4 +33,19 @@ const eliminar = asyncHandler(async (req, res) => {
   success(res, await service.eliminar(requestContext(req)));
 });
 
-module.exports = { listar, obtener, crear, actualizar, eliminar };
+// PUT /api/v1/admin/cursos/:id/docentes
+const asignarDocentes = asyncHandler(async (req, res) => {
+  success(res, await service.asignarDocentes(requestContext(req)));
+});
+
+// PUT /api/v1/admin/cursos/:id/estudiantes
+const inscribir = asyncHandler(async (req, res) => {
+  success(res, await service.inscribir(requestContext(req)));
+});
+
+// POST /api/v1/admin/cursos/:id/estudiantes/cohorte
+const matricularCohorte = asyncHandler(async (req, res) => {
+  success(res, await service.matricularCohorte(requestContext(req)));
+});
+
+module.exports = { catalogo, listar, obtener, crear, actualizar, eliminar, asignarDocentes, inscribir, matricularCohorte };

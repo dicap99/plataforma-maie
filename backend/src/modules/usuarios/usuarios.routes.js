@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 const authenticate = require('../../middlewares/authenticate');
 const authorize = require('../../middlewares/authorize');
 const validate = require('../../middlewares/validate');
@@ -26,7 +26,7 @@ const idValido = [param('id').isUUID().withMessage('Identificador inválido'), v
 const soloCoord = [authenticate, authorize(COORDINADOR)];
 
 // Montado en /api/v1/usuarios
-router.get('/', ...soloCoord, controller.listar);
+router.get('/', ...soloCoord, query('rol').optional().isIn(TODOS).withMessage(`Rol debe ser uno de: ${TODOS.join(', ')}`), validate, controller.listar);
 router.get('/:id', ...soloCoord, ...idValido, controller.obtener);
 router.post('/', ...soloCoord, ...reglas(true), controller.crear);
 router.put('/:id', ...soloCoord, ...idValido, ...reglas(false), controller.actualizar);

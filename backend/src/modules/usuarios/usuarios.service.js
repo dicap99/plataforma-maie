@@ -32,7 +32,7 @@ const guardar = async (id, body) => {
 };
 
 module.exports = {
-  listar: () => repository.list(),
+  listar: ({ query }) => repository.list({ rol: query.rol ?? null }),
 
   async obtener({ params }) {
     const usuario = await repository.get(params.id);

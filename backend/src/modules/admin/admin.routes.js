@@ -9,7 +9,8 @@ router.use('/', require('./reportes/reportes.routes')); // /reportes/estadistica
 router.use('/docentes', require('./docentes/docentes.routes')); // /docentes/me/perfil
 router.use('/importaciones', require('./importaciones/importaciones.routes'));
 router.use('/plantillas', require('./plantillas/plantillas.routes'));
-router.use('/cursos', require('./cursos/cursos.routes'));
+router.use('/cursos', require('./cursos/cursos.routes')); // catálogo y ofertas por promoción
+router.use('/cohortes', require('./matriculas/matriculas.routes')); // /cohortes/:id/estudiantes
 router.use('/', require('./recursos/recursos.routes')); // /recursos y CRUD de cada hoja
 
 module.exports = router;
