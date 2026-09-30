@@ -7,7 +7,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest",
-    "test:integracion": "jest --config jest.integracion.config.js --runInBand"
+    "test:integracion": "jest --config jest.integracion.config.js --runInBand",
+    "datos:sinteticos": "node scripts/poblarSintetico.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
