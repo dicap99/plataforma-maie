@@ -8,7 +8,12 @@ const pct = new Intl.NumberFormat('es-CO', { style: 'percent', maximumFractionDi
 
 const vacio = (v) => v === null || v === undefined || Number.isNaN(v)
 
+// Las fechas del API llegan como 'AAAA-MM-DD' (sin hora): se leen en UTC para que
+// no se corran un día al formatearlas en la zona local.
+const df = new Intl.DateTimeFormat('es-CO', { dateStyle: 'long', timeZone: 'UTC' })
+
 export const numero = (v) => (vacio(v) ? '—' : nf.format(v))
+export const fecha = (v) => (vacio(v) || v === '' ? '—' : df.format(new Date(v)))
 export const pesos = (v) => (vacio(v) ? '—' : moneda.format(v))
 export const pesosCompactos = (v) => (vacio(v) ? '—' : monedaCompacta.format(v))
 export const porcentaje = (v) => (vacio(v) ? '—' : pct.format(v))
