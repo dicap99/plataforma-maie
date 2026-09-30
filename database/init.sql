@@ -206,16 +206,33 @@ CREATE TABLE modulos_curriculares (
     descripcion TEXT
 );
 
--- Cursos dictados y matrícula individual (base para los módulos 2 y 3)
+-- Catálogo de cursos del plan de estudios (Tablas 3 y 4 del documento RA MaIE / PEP)
+CREATE TABLE cursos_catalogo (
+    id_catalogo SERIAL PRIMARY KEY,
+    codigo VARCHAR(20) UNIQUE NOT NULL, -- 'MaIE-CB1' … 'MaIE-Tesis-II'
+    nombre VARCHAR(150) NOT NULL,
+    id_modulo INT NOT NULL REFERENCES modulos_curriculares(id_modulo),
+    semestre SMALLINT NOT NULL CHECK (semestre BETWEEN 1 AND 4),
+    orden SMALLINT UNIQUE NOT NULL
+);
+
+-- Oferta de un curso del catálogo a una promoción en un periodo (base para los módulos 2 y 3)
 CREATE TABLE cursos (
     id_curso SERIAL PRIMARY KEY,
-    codigo VARCHAR(20) UNIQUE NOT NULL,
-    nombre VARCHAR(150) NOT NULL,
-    creditos INT NOT NULL CHECK (creditos > 0),
-    componente VARCHAR(50) NOT NULL,
-    id_modulo INT REFERENCES modulos_curriculares(id_modulo),
-    id_cohorte INT REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,
-    id_docente UUID REFERENCES usuarios(id_usuario)
+    id_catalogo INT NOT NULL REFERENCES cursos_catalogo(id_catalogo),
+    id_cohorte INT NOT NULL REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,
+    periodo periodo_academico NOT NULL,
+    nombre VARCHAR(150), -- nombre propio de la oferta, p. ej. electivas: 'Aprendizaje Profundo'
+    grupo SMALLINT NOT NULL DEFAULT 1 CHECK (grupo > 0),
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unq_oferta UNIQUE (id_catalogo, id_cohorte, periodo, grupo)
+);
+
+-- Una oferta puede tener varios docentes (p. ej. cursos compartidos con invitados externos)
+CREATE TABLE curso_docentes (
+    id_curso INT REFERENCES cursos(id_curso) ON DELETE CASCADE,
+    id_docente UUID REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    PRIMARY KEY (id_curso, id_docente)
 );
 
 CREATE TABLE cohorte_estudiantes (
@@ -254,29 +271,72 @@ CREATE TABLE ra_estrategias (
     PRIMARY KEY (id_ra, id_estrategia)
 );
 
+-- RA que evalúa cada curso del catálogo y nivel de dominio esperado (Tabla 3)
+CREATE TABLE catalogo_ra (
+    id_catalogo INT REFERENCES cursos_catalogo(id_catalogo) ON DELETE CASCADE,
+    id_ra INT REFERENCES resultados_aprendizaje(id_ra) ON DELETE CASCADE,
+    nivel_dominio VARCHAR(25) NOT NULL
+        CHECK (nivel_dominio IN ('Intermedio', 'Avanzado', 'Intermedio y avanzado')),
+    PRIMARY KEY (id_catalogo, id_ra)
+);
+
+-- Estrategias sugeridas para evaluar cada RA en cada curso (Tabla 4)
+CREATE TABLE catalogo_ra_estrategias (
+    id_catalogo INT,
+    id_ra INT,
+    id_estrategia INT REFERENCES estrategias_evaluacion(id_estrategia) ON DELETE CASCADE,
+    PRIMARY KEY (id_catalogo, id_ra, id_estrategia),
+    FOREIGN KEY (id_catalogo, id_ra) REFERENCES catalogo_ra(id_catalogo, id_ra) ON DELETE CASCADE
+);
+
+-- Criterios de la rúbrica de cada RA (Tablas 5 a 11). Los pesos de un RA suman 100
+-- (lo garantiza el servicio, que reemplaza la rúbrica completa en una transacción).
 CREATE TABLE rubricas_criterios (
     id_criterio SERIAL PRIMARY KEY,
-    id_ra INT REFERENCES resultados_aprendizaje(id_ra) ON DELETE CASCADE,
+    id_ra INT NOT NULL REFERENCES resultados_aprendizaje(id_ra) ON DELETE CASCADE,
+    orden SMALLINT NOT NULL CHECK (orden > 0),
     nombre_criterio VARCHAR(200) NOT NULL,
     peso_porcentaje DECIMAL(5,2) NOT NULL CHECK (peso_porcentaje > 0 AND peso_porcentaje <= 100),
     desc_nivel_alto TEXT NOT NULL,
     desc_nivel_medio TEXT NOT NULL,
     desc_nivel_basico TEXT NOT NULL,
-    desc_nivel_insuficiente TEXT NOT NULL
+    desc_nivel_insuficiente TEXT NOT NULL,
+    CONSTRAINT unq_criterio_orden UNIQUE (id_ra, orden)
 );
 
--- Nivel de rúbrica (Alto 4.5–5.0, Medio 3.5–4.4, Básico 3.0–3.4, Insuficiente < 3.0)
+-- Nota del estudiante (0–5) en cada criterio, dentro de una oferta de curso.
+-- Nivel de rúbrica (Alto 4.5–5.0, Medio 3.5–4.4, Básico 3.0–3.4, Insuficiente < 3.0); lo asigna
+-- el servicio con modules/ra/rubrica.js. La FK compuesta impide calificar a quien no está inscrito
+-- y desmatricular a quien ya tiene notas.
 CREATE TABLE evaluaciones_ra_estudiante (
     id_evaluacion_ra BIGSERIAL PRIMARY KEY,
-    id_curso INT REFERENCES cursos(id_curso) ON DELETE CASCADE,
-    id_estudiante UUID REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
-    id_docente UUID REFERENCES usuarios(id_usuario),
-    id_criterio INT REFERENCES rubricas_criterios(id_criterio),
-    calificacion DECIMAL(3,2) CHECK (calificacion >= 0.00 AND calificacion <= 5.00),
-    nivel tipo_nivel_logro,
+    id_curso INT NOT NULL,
+    id_estudiante UUID NOT NULL,
+    id_criterio INT NOT NULL REFERENCES rubricas_criterios(id_criterio) ON DELETE RESTRICT,
+    id_docente UUID REFERENCES usuarios(id_usuario) ON DELETE SET NULL,
+    calificacion DECIMAL(3,2) NOT NULL CHECK (calificacion >= 0.00 AND calificacion <= 5.00),
+    nivel tipo_nivel_logro NOT NULL,
     fecha_evaluacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unq_estudiante_criterio_curso UNIQUE(id_curso, id_estudiante, id_criterio)
+    actualizado_en TIMESTAMP,
+    FOREIGN KEY (id_curso, id_estudiante)
+        REFERENCES curso_estudiantes(id_curso, id_estudiante) ON DELETE RESTRICT,
+    CONSTRAINT unq_estudiante_criterio_curso UNIQUE (id_curso, id_estudiante, id_criterio)
 );
+
+CREATE INDEX idx_eval_ra_estudiante ON evaluaciones_ra_estudiante (id_estudiante);
+
+-- Total ponderado por (oferta, estudiante, RA). Solo suma: la clasificación en niveles y la
+-- regla de completitud (calificados = criterios) se aplican en modules/ra/rubrica.js.
+CREATE VIEW v_ra_resultados AS
+SELECT e.id_curso,
+       e.id_estudiante,
+       rc.id_ra,
+       ROUND(SUM(e.calificacion * rc.peso_porcentaje) / 100, 2) AS total,
+       COUNT(*)::int AS calificados,
+       (SELECT COUNT(*)::int FROM rubricas_criterios x WHERE x.id_ra = rc.id_ra) AS criterios
+FROM evaluaciones_ra_estudiante e
+JOIN rubricas_criterios rc USING (id_criterio)
+GROUP BY e.id_curso, e.id_estudiante, rc.id_ra;
 
 -- =====================================================================
 -- MÓDULO 3: EVALUACIÓN DOCENTE (ACUERDO 058 DE 2022)
