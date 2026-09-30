@@ -15,13 +15,14 @@ import { porcentaje } from '../../utils/formato'
 const ESTADOS = ['inscrito', 'matriculado', 'egresado', 'graduado', 'retirado']
 const nombreDe = (u) => `${u.apellidos} ${u.nombres}`
 
-// Formulario de oferta: curso del catálogo, promoción, periodo, nombre propio y docentes.
-function FormularioOferta({ oferta, catalogo, cohortes, docentes, onClose, onGuardada }) {
+// Formulario de oferta: la clase (que fija el curso del plan y sus RA), la promoción, el semestre
+// académico y los docentes asignados para ese semestre.
+function FormularioOferta({ oferta, periodo, clases, cohortes, docentes, onClose, onGuardada }) {
+  const activas = clases.filter((c) => c.activa || c.id_clase === oferta?.id_clase)
   const [datos, setDatos] = useState({
-    id_catalogo: oferta?.id_catalogo ?? catalogo[0]?.id_catalogo ?? '',
+    id_clase: oferta?.id_clase ?? activas[0]?.id_clase ?? '',
     id_cohorte: oferta?.id_cohorte ?? cohortes.at(-1)?.id_cohorte ?? '',
-    periodo: oferta?.periodo ?? periodoAcademico(),
-    nombre: oferta?.nombre_oferta ?? '',
+    periodo: oferta?.periodo ?? periodo ?? periodoAcademico(),
     grupo: oferta?.grupo ?? 1,
     docentes: oferta?.docentes.map((d) => d.id_usuario) ?? [],
   })
@@ -31,12 +32,14 @@ function FormularioOferta({ oferta, catalogo, cohortes, docentes, onClose, onGua
   const alternarDocente = (id) => setDatos((d) => ({
     ...d, docentes: d.docentes.includes(id) ? d.docentes.filter((x) => x !== id) : [...d.docentes, id],
   }))
+  const porCurso = [...new Map(activas.map((c) => [c.curso_plan, activas.filter((x) => x.curso_plan === c.curso_plan)])).entries()]
+  const elegida = clases.find((c) => String(c.id_clase) === String(datos.id_clase))
 
   const enviar = async (e) => {
     e.preventDefault()
     setGuardando(true)
     setError(null)
-    const cuerpo = { ...datos, id_catalogo: Number(datos.id_catalogo), id_cohorte: Number(datos.id_cohorte), grupo: Number(datos.grupo), nombre: datos.nombre.trim() || null }
+    const cuerpo = { ...datos, id_clase: Number(datos.id_clase), id_cohorte: Number(datos.id_cohorte), grupo: Number(datos.grupo) }
     try {
       if (oferta) await cursosApi.actualizarOferta(oferta.id_curso, cuerpo)
       else await cursosApi.crearOferta(cuerpo)
@@ -49,14 +52,23 @@ function FormularioOferta({ oferta, catalogo, cohortes, docentes, onClose, onGua
   }
 
   return (
-    <Modal titulo={oferta ? 'Editar curso ofertado' : 'Nuevo curso ofertado'} onClose={onClose} ancho={640}>
+    <Modal titulo={oferta ? 'Editar clase ofertada' : 'Ofertar una clase en el semestre'} onClose={onClose} ancho={680}>
       <form onSubmit={enviar}>
         <div className="form-grid">
-          <div className="campo">
-            <label htmlFor="of-catalogo">Curso del plan de estudios</label>
-            <select id="of-catalogo" value={datos.id_catalogo} onChange={campo('id_catalogo')} required>
-              {catalogo.map((k) => <option key={k.id_catalogo} value={k.id_catalogo}>{k.codigo} · {k.nombre} (sem. {k.semestre})</option>)}
+          <div className="campo" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor="of-clase">Clase</label>
+            <select id="of-clase" value={datos.id_clase} onChange={campo('id_clase')} required>
+              {porCurso.map(([curso, lista]) => (
+                <optgroup key={curso} label={`${curso} · ${lista[0].curso_plan_nombre} (sem. ${lista[0].semestre})`}>
+                  {lista.map((c) => <option key={c.id_clase} value={c.id_clase}>{c.codigo} · {c.nombre}</option>)}
+                </optgroup>
+              ))}
             </select>
+            {elegida && <span className="texto-suave">Evalúa {elegida.ras.join(', ')} · componente {elegida.modulo}</span>}
+          </div>
+          <div className="campo">
+            <label htmlFor="of-periodo">Semestre académico</label>
+            <input id="of-periodo" value={datos.periodo} onChange={campo('periodo')} pattern="[0-9]{4}-[AB]" placeholder="2026-B" required />
           </div>
           <div className="campo">
             <label htmlFor="of-cohorte">Promoción</label>
@@ -65,20 +77,12 @@ function FormularioOferta({ oferta, catalogo, cohortes, docentes, onClose, onGua
             </select>
           </div>
           <div className="campo">
-            <label htmlFor="of-periodo">Periodo académico</label>
-            <input id="of-periodo" value={datos.periodo} onChange={campo('periodo')} pattern="[0-9]{4}-[AB]" placeholder="2026-B" required />
-          </div>
-          <div className="campo">
             <label htmlFor="of-grupo">Grupo</label>
             <input id="of-grupo" type="number" min="1" max="99" value={datos.grupo} onChange={campo('grupo')} />
           </div>
-          <div className="campo" style={{ gridColumn: '1 / -1' }}>
-            <label htmlFor="of-nombre">Nombre de la oferta (opcional, p. ej. tema de la electiva)</label>
-            <input id="of-nombre" value={datos.nombre} onChange={campo('nombre')} maxLength={150} />
-          </div>
         </div>
         <fieldset className="campo">
-          <legend>Docentes del curso</legend>
+          <legend>Docentes asignados en este semestre</legend>
           {docentes.length === 0 && <p className="texto-suave">No hay usuarios con rol docente. Créelos en Usuarios.</p>}
           <div className="grid max-h-48 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
             {docentes.map((d) => (
@@ -92,9 +96,47 @@ function FormularioOferta({ oferta, catalogo, cohortes, docentes, onClose, onGua
         <ErrorApi error={error} />
         <div className="modal-acciones">
           <button type="button" className="btn btn-secundario" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="btn btn-primario" disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</button>
+          <button type="submit" className="btn btn-primario" disabled={guardando || !datos.id_clase}>{guardando ? 'Guardando…' : 'Guardar'}</button>
         </div>
       </form>
+    </Modal>
+  )
+}
+
+// Asignación rápida de docentes de una oferta en su semestre.
+function DocentesOferta({ oferta, docentes, onClose, onGuardada }) {
+  const [elegidos, setElegidos] = useState(oferta.docentes.map((d) => d.id_usuario))
+  const [error, setError] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+  const alternar = (id) => setElegidos((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]))
+  const guardar = async () => {
+    setGuardando(true)
+    setError(null)
+    try {
+      await cursosApi.asignarDocentes(oferta.id_curso, elegidos)
+      onGuardada()
+    } catch (err) {
+      setError(err)
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return (
+    <Modal titulo={`Docentes · ${oferta.nombre} · ${oferta.periodo}`} onClose={onClose} ancho={560}>
+      <p className="texto-suave">Promoción {oferta.cohorte} · {oferta.codigo}. La asignación aplica solo a este semestre.</p>
+      <div className="grid max-h-72 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
+        {docentes.map((d) => (
+          <label key={d.id_usuario} className="campo-check">
+            <input type="checkbox" checked={elegidos.includes(d.id_usuario)} onChange={() => alternar(d.id_usuario)} />
+            {nombreDe(d)}
+          </label>
+        ))}
+      </div>
+      <ErrorApi error={error} />
+      <div className="modal-acciones">
+        <button type="button" className="btn btn-secundario" onClick={onClose}>Cancelar</button>
+        <button type="button" className="btn btn-primario" disabled={guardando} onClick={guardar}>{guardando ? 'Guardando…' : 'Guardar'}</button>
+      </div>
     </Modal>
   )
 }
@@ -309,42 +351,189 @@ function CalificacionPorSemestre() {
   )
 }
 
-// Cursos ofertados por promoción y periodo, con sus docentes y matrícula (RF-ADM-01, RF-RA-02).
+// Clases con identificador único: cada una cubre un curso del plan (y sus RA).
+function FormularioClase({ clase, catalogo, onClose, onGuardada }) {
+  const [datos, setDatos] = useState({
+    nombre: clase?.nombre ?? '',
+    id_catalogo: clase?.id_catalogo ?? catalogo[0]?.id_catalogo ?? '',
+    descripcion: clase?.descripcion ?? '',
+    activa: clase?.activa ?? true,
+  })
+  const [error, setError] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+  const enviar = async (e) => {
+    e.preventDefault()
+    setGuardando(true)
+    setError(null)
+    const cuerpo = { ...datos, id_catalogo: Number(datos.id_catalogo), nombre: datos.nombre.trim(), descripcion: datos.descripcion.trim() || null }
+    try {
+      if (clase) await cursosApi.actualizarClase(clase.id_clase, cuerpo)
+      else await cursosApi.crearClase(cuerpo)
+      onGuardada()
+    } catch (err) {
+      setError(err)
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return (
+    <Modal titulo={clase ? `Editar clase ${clase.codigo}` : 'Nueva clase'} onClose={onClose} ancho={600}>
+      <form onSubmit={enviar}>
+        <div className="form-grid">
+          <div className="campo" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor="cl-nombre">Nombre de la clase</label>
+            <input id="cl-nombre" value={datos.nombre} maxLength={150} required placeholder="p. ej. Robótica"
+              onChange={(e) => setDatos((d) => ({ ...d, nombre: e.target.value }))} />
+          </div>
+          <div className="campo" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor="cl-catalogo">Curso del plan que cubre</label>
+            <select id="cl-catalogo" value={datos.id_catalogo} disabled={clase?.ofertas > 0}
+              onChange={(e) => setDatos((d) => ({ ...d, id_catalogo: e.target.value }))}>
+              {catalogo.map((k) => (
+                <option key={k.id_catalogo} value={k.id_catalogo}>
+                  {k.codigo} · {k.nombre} (sem. {k.semestre}) · {k.ras.map((r) => r.codigo).join(', ')}
+                </option>
+              ))}
+            </select>
+            {clase?.ofertas > 0 && <span className="texto-suave">Ya se ofertó: no se puede cambiar el curso del plan.</span>}
+          </div>
+          <div className="campo" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor="cl-desc">Descripción (opcional)</label>
+            <textarea id="cl-desc" rows={2} value={datos.descripcion} onChange={(e) => setDatos((d) => ({ ...d, descripcion: e.target.value }))} />
+          </div>
+          <label className="campo-check">
+            <input type="checkbox" checked={datos.activa} onChange={(e) => setDatos((d) => ({ ...d, activa: e.target.checked }))} />
+            Activa (disponible para ofertar)
+          </label>
+        </div>
+        <p className="texto-suave">{clase ? `Código: ${clase.codigo}` : 'El código se genera a partir del curso del plan (p. ej. CE2-04).'}</p>
+        <ErrorApi error={error} />
+        <div className="modal-acciones">
+          <button type="button" className="btn btn-secundario" onClick={onClose}>Cancelar</button>
+          <button type="submit" className="btn btn-primario" disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function ClasesPanel({ clases, catalogo, onCambio }) {
+  const [editando, setEditando] = useState(null) // null | 'nueva' | clase
+  const [error, setError] = useState(null)
+  const eliminar = async (c) => {
+    if (!window.confirm(`¿Eliminar la clase ${c.codigo} · ${c.nombre}?`)) return
+    setError(null)
+    try {
+      await cursosApi.eliminarClase(c.id_clase)
+      onCambio()
+    } catch (err) {
+      setError(err)
+    }
+  }
+  return (
+    <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-space-sm">
+        <p className="max-w-3xl text-body-sm text-on-surface-variant">
+          Cada clase tiene un identificador único y cubre un curso del plan, del que toma los RA que evalúa. Los
+          docentes no se fijan aquí: se asignan en cada semestre al ofertar la clase.
+        </p>
+        <button type="button" className="btn btn-primario" onClick={() => setEditando('nueva')}>
+          <Icono nombre="add" className="text-[18px]" /> Nueva clase
+        </button>
+      </div>
+      <ErrorApi error={error} />
+      <div className="tabla-scroll">
+        <table className="text-body-sm">
+          <thead>
+            <tr><th>Código</th><th>Clase</th><th>Curso del plan</th><th>RA</th><th className="num">Ofertas</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
+          </thead>
+          <tbody>
+            {clases.map((c) => (
+              <tr key={c.id_clase}>
+                <td className="nowrap font-semibold text-primary">{c.codigo}</td>
+                <td>{c.nombre}</td>
+                <td>{c.curso_plan} · {c.curso_plan_nombre} <span className="texto-suave">(sem. {c.semestre})</span></td>
+                <td><div className="flex flex-wrap gap-1">{c.ras.map((r) => <Insignia key={r} tono="acento">{r}</Insignia>)}</div></td>
+                <td className="num">{c.ofertas}</td>
+                <td>{c.activa ? 'Activa' : <span className="texto-suave">Inactiva</span>}</td>
+                <td className="acciones">
+                  <button type="button" className="btn-enlace" onClick={() => setEditando(c)}>Editar</button>
+                  {c.ofertas === 0 && <button type="button" className="btn-enlace peligro" onClick={() => eliminar(c)}>Eliminar</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {editando && (
+        <FormularioClase clase={editando === 'nueva' ? null : editando} catalogo={catalogo}
+          onClose={() => setEditando(null)} onGuardada={() => { setEditando(null); onCambio() }} />
+      )}
+    </section>
+  )
+}
+
+// Cursos y matrícula (RF-ADM-01, RF-RA-02): por semestre académico se ofertan clases a las
+// promociones y se asignan sus docentes; además, clases, estudiantes por promoción y apertura
+// de la calificación.
 export default function OfertasCursoPage() {
-  const [pestana, setPestana] = useState('ofertas')
-  const [filtro, setFiltro] = useState({ cohorte: '', periodo: '' })
+  const [pestana, setPestana] = useState('semestre')
+  const [periodo, setPeriodo] = useState(periodoAcademico())
+  const [filtro, setFiltro] = useState({ cohorte: '', docente: '' })
   const [editando, setEditando] = useState(null) // null | 'nueva' | oferta
+  const [asignando, setAsignando] = useState(null)
   const [matriculando, setMatriculando] = useState(null)
   const [errorAccion, setErrorAccion] = useState(null)
 
-  const params = Object.fromEntries(Object.entries(filtro).filter(([, v]) => v))
-  const ofertas = useApi(() => cursosApi.listarOfertas(params), [filtro.cohorte, filtro.periodo])
+  const params = Object.fromEntries(Object.entries({ periodo, ...filtro }).filter(([, v]) => v))
+  const ofertas = useApi(() => cursosApi.listarOfertas(params), [periodo, filtro.cohorte, filtro.docente])
+  const periodos = useApi(raApi.listarPeriodos)
+  const clases = useApi(() => cursosApi.listarClases())
   const catalogo = useApi(cursosApi.catalogo)
   const cohortes = useApi(() => adminApi.listar('cohortes'))
   const docentes = useApi(() => usuariosApi.listarUsuarios('docente'))
 
-  if ((catalogo.cargando && !catalogo.data) || (cohortes.cargando && !cohortes.data)) return <Cargando />
-  const errorCarga = catalogo.error ?? cohortes.error ?? docentes.error
-  if (errorCarga) return <ErrorApi error={errorCarga} onReintentar={() => { catalogo.recargar(); cohortes.recargar(); docentes.recargar() }} />
+  if ((clases.cargando && !clases.data) || (cohortes.cargando && !cohortes.data) || (catalogo.cargando && !catalogo.data)) return <Cargando />
+  const errorCarga = clases.error ?? cohortes.error ?? docentes.error ?? catalogo.error
+  if (errorCarga) return <ErrorApi error={errorCarga} onReintentar={() => { clases.recargar(); cohortes.recargar(); docentes.recargar(); catalogo.recargar() }} />
 
   const listaCohortes = [...cohortes.data].sort((a, b) => (a.periodo_inicio < b.periodo_inicio ? -1 : 1))
-  const periodos = [...new Set((ofertas.data ?? []).map((o) => o.periodo))]
+  const semestres = [...new Set([periodoAcademico(), periodo, ...(periodos.data ?? []).map((p) => p.periodo)])].sort().reverse()
+  const estadoSemestre = (periodos.data ?? []).find((p) => p.periodo === periodo)
+  const lista = ofertas.data ?? []
 
+  // Carga docente del semestre: clases asignadas a cada docente.
+  const carga = new Map()
+  for (const o of lista) for (const d of o.docentes) carga.set(d.nombre, [...(carga.get(d.nombre) ?? []), o.nombre])
+
+  const recargar = () => {
+    ofertas.recargar()
+    periodos.recargar()
+    clases.recargar()
+  }
+  const alGuardar = () => {
+    setEditando(null)
+    setAsignando(null)
+    setMatriculando(null)
+    recargar()
+  }
   const eliminar = async (o) => {
-    if (!window.confirm(`¿Eliminar el curso ofertado ${o.codigo} · ${o.nombre} (${o.periodo})?`)) return
+    if (!window.confirm(`¿Quitar ${o.nombre} (${o.periodo}, promoción ${o.cohorte}) de las ofertas?`)) return
     setErrorAccion(null)
     try {
       await cursosApi.eliminarOferta(o.id_curso)
-      ofertas.recargar()
+      recargar()
     } catch (err) {
       setErrorAccion(err)
     }
   }
-  const alGuardar = () => {
-    setEditando(null)
-    setMatriculando(null)
-    ofertas.recargar()
-  }
+
+  const PESTANAS = [
+    ['semestre', 'Asignación por semestre'],
+    ['clases', 'Clases'],
+    ['promocion', 'Estudiantes por promoción'],
+    ['semestres', 'Calificación por semestre'],
+  ]
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -355,110 +544,132 @@ export default function OfertasCursoPage() {
           </div>
           <h1 className="mt-1 font-display text-headline-lg text-primary">Cursos y matrícula</h1>
           <p className="max-w-3xl text-body-md text-on-surface-variant">
-            Cada curso del plan se oferta a una promoción en un periodo, con sus docentes y estudiantes. El docente
-            califica en él la rúbrica de los RA que ese curso evalúa.
+            En cada semestre académico se ofertan clases a las promociones y se asignan sus docentes; el docente califica
+            en ellas la rúbrica de los RA que evalúa el curso del plan de la clase.
           </p>
         </div>
-        {pestana === 'ofertas' && (
-          <button type="button" className="btn btn-primario" onClick={() => setEditando('nueva')} disabled={listaCohortes.length === 0}>
-            <Icono nombre="add" className="text-[18px]" /> Nuevo curso ofertado
-          </button>
-        )}
       </header>
 
       <div className="pestanas" role="tablist">
-        <button type="button" role="tab" aria-selected={pestana === 'ofertas'} className={pestana === 'ofertas' ? 'activa' : ''} onClick={() => setPestana('ofertas')}>
-          Cursos ofertados
-        </button>
-        <button type="button" role="tab" aria-selected={pestana === 'promocion'} className={pestana === 'promocion' ? 'activa' : ''} onClick={() => setPestana('promocion')}>
-          Estudiantes por promoción
-        </button>
-        <button type="button" role="tab" aria-selected={pestana === 'semestres'} className={pestana === 'semestres' ? 'activa' : ''} onClick={() => setPestana('semestres')}>
-          Calificación por semestre
-        </button>
+        {PESTANAS.map(([valor, etiqueta]) => (
+          <button key={valor} type="button" role="tab" aria-selected={pestana === valor} className={pestana === valor ? 'activa' : ''} onClick={() => setPestana(valor)}>
+            {etiqueta}
+          </button>
+        ))}
       </div>
 
-      {listaCohortes.length === 0 && (
-        <div className="card"><p>No hay promociones registradas. Créelas en Información académica › Promociones y Estudiantes.</p></div>
-      )}
-
-      {pestana === 'promocion' && listaCohortes.length > 0 && <EstudiantesPromocion cohortes={listaCohortes} />}
-
+      {pestana === 'clases' && <ClasesPanel clases={clases.data} catalogo={catalogo.data} onCambio={clases.recargar} />}
+      {pestana === 'promocion' && (listaCohortes.length > 0
+        ? <EstudiantesPromocion cohortes={listaCohortes} />
+        : <div className="card"><p>No hay promociones registradas. Créelas en Información académica.</p></div>)}
       {pestana === 'semestres' && <CalificacionPorSemestre />}
 
-      {pestana === 'ofertas' && (
-        <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
-          <div className="flex flex-wrap gap-space-sm">
-            <div className="campo">
-              <label htmlFor="f-cohorte">Promoción</label>
-              <select id="f-cohorte" value={filtro.cohorte} onChange={(e) => setFiltro((f) => ({ ...f, cohorte: e.target.value }))}>
-                <option value="">Todas</option>
-                {listaCohortes.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>{c.nombre}</option>)}
-              </select>
+      {pestana === 'semestre' && (
+        <>
+          <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+            <div className="flex flex-wrap items-end gap-space-sm">
+              <div className="campo">
+                <label htmlFor="f-semestre">Semestre académico</label>
+                <input id="f-semestre" list="lista-semestres" value={periodo} pattern="[0-9]{4}-[AB]"
+                  onChange={(e) => setPeriodo(e.target.value.toUpperCase())} />
+                <datalist id="lista-semestres">{semestres.map((p) => <option key={p} value={p} />)}</datalist>
+              </div>
+              <div className="campo">
+                <label htmlFor="f-cohorte">Promoción</label>
+                <select id="f-cohorte" value={filtro.cohorte} onChange={(e) => setFiltro((f) => ({ ...f, cohorte: e.target.value }))}>
+                  <option value="">Todas</option>
+                  {listaCohortes.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div className="campo">
+                <label htmlFor="f-docente">Docente</label>
+                <select id="f-docente" value={filtro.docente} onChange={(e) => setFiltro((f) => ({ ...f, docente: e.target.value }))}>
+                  <option value="">Todos</option>
+                  {(docentes.data ?? []).map((d) => <option key={d.id_usuario} value={d.id_usuario}>{nombreDe(d)}</option>)}
+                </select>
+              </div>
+              <span className="text-body-sm text-on-surface-variant">
+                Calificación del semestre: <strong>{estadoSemestre?.abierto ? 'abierta' : 'cerrada'}</strong>
+              </span>
+              <button type="button" className="btn btn-primario ml-auto" onClick={() => setEditando('nueva')}
+                disabled={listaCohortes.length === 0 || !/^[0-9]{4}-[AB]$/.test(periodo)}>
+                <Icono nombre="add" className="text-[18px]" /> Ofertar clase en {periodo}
+              </button>
             </div>
-            <div className="campo">
-              <label htmlFor="f-periodo">Periodo</label>
-              <select id="f-periodo" value={filtro.periodo} onChange={(e) => setFiltro((f) => ({ ...f, periodo: e.target.value }))}>
-                <option value="">Todos</option>
-                {[...new Set([filtro.periodo, ...periodos].filter(Boolean))].map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-          </div>
-          <ErrorApi error={errorAccion ?? ofertas.error} />
-          {ofertas.cargando && !ofertas.data ? <Cargando /> : (
-            <div className="tabla-scroll">
-              <table className="text-body-sm">
-                <thead>
-                  <tr>
-                    <th>Curso</th><th>Promoción</th><th>Periodo</th><th>Docentes</th><th>RA</th>
-                    <th className="num">Inscritos</th><th>Notas</th><th><span className="sr-only">Acciones</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(ofertas.data ?? []).map((o) => {
-                    const esperadas = o.inscritos * o.criterios
-                    const avance = esperadas ? o.notas / esperadas : 0
-                    return (
-                      <tr key={o.id_curso}>
-                        <td><strong>{o.codigo}</strong><br />{o.nombre}{o.grupo > 1 && ` · grupo ${o.grupo}`}</td>
-                        <td>{o.cohorte}</td>
-                        <td className="nowrap">{o.periodo}<br />
-                          <span className="text-label-sm text-on-surface-variant">{o.calificacion_abierta ? 'Calificación abierta' : 'Calificación cerrada'}</span>
-                        </td>
-                        <td>{o.docentes.map((d) => d.nombre).join(', ') || <span className="texto-suave">Sin asignar</span>}</td>
-                        <td><div className="flex flex-wrap gap-1">{o.ras.map((r) => <Insignia key={r} tono="acento">{r}</Insignia>)}</div></td>
-                        <td className="num">{o.inscritos}</td>
-                        <td style={{ minWidth: 110 }}>
-                          <span className="text-label-sm text-on-surface-variant">{porcentaje(avance)}</span>
-                          <BarraProgreso fraccion={avance} />
-                        </td>
-                        <td className="acciones">
-                          <Link to={String(o.id_curso)} className="btn-enlace">Planilla</Link>
-                          <button type="button" className="btn-enlace" onClick={() => setMatriculando(o)}>Matrícula</button>
-                          <button type="button" className="btn-enlace" onClick={() => setEditando(o)}>Editar</button>
-                          <button type="button" className="btn-enlace peligro" onClick={() => eliminar(o)}>Eliminar</button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                  {ofertas.data?.length === 0 && <tr><td colSpan={8} className="texto-suave">No hay cursos ofertados con estos filtros.</td></tr>}
-                </tbody>
-              </table>
-            </div>
+            <ErrorApi error={errorAccion ?? ofertas.error} />
+            {ofertas.cargando && !ofertas.data ? <Cargando /> : (
+              <div className="tabla-scroll">
+                <table className="text-body-sm">
+                  <thead>
+                    <tr>
+                      <th>Clase</th><th>Curso del plan</th><th>Promoción</th><th>Docentes</th><th>RA</th>
+                      <th className="num">Inscritos</th><th>Notas</th><th><span className="sr-only">Acciones</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lista.map((o) => {
+                      const esperadas = o.inscritos * o.criterios
+                      const avance = esperadas ? o.notas / esperadas : 0
+                      return (
+                        <tr key={o.id_curso}>
+                          <td><strong>{o.nombre}</strong>{o.grupo > 1 && ` · grupo ${o.grupo}`}<br /><span className="texto-suave">{o.clase_codigo}</span></td>
+                          <td className="nowrap">{o.codigo}<br /><span className="texto-suave">sem. {o.semestre}</span></td>
+                          <td>{o.cohorte}</td>
+                          <td>
+                            {o.docentes.map((d) => d.nombre).join(', ') || <span className="texto-suave">Sin asignar</span>}
+                            <br /><button type="button" className="btn-enlace" onClick={() => setAsignando(o)}>Asignar docentes</button>
+                          </td>
+                          <td><div className="flex flex-wrap gap-1">{o.ras.map((r) => <Insignia key={r} tono="acento">{r}</Insignia>)}</div></td>
+                          <td className="num">{o.inscritos}</td>
+                          <td style={{ minWidth: 110 }}>
+                            <span className="text-label-sm text-on-surface-variant">{porcentaje(avance)}</span>
+                            <BarraProgreso fraccion={avance} />
+                          </td>
+                          <td className="acciones">
+                            <Link to={String(o.id_curso)} className="btn-enlace">Planilla</Link>
+                            <button type="button" className="btn-enlace" onClick={() => setMatriculando(o)}>Matrícula</button>
+                            <button type="button" className="btn-enlace" onClick={() => setEditando(o)}>Editar</button>
+                            <button type="button" className="btn-enlace peligro" onClick={() => eliminar(o)}>Quitar</button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {lista.length === 0 && <tr><td colSpan={8} className="texto-suave">No hay clases ofertadas en {periodo} con estos filtros.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {carga.size > 0 && (
+            <section className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+              <h2 className="font-display text-headline-sm text-primary">Carga docente · {periodo}</h2>
+              <ul className="mt-space-sm grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {[...carga.entries()].sort().map(([nombre, cls]) => (
+                  <li key={nombre} className="rounded-xl bg-surface-container-low p-space-sm">
+                    <span className="font-semibold text-primary">{nombre}</span>
+                    <span className="texto-suave"> · {cls.length} clase(s)</span>
+                    <br /><span className="text-body-sm text-on-surface-variant">{cls.join(', ')}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
-        </section>
+        </>
       )}
 
       {editando && (
         <FormularioOferta
           oferta={editando === 'nueva' ? null : editando}
-          catalogo={catalogo.data}
+          periodo={periodo}
+          clases={clases.data}
           cohortes={listaCohortes}
           docentes={docentes.data ?? []}
           onClose={() => setEditando(null)}
           onGuardada={alGuardar}
         />
       )}
+      {asignando && <DocentesOferta oferta={asignando} docentes={docentes.data ?? []} onClose={() => setAsignando(null)} onGuardada={alGuardar} />}
       {matriculando && <MatriculaOferta oferta={matriculando} onClose={() => setMatriculando(null)} onGuardada={alGuardar} />}
     </div>
   )

@@ -18,12 +18,12 @@ const OPCIONES = [
   {
     valor: 'ra', etiqueta: 'Resultado de aprendizaje', icono: 'fact_check',
     descripcion: 'Distribución de niveles en RA1–RA7 y desglose de un RA por curso del plan.',
-    filtros: ['ra', 'cohorte', 'periodo', 'catalogo'],
+    filtros: ['ra', 'cohorte', 'periodo', 'catalogo', 'clase', 'docente'],
   },
   {
     valor: 'cohorte', etiqueta: 'Promoción', icono: 'groups',
     descripcion: 'Compara promociones o revisa los RA de una promoción y de sus cursos.',
-    filtros: ['cohorte', 'modulo', 'ra', 'curso'],
+    filtros: ['cohorte', 'modulo', 'ra', 'curso', 'docente'],
   },
   {
     valor: 'estudiante', etiqueta: 'Estudiante', icono: 'person_search',
@@ -31,7 +31,7 @@ const OPCIONES = [
     filtros: ['cohorte', 'estudiante', 'ra'],
   },
 ]
-const FILTROS_VACIOS = { ra: '', cohorte: '', catalogo: '', periodo: '', modulo: '', curso: '', estudiante: '' }
+const FILTROS_VACIOS = { ra: '', cohorte: '', catalogo: '', periodo: '', modulo: '', curso: '', estudiante: '', clase: '', docente: '' }
 const MAX_BARRAS = 40
 const MAX_SUGERENCIAS = 8
 
@@ -45,6 +45,8 @@ const cumple = (o, campo, valor, ctx) => {
     case 'catalogo': return String(o.id_catalogo) === valor
     case 'modulo': return String(ctx.moduloDe.get(o.id_catalogo)) === valor
     case 'curso': return String(o.id_curso) === valor
+    case 'clase': return String(o.id_clase) === valor
+    case 'docente': return o.docentes.some((d) => d.id_usuario === valor)
     default: return true
   }
 }
@@ -76,7 +78,14 @@ const opcionesDe = (campo, f, orden, ctx) => {
       return ctx.modulos.filter(([id]) => ids.has(id)).map(([id, nombre]) => ({ valor: String(id), etiqueta: nombre }))
     }
     case 'curso':
-      return ofertas.map((o) => ({ valor: String(o.id_curso), etiqueta: `${o.codigo} · ${o.nombre} (${o.periodo})` }))
+      return ofertas.map((o) => ({ valor: String(o.id_curso), etiqueta: `${o.nombre} · ${o.codigo} (${o.periodo})` }))
+    case 'clase':
+      return [...new Map(ofertas.map((o) => [o.id_clase, `${o.clase_codigo} · ${o.nombre}`])).entries()]
+        .sort((a, b) => (a[1] < b[1] ? -1 : 1)).map(([id, etiqueta]) => ({ valor: String(id), etiqueta }))
+    case 'docente':
+      // Docentes que dictaron alguna de las ofertas que cumplen lo elegido (la asignación cambia por semestre).
+      return [...new Map(ofertas.flatMap((o) => o.docentes).map((d) => [d.id_usuario, d.nombre])).entries()]
+        .sort((a, b) => (a[1] < b[1] ? -1 : 1)).map(([id, etiqueta]) => ({ valor: id, etiqueta }))
     default:
       return []
   }
@@ -368,11 +377,13 @@ export default function ConsolidadoRAPage() {
 
   // Consulta principal según la opción y los filtros; null mientras falte un filtro obligatorio.
   const params = useMemo(() => {
-    if (agrupar === 'ra') return sinVacios({ agrupar: 'ra', ra: f.ra, cohorte: f.cohorte, catalogo: f.catalogo, periodo: f.periodo })
+    if (agrupar === 'ra') {
+      return sinVacios({ agrupar: 'ra', ra: f.ra, cohorte: f.cohorte, catalogo: f.catalogo, periodo: f.periodo, clase: f.clase, docente: f.docente })
+    }
     if (agrupar === 'cohorte') {
       return f.cohorte
-        ? sinVacios({ agrupar: 'ra', cohorte: f.cohorte, modulo: f.modulo, curso: f.curso, ra: f.ra })
-        : sinVacios({ agrupar: 'cohorte', modulo: f.modulo, ra: f.ra })
+        ? sinVacios({ agrupar: 'ra', cohorte: f.cohorte, modulo: f.modulo, curso: f.curso, ra: f.ra, docente: f.docente })
+        : sinVacios({ agrupar: 'cohorte', modulo: f.modulo, ra: f.ra, docente: f.docente })
     }
     if (agrupar === 'estudiante' && f.cohorte) {
       return f.estudiante
@@ -457,6 +468,11 @@ export default function ConsolidadoRAPage() {
       <Selector key="modulo" etiqueta="Componente de formación" valor={f.modulo} onChange={cambiar('modulo')} opciones={opciones('modulo')} />
     ),
     curso: selectorCurso('curso', 'Curso', true),
+    clase: selectorCurso('clase', 'Clase', false),
+    docente: (
+      <Selector key="docente" etiqueta="Docente" valor={f.docente} onChange={cambiar('docente')} opciones={opciones('docente')}
+        ayuda="Quienes dictaron las clases de esta selección" />
+    ),
     estudiante: (
       <BuscadorEstudiante key="estudiante" estudiantes={estudiantes.data ?? []} valor={f.estudiante}
         onChange={cambiar('estudiante')} disabled={!f.cohorte} />
