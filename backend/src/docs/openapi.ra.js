@@ -44,6 +44,7 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
         nombre_catalogo: { type: 'string' }, nombre_oferta: { type: 'string', nullable: true },
         id_cohorte: { type: 'integer' }, cohorte: { type: 'string' }, periodo: PERIODO, grupo: { type: 'integer' },
         semestre: { type: 'integer' }, modulo: { type: 'string' },
+        calificacion_abierta: { type: 'boolean', description: 'Si Coordinación abrió la calificación del semestre de la oferta' },
         docentes: { type: 'array', items: { type: 'object', properties: { id_usuario: { type: 'string', format: 'uuid' }, nombre: { type: 'string' } } } },
         ras: { type: 'array', items: { type: 'string' } },
         inscritos: { type: 'integer' }, notas: { type: 'integer', description: 'Notas de criterio registradas' },
@@ -257,7 +258,7 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
       post: {
         tags: [TAG_RA], summary: 'Registrar notas por criterio (lote)',
         description: 'Nota 0–5 con dos decimales por criterio; `null` borra la nota. El nivel y el total ponderado se calculan en el servidor. ' +
-          `400 si el criterio no es de un RA del curso; 409 si el estudiante no está inscrito. ${roles(['docente del curso'])}`,
+          `409 si la calificación del semestre está cerrada o el estudiante no está inscrito; 400 si el criterio no es de un RA del curso. ${roles(['docente del curso'])}`,
         requestBody: cuerpo({
           type: 'object', required: ['id_curso', 'calificaciones'],
           properties: {
@@ -272,6 +273,24 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
           },
         }),
         responses: { 201: exito(ref('Planilla'), 'Guardado; devuelve la planilla recalculada'), ...errores(400, 401, 403, 404, 409) },
+      },
+    },
+    '/ra/periodos': {
+      get: {
+        tags: [TAG_RA], summary: 'Semestres académicos y estado de la calificación',
+        description: `Un semestre sin estado registrado está cerrado. ${roles(['coordinador', 'docente'])}`,
+        responses: {
+          200: exito({ type: 'array', items: { type: 'object', properties: { periodo: PERIODO, abierto: { type: 'boolean' }, actualizado_en: { type: 'string', format: 'date-time', nullable: true }, cursos: { type: 'integer' } } } }),
+          ...errores(401, 403),
+        },
+      },
+    },
+    '/ra/periodos/{periodo}': {
+      parameters: [{ name: 'periodo', in: 'path', required: true, schema: PERIODO }],
+      put: {
+        tags: [TAG_RA], summary: 'Abrir o cerrar la calificación de un semestre', description: roles(['coordinador']),
+        requestBody: cuerpo({ type: 'object', required: ['abierto'], properties: { abierto: { type: 'boolean' } } }),
+        responses: { 200: exito({ type: 'object' }), ...errores(400, 401, 403) },
       },
     },
     '/ra/reportes': {

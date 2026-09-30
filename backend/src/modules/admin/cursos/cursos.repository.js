@@ -25,6 +25,8 @@ const SELECT_OFERTA = `
   SELECT c.id_curso, c.id_catalogo, k.codigo, k.nombre AS nombre_catalogo, c.nombre AS nombre_oferta,
          COALESCE(c.nombre, k.nombre) AS nombre, c.id_cohorte, h.nombre AS cohorte, c.periodo, c.grupo,
          k.semestre, m.nombre AS modulo,
+         COALESCE((SELECT p.abierto FROM periodos_calificacion_ra p WHERE p.periodo = c.periodo), FALSE)
+           AS calificacion_abierta,
          COALESCE((SELECT json_agg(json_build_object('id_usuario', u.id_usuario,
                                                      'nombre', u.nombres || ' ' || u.apellidos)
                                    ORDER BY u.apellidos, u.nombres)

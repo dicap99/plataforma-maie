@@ -8,5 +8,6 @@ router.use('/estrategias', require('./estrategias/estrategias.routes'));
 router.use('/rubricas', require('./rubricas/rubricas.routes'));
 router.use('/evaluaciones', require('./evaluaciones/evaluaciones.routes'));
 router.use('/reportes', require('./reportes/reportes.routes'));
+router.use('/periodos', require('./periodos/periodos.routes'));
 
 module.exports = router;

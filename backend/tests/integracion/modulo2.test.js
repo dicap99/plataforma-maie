@@ -237,6 +237,24 @@ describe('Ofertas de curso, matrícula y calificación (RF-RA-02)', () => {
     }
   });
 
+  it('la calificación solo se registra con el semestre abierto por Coordinación', async () => {
+    const planilla = (await docente.get(`/ra/evaluaciones?curso=${oferta.id_curso}`)).body.data;
+    expect(planilla.curso.calificacion_abierta).toBe(false);
+    const celda = { id_estudiante: planilla.estudiantes[0].id_estudiante, id_criterio: planilla.ras[0].criterios[0].id_criterio, calificacion: 4 };
+    const cerrada = await docente.post('/ra/evaluaciones', { id_curso: oferta.id_curso, calificaciones: [celda] });
+    expect(cerrada.status).toBe(409);
+    expect(cerrada.body.error.message).toMatch(/2027-A está cerrada/);
+
+    expect((await docente.put('/ra/periodos/2027-A', { abierto: true })).status).toBe(403);
+    const abre = await coord.put('/ra/periodos/2027-A', { abierto: true });
+    expect(abre.status).toBe(200);
+    const periodos = (await coord.get('/ra/periodos')).body.data;
+    expect(periodos.find((p) => p.periodo === '2027-A')).toMatchObject({ abierto: true, cursos: 1 });
+    expect(periodos.find((p) => p.periodo === '2026-B')).toMatchObject({ abierto: true }); // abierto por el cargador
+    expect(periodos.find((p) => p.periodo === '2025-B')).toMatchObject({ abierto: false });
+    expect((await docente.get(`/ra/evaluaciones?curso=${oferta.id_curso}`)).body.data.curso.calificacion_abierta).toBe(true);
+  });
+
   it('el docente registra notas: valida curso, inscripción y rango, y calcula total y nivel', async () => {
     const planilla = (await docente.get(`/ra/evaluaciones?curso=${oferta.id_curso}`)).body.data;
     const [ra2] = planilla.ras;

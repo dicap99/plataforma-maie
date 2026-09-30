@@ -50,6 +50,10 @@ describe('Datos sintéticos del Módulo 2', () => {
     expect(tardias).toEqual([]);
   });
 
+  it('deja abierta la calificación del semestre actual', () => {
+    expect(datos.periodosAbiertos).toEqual(['2026-B']);
+  });
+
   it('convierte periodos académicos en índices y de vuelta', () => {
     expect(aPeriodo(aIndice('2025-B') + 1)).toBe('2026-A');
     expect(aPeriodo(aIndice('2025-A') + 3)).toBe('2026-B');

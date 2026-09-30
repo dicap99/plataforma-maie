@@ -43,6 +43,10 @@ module.exports = {
   async registrarLote({ body, user }) {
     const idCurso = body.id_curso;
     await asegurarAccesoCurso(user, idCurso);
+    const { periodo, calificacion_abierta: abierta } = await cursos.get(idCurso);
+    if (!abierta) {
+      throw ApiError.conflict(`La calificación del semestre ${periodo} está cerrada; Coordinación la habilita al final del semestre`);
+    }
 
     const permitidos = new Set((await repository.rasDelCurso(idCurso)).flatMap((r) => r.criterios.map((c) => c.id_criterio)));
     const ajenos = [...new Set(body.calificaciones.map((c) => c.id_criterio).filter((id) => !permitidos.has(id)))];

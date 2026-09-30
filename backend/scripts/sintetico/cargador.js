@@ -95,6 +95,13 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
       notas.map((n) => n.calificacion), notas.map((n) => nivelDeNota(n.calificacion))],
   );
 
+  await cliente.query(
+    `INSERT INTO periodos_calificacion_ra (periodo, abierto)
+     SELECT unnest($1::varchar[]), TRUE
+     ON CONFLICT (periodo) DO UPDATE SET abierto = TRUE, actualizado_en = CURRENT_TIMESTAMP`,
+    [datos.periodosAbiertos ?? []],
+  );
+
   return {
     cohortes: cohortes.size,
     docentes: datos.docentes.length,

@@ -63,6 +63,15 @@ describe('API MaIE — esqueleto', () => {
     expect(res.status).toBe(403);
   });
 
+  it('solo Coordinación abre la calificación de un semestre', async () => {
+    const docente = await request(app).put('/api/v1/ra/periodos/2026-B')
+      .set('Authorization', `Bearer ${tokenPara('docente')}`).send({ abierto: true });
+    expect(docente.status).toBe(403);
+    const invalido = await request(app).put('/api/v1/ra/periodos/2026-B')
+      .set('Authorization', `Bearer ${tokenPara('coordinador')}`).send({ abierto: 'si' });
+    expect(invalido.status).toBe(400);
+  });
+
   it('agrupación de reporte desconocida → 400', async () => {
     const res = await request(app)
       .get('/api/v1/ra/reportes?agrupar=profesor')

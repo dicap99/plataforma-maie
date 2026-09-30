@@ -121,7 +121,10 @@ const generar = ({
     estudiantes.push(...propios.map(({ theta, delta, ...e }) => e));
   }
 
-  return { semilla, cohortes, docentes, estudiantes, cursos, inscripciones, calificaciones };
+  // La calificación del semestre en curso queda abierta; los anteriores ya se cerraron.
+  const periodosAbiertos = [periodoActual];
+
+  return { semilla, cohortes, docentes, estudiantes, cursos, inscripciones, calificaciones, periodosAbiertos };
 };
 
 module.exports = { generar, CATALOGO, CRITERIOS_POR_RA, DOMINIO, PREFIJO_COHORTE, aIndice, aPeriodo };

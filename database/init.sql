@@ -325,6 +325,15 @@ CREATE TABLE evaluaciones_ra_estudiante (
 
 CREATE INDEX idx_eval_ra_estudiante ON evaluaciones_ra_estudiante (id_estudiante);
 
+-- Apertura de la calificación de rúbricas por semestre académico. Cada curso se evalúa al final
+-- de su semestre; Coordinación abre y cierra la calificación. Un semestre sin fila está cerrado.
+CREATE TABLE periodos_calificacion_ra (
+    periodo periodo_academico PRIMARY KEY,
+    abierto BOOLEAN NOT NULL DEFAULT FALSE,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_por UUID REFERENCES usuarios(id_usuario) ON DELETE SET NULL
+);
+
 -- Total ponderado por (oferta, estudiante, RA). Solo suma: la clasificación en niveles y la
 -- regla de completitud (calificados = criterios) se aplican en modules/ra/rubrica.js.
 CREATE VIEW v_ra_resultados AS
