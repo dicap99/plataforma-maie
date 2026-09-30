@@ -9,7 +9,7 @@ Requisitos: SRS IEEE 830 (Actividad 1). Diseño: Documento Técnico (Actividad 2
 | Módulo | Estado |
 |---|---|
 | Autenticación, usuarios y RBAC | ✅ Implementado |
-| 1. Procesos Administrativos (RF-ADM-01 a 06) | ✅ Implementado: datos por hoja, importación Excel/CSV, plantilla/exportación, estadísticas y tableros |
+| 1. Procesos Administrativos (RF-ADM-01 a 06) | ✅ Implementado: panel general del coordinador, hojas separadas en *Información académica* y *Presupuesto y finanzas*, importación Excel/CSV, plantilla/exportación, detalle de producción científica |
 | 1. Reporte oficial de presupuesto (PDF PSP-GEF-FR-04) | 🟡 Tablas creadas (`presupuesto_ingresos*`); lector de PDF pendiente |
 | 2. Resultados de Aprendizaje | ⬜ Esqueleto (responde `501`) |
 | 3. Evaluación Docente | ⬜ Esqueleto (responde `501`); categorización del Acuerdo 058 implementada |
@@ -20,7 +20,8 @@ Requisitos: SRS IEEE 830 (Actividad 1). Diseño: Documento Técnico (Actividad 2
 |---|---|
 | BD | PostgreSQL 16 (`database/init.sql`, `database/seed.sql`) |
 | API | Node.js 20 + Express 4, JWT (8 h), bcryptjs (costo 10), exceljs, csv-parse |
-| Web | React 18 + Vite 5, React Router 6, CSS propio responsive, Tailwind v4 (sin preflight) + Recharts para figuras |
+| Web | React 18 + Vite 5, React Router 6, CSS propio responsive, Tailwind v4 (sin preflight, tokens Material 3 del mockup) + Recharts; fuentes Inter / Plus Jakarta Sans e iconos Material Symbols |
+| Docs API | OpenAPI 3 + Swagger UI (`swagger-ui-express`) |
 | Infra | Docker Compose (`db`, `backend`, `frontend`) |
 
 ## Ejecución
@@ -41,13 +42,17 @@ cd frontend && npm install && npm run dev                           # http://loc
 
 Usuario inicial (seed): `coordinacion.maie@udenar.edu.co` / `CambiarMaIE2026`. **Cambiar tras el primer ingreso.**
 
-Carga inicial de datos: *Datos del programa › Importar Excel/CSV* con el libro «Estadísticas MaIE» tal como lo maneja Coordinación.
+Carga inicial de datos: *Procesos administrativos › Información académica › Importar Excel/CSV* con el libro «Estadísticas MaIE»
+tal como lo maneja Coordinación. Las hojas financieras se consultan y editan en *Presupuesto y finanzas*.
+
+> **Bases existentes:** la columna `cohorte_produccion.detalles` es nueva. Si la base se creó antes, aplique
+> `ALTER TABLE cohorte_produccion ADD COLUMN IF NOT EXISTS detalles TEXT;` o recree el volumen de `db`.
 
 ## Pruebas
 
 ```bash
 cd backend
-npm test                   # unitarias (sin BD): estadísticas, validación, API
+npm test                   # unitarias (sin BD): estadísticas, validación, API, validez de la especificación OpenAPI
 npm run test:integracion   # contra PostgreSQL (docker compose up -d db); recrea la base maie_test
 ```
 
@@ -56,14 +61,15 @@ npm run test:integracion   # contra PostgreSQL (docker compose up -d db); recrea
 ```
 database/        init.sql (esquema) · seed.sql (RA, estrategias, módulos, parámetros, coordinador)
 backend/src/
-  app.js, server.js            # app Express / arranque
+  app.js, server.js            # app Express / arranque (Swagger UI en /api/docs)
+  docs/openapi.js              # especificación OpenAPI 3 (rutas del Módulo 1 generadas desde recursos.definicion.js)
   config/                      # env, pool pg + withTransaction
   middlewares/                 # authenticate (JWT), authorize (RBAC), validate, upload, errorHandler (mapea errores de PostgreSQL)
   shared/crud/                 # repositorio, servicio y router CRUD genéricos + tipos de campo y validación
   modules/
     auth/ usuarios/
     admin/
-      recursos/                # recursos.definicion.js: una definición por hoja del Excel (tabla, llave, campos, RBAC)
+      recursos/                # recursos.definicion.js: una definición por hoja del Excel (tabla, llave, campos, RBAC, categoría)
       importaciones/           # lector del libro «Estadísticas MaIE», lector de plantilla/CSV, importación transaccional
       plantillas/              # plantilla .xlsx y exportación de datos
       reportes/                # estadisticas.js (fórmulas puras) + /reportes/estadisticas, /presupuesto/resumen
@@ -71,15 +77,24 @@ backend/src/
     ra/ evalDocente/           # esqueleto de los módulos 2 y 3
 frontend/src/
   api/ context/ hooks/ routes/ layouts/ pages/ utils/ styles/
+  styles/index.css             # punto de entrada único: CSS propio en la capa base + tokens de Tailwind (tailwind.css)
+  components/common/Icono.jsx  # glifo de Material Symbols
   components/charts/           # ChartCard (con vista de tabla), GraficoBarras, GraficoLineas, StatTile, paleta validada
-  features/admin/              # EstadisticasDashboard, DatosProgramaPage (RecursoTabla/RecursoFormulario),
-                               # CsvUploaderModal, PresupuestoDashboard, UsuariosPage, PerfilDocentePage
+  features/admin/              # EstadisticasDashboard (panel general), DatosProgramaPage (hojas académicas),
+                               # PresupuestoDashboard (resumen + hojas financieras), RecursoTabla/RecursoFormulario,
+                               # CsvUploaderModal, UsuariosPage, PerfilDocentePage
+  features/admin/panel/        # BannerPrograma, FranjaAviso, TarjetaKpi, TarjetaLateral, LineasInvestigacion
 ```
 
 Para agregar una hoja nueva al Módulo 1 basta con crear su tabla en `init.sql` y su definición en
-`recursos.definicion.js`: la API, la validación, la plantilla, la importación y la tabla del frontend se generan de ella.
+`recursos.definicion.js`: la API, la validación, la plantilla, la importación, la documentación OpenAPI y la tabla del
+frontend se generan de ella. Su `categoria` (`academico` o `financiero`) decide en qué pantalla aparece.
 
 ## API `/api/v1`
+
+Documentación interactiva (Swagger UI): **http://localhost:5000/api/docs** — especificación OpenAPI 3 en
+`/api/docs/openapi.json`. Obtenga un token con `POST /auth/login`, pulse **Authorize** y pruebe cada ruta.
+Las rutas de las hojas del Módulo 1 se generan desde `recursos.definicion.js` (`src/docs/openapi.js`).
 
 | Recurso | Rutas | Rol |
 |---|---|---|
