@@ -140,8 +140,9 @@ Las rutas de las hojas del Módulo 1 se generan desde `recursos.definicion.js` (
 | Catálogo y ofertas | `GET /admin/cursos/catalogo`; CRUD `/admin/cursos`; `PUT /admin/cursos/:id/docentes`, `/:id/estudiantes`; `POST /:id/estudiantes/cohorte` | Coord (Docente: sus ofertas) |
 | Estudiantes por promoción | `GET/PUT /admin/cohortes/:id/estudiantes` | Coord |
 | RA y rúbricas | `GET /ra/resultados`, `/ra/estrategias`, `/ra/rubricas`; `PUT /ra/rubricas/:idRa` (pesos = 100 %) | Coord, Docente (edición: Coord) |
-| Calificación | `GET /ra/evaluaciones?curso=`; `POST /ra/evaluaciones` (lote; `null` borra) | Docente del curso (Coord: lectura) |
-| Reportes RA | `GET /ra/reportes?agrupar=&cohorte&periodo&modulo&catalogo&curso&ra&estudiante&momento`, `/ra/reportes/exportar` | Coord |
+| Apertura por semestre | `GET /ra/periodos`; `PUT /ra/periodos/:periodo { abierto }` (un semestre sin estado está cerrado) | Coord (Docente: lectura) |
+| Calificación | `GET /ra/evaluaciones?curso=`; `POST /ra/evaluaciones` (lote; `null` borra; 409 con el semestre cerrado) | Docente del curso (Coord: lectura) |
+| Reportes RA | `GET /ra/reportes?agrupar=&cohorte&periodo&modulo&catalogo&curso&ra&estudiante`, `/ra/reportes/exportar` | Coord |
 | Evaluación docente | `/eval-docente/periodos`, `/formularios/:tipo`, `/respuestas`, `/resultados` | según tipo (pendiente) |
 
 Respuesta estándar: `{ "status": "success", "data": … }` o `{ "status": "error", "error": { "message", "details" } }`.
