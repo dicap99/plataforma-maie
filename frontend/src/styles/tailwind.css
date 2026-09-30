@@ -1,5 +1,118 @@
 /* Tailwind v4 SIN preflight: solo tema + utilidades, para no resetear el CSS propio.
-   Se usa en las figuras/gráficas (components/charts, HistogramaRAChart, PresupuestoDashboard). */
+   Se usa en el cascarón (MainLayout), el panel del coordinador y las figuras/gráficas. */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+
+/* ---------------------------------------------------------------------------
+   Sistema de diseño del mockup del coordinador (Mockups/Coordinador.png).
+   Nomenclatura Material 3: los nombres se conservan tal cual para poder trasladar
+   el marcado del mockup sin traducir cada clase.
+   --------------------------------------------------------------------------- */
+@theme {
+  /* Marca */
+  --color-primary: #040039;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1b1856;
+  --color-on-primary-container: #8482c5;
+  --color-primary-fixed: #e2dfff;
+  --color-primary-fixed-dim: #c3c0ff;
+  --color-on-primary-fixed: #151150;
+  --color-on-primary-fixed-variant: #41407e;
+
+  /* Acento (morado de acción) */
+  --color-secondary: #6b2ce6;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #844eff;
+  --color-on-secondary-container: #fffbff;
+  --color-secondary-fixed: #e9ddff;
+  --color-secondary-fixed-dim: #d0bcff;
+  --color-on-secondary-fixed: #22005c;
+  --color-on-secondary-fixed-variant: #5500cb;
+
+  /* Terciario (azul informativo) */
+  --color-tertiary: #000d16;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #002535;
+  --color-on-tertiary-container: #0093c6;
+  --color-tertiary-fixed: #c4e7ff;
+  --color-tertiary-fixed-dim: #7bd0ff;
+  --color-on-tertiary-fixed: #001e2c;
+  --color-on-tertiary-fixed-variant: #004c69;
+
+  /* Superficies */
+  --color-background: #f8f9ff;
+  --color-on-background: #0b1c30;
+  --color-surface: #f8f9ff;
+  --color-on-surface: #0b1c30;
+  --color-surface-bright: #f8f9ff;
+  --color-surface-dim: #cbdbf5;
+  --color-surface-variant: #d3e4fe;
+  --color-on-surface-variant: #474650;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface-container: #e5eeff;
+  --color-surface-container-high: #dce9ff;
+  --color-surface-container-highest: #d3e4fe;
+  --color-inverse-surface: #213145;
+  --color-inverse-on-surface: #eaf1ff;
+  --color-inverse-primary: #c3c0ff;
+  --color-surface-tint: #595797;
+
+  /* Bordes y estados */
+  --color-outline: #787681;
+  --color-outline-variant: #c8c5d1;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-exito: #1e7b34;
+
+  /* Tipografía */
+  --font-display: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+
+  --text-headline-xl: 36px;
+  --text-headline-xl--line-height: 44px;
+  --text-headline-xl--font-weight: 700;
+  --text-headline-lg: 28px;
+  --text-headline-lg--line-height: 36px;
+  --text-headline-lg--font-weight: 700;
+  --text-headline-md: 22px;
+  --text-headline-md--line-height: 28px;
+  --text-headline-md--font-weight: 600;
+  --text-headline-sm: 18px;
+  --text-headline-sm--line-height: 24px;
+  --text-headline-sm--font-weight: 600;
+
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 26px;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 22px;
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 18px;
+
+  --text-label-lg: 14px;
+  --text-label-lg--line-height: 20px;
+  --text-label-lg--font-weight: 600;
+  --text-label-md: 12px;
+  --text-label-md--line-height: 16px;
+  --text-label-md--font-weight: 600;
+  --text-label-sm: 11px;
+  --text-label-sm--line-height: 14px;
+  --text-label-sm--font-weight: 500;
+
+  /* Espaciado con nombre (del mockup) */
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+  --spacing-gutter-sm: 1rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-sidebar: 18rem;
+
+  /* Radios del mockup (rounded-full se deja en el valor de píldora de Tailwind) */
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+}

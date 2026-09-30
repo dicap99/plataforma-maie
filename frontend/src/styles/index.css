@@ -1,0 +1,14 @@
+/* Punto de entrada único de estilos (lo importa main.jsx).
+
+   El orden de capas importa: el CSS propio (variables, componentes clásicos,
+   rejillas) se carga dentro de `base` para que las utilidades de Tailwind, que
+   viven en `utilities`, puedan sobrescribirlo. Sin capa, el CSS propio ganaría
+   siempre —las declaraciones sin capa tienen prioridad sobre las de cualquier
+   capa, sin importar la especificidad— y reglas como `a { color: … }` pisarían
+   los colores del cascarón y del panel. */
+@layer theme, base, components, utilities;
+
+@import "./variables.css" layer(base);
+@import "./global.css" layer(base);
+@import "./layout.css" layer(base);
+@import "./tailwind.css";

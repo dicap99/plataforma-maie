@@ -3,5 +3,5 @@
 export const SERIES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
 
 export const SUPERFICIE = '#ffffff'
-export const GRILLA = '#e6e8ec'
-export const TEXTO_SECUNDARIO = '#5b6878'
+export const GRILLA = '#dce9ff'
+export const TEXTO_SECUNDARIO = '#474650'

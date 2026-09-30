@@ -6,16 +6,16 @@ export default function ChartCard({ titulo, subtitulo, children, tabla, altura =
   const [verTabla, setVerTabla] = useState(false)
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
       <header className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-base font-semibold text-slate-800">{titulo}</h3>
-          {subtitulo && <p className="text-sm text-slate-500">{subtitulo}</p>}
+          <h3 className="font-display text-headline-sm text-primary">{titulo}</h3>
+          {subtitulo && <p className="text-body-sm text-on-surface-variant">{subtitulo}</p>}
         </div>
         {tabla && (
           <button
             type="button"
-            className="shrink-0 rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            className="shrink-0 rounded-lg border border-outline-variant px-2 py-1 text-label-sm text-on-surface-variant transition-colors hover:bg-surface-container"
             onClick={() => setVerTabla((v) => !v)}
             aria-pressed={verTabla}
           >
@@ -25,7 +25,7 @@ export default function ChartCard({ titulo, subtitulo, children, tabla, altura =
       </header>
       {verTabla && tabla ? (
         <div className="tabla-scroll">
-          <table className="text-sm">
+          <table className="text-body-sm">
             <thead>
               <tr>{tabla.columnas.map((c) => <th key={c.clave}>{c.titulo}</th>)}</tr>
             </thead>
