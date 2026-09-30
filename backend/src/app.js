@@ -4,7 +4,9 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const env = require('./config/env');
 const db = require('./config/db');
+const swaggerUi = require('swagger-ui-express');
 const apiV1 = require('./routes');
+const openapi = require('./docs/openapi');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 
 const app = express();
@@ -23,6 +25,14 @@ app.get('/api/health', async (req, res) => {
     res.status(500).json({ status: 'error', error: 'Database connection failed' });
   }
 });
+
+// Documentación interactiva (Swagger UI) y especificación OpenAPI
+app.get('/api/docs/openapi.json', (req, res) => res.json(openapi));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi, {
+  customSiteTitle: 'API Plataforma MaIE',
+  // Sin ordenar: los grupos siguen el orden de la especificación (hojas en el orden del Excel).
+  swaggerOptions: { persistAuthorization: true, docExpansion: 'none' },
+}));
 
 app.use('/api/v1', apiV1);
 
