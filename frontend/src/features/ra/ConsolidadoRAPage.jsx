@@ -18,12 +18,12 @@ const OPCIONES = [
   {
     valor: 'ra', etiqueta: 'Resultado de aprendizaje', icono: 'fact_check',
     descripcion: 'Distribución de niveles en RA1–RA7 y desglose de un RA por curso del plan.',
-    filtros: ['ra', 'cohorte', 'catalogo', 'periodo'],
+    filtros: ['ra', 'cohorte', 'periodo', 'catalogo'],
   },
   {
     valor: 'cohorte', etiqueta: 'Promoción', icono: 'groups',
     descripcion: 'Compara promociones o revisa los RA de una promoción y de sus cursos.',
-    filtros: ['cohorte', 'modulo', 'curso', 'ra'],
+    filtros: ['cohorte', 'modulo', 'ra', 'curso'],
   },
   {
     valor: 'estudiante', etiqueta: 'Estudiante', icono: 'person_search',
@@ -32,9 +32,65 @@ const OPCIONES = [
   },
 ]
 const FILTROS_VACIOS = { ra: '', cohorte: '', catalogo: '', periodo: '', modulo: '', curso: '', estudiante: '' }
-// Al cambiar un filtro se limpian los que dependen de él.
-const DEPENDIENTES = { ra: ['catalogo'], cohorte: ['curso', 'estudiante'] }
 const MAX_BARRAS = 40
+const MAX_SUGERENCIAS = 8
+
+// ¿La oferta cumple el filtro `campo` con el valor elegido? (ctx traduce RA y componente).
+const cumple = (o, campo, valor, ctx) => {
+  if (!valor) return true
+  switch (campo) {
+    case 'ra': return o.ras.includes(ctx.codigoRA.get(valor))
+    case 'cohorte': return String(o.id_cohorte) === valor
+    case 'periodo': return o.periodo === valor
+    case 'catalogo': return String(o.id_catalogo) === valor
+    case 'modulo': return String(ctx.moduloDe.get(o.id_catalogo)) === valor
+    case 'curso': return String(o.id_curso) === valor
+    default: return true
+  }
+}
+
+// Opciones válidas de un filtro según los filtros anteriores en el flujo de la opción elegida:
+// se derivan de las ofertas que cumplen todo lo ya seleccionado, así nunca se ofrece una
+// combinación sin cursos (p. ej. un curso de semestre III tras elegir 2025-A si no se dictó ahí).
+const opcionesDe = (campo, f, orden, ctx) => {
+  const previos = orden.slice(0, orden.indexOf(campo))
+  const ofertas = ctx.ofertas.filter((o) => previos.every((p) => cumple(o, p, f[p], ctx)))
+  const unicos = (fn) => [...new Set(ofertas.flatMap(fn))]
+  switch (campo) {
+    case 'ra': {
+      const codigos = new Set(unicos((o) => o.ras))
+      return ctx.ras.filter((r) => codigos.has(r.grupo)).map((r) => ({ valor: String(r.id_ra), etiqueta: r.grupo }))
+    }
+    case 'cohorte': {
+      const ids = new Set(unicos((o) => [o.id_cohorte]))
+      return ctx.cohortes.filter((c) => ids.has(c.id_cohorte)).map((c) => ({ valor: String(c.id_cohorte), etiqueta: c.nombre }))
+    }
+    case 'periodo':
+      return unicos((o) => [o.periodo]).sort().reverse().map((p) => ({ valor: p, etiqueta: p }))
+    case 'catalogo': {
+      const ids = new Set(unicos((o) => [o.id_catalogo]))
+      return ctx.catalogo.filter((k) => ids.has(k.id_catalogo)).map((k) => ({ valor: String(k.id_catalogo), etiqueta: `${k.codigo} · ${k.nombre}` }))
+    }
+    case 'modulo': {
+      const ids = new Set(unicos((o) => [ctx.moduloDe.get(o.id_catalogo)]))
+      return ctx.modulos.filter(([id]) => ids.has(id)).map(([id, nombre]) => ({ valor: String(id), etiqueta: nombre }))
+    }
+    case 'curso':
+      return ofertas.map((o) => ({ valor: String(o.id_curso), etiqueta: `${o.codigo} · ${o.nombre} (${o.periodo})` }))
+    default:
+      return []
+  }
+}
+
+// Deja en blanco, en orden, cada filtro cuyo valor ya no es válido tras un cambio anterior.
+const depurar = (f, orden, ctx) => {
+  const limpio = { ...f }
+  for (const campo of orden) {
+    if (campo === 'estudiante' || !limpio[campo]) continue
+    if (!opcionesDe(campo, limpio, orden, ctx).some((o) => o.valor === limpio[campo])) limpio[campo] = ''
+  }
+  return limpio
+}
 
 const VALIDACION = {
   Cumple: { icono: 'check_circle', clase: 'bg-surface-container-high text-on-primary-fixed-variant' },
@@ -66,6 +122,77 @@ function Selector({ etiqueta, valor, onChange, opciones, todos = 'Todos', disabl
       </select>
       {ayuda && <span className="text-body-sm font-normal normal-case text-outline">{ayuda}</span>}
     </label>
+  )
+}
+
+// Buscador de estudiantes de la promoción: filtra por nombre o código mientras se escribe.
+function BuscadorEstudiante({ estudiantes, valor, onChange, disabled }) {
+  const [texto, setTexto] = useState('')
+  const [abierto, setAbierto] = useState(false)
+  const elegido = estudiantes.find((e) => e.id_estudiante === valor)
+  const q = texto.trim().toLowerCase()
+  const coincidencias = estudiantes
+    .filter((e) => !q || `${e.nombres} ${e.apellidos} ${e.apellidos} ${e.nombres} ${e.identificacion}`.toLowerCase().includes(q))
+    .slice(0, MAX_SUGERENCIAS)
+  const elegir = (id) => {
+    onChange(id)
+    setTexto('')
+    setAbierto(false)
+  }
+
+  return (
+    <div className="relative flex min-w-64 flex-1 flex-col gap-1 text-label-sm font-semibold uppercase text-on-surface-variant">
+      <label htmlFor="buscar-estudiante">Estudiante</label>
+      {elegido ? (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-secondary bg-secondary-fixed/30 px-3 py-2 text-body-md normal-case text-on-surface">
+          <span className="truncate"><strong>{elegido.apellidos} {elegido.nombres}</strong> · {elegido.identificacion}</span>
+          <button type="button" className="btn-enlace shrink-0" onClick={() => elegir('')} aria-label="Quitar estudiante">
+            <Icono nombre="close" className="text-[18px]" />
+          </button>
+        </div>
+      ) : (
+        <div className="relative">
+          <Icono nombre="search" className="absolute left-3 top-2.5 text-[20px] text-outline" />
+          <input
+            id="buscar-estudiante"
+            type="search"
+            role="combobox"
+            aria-expanded={abierto}
+            aria-controls="sugerencias-estudiante"
+            autoComplete="off"
+            disabled={disabled}
+            placeholder={disabled ? 'Elija primero una promoción' : `Buscar entre ${estudiantes.length} estudiantes por nombre o código…`}
+            className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest py-2 pl-10 pr-3 text-body-md normal-case text-on-surface disabled:opacity-50"
+            value={texto}
+            onChange={(e) => { setTexto(e.target.value); setAbierto(true) }}
+            onFocus={() => setAbierto(true)}
+            onBlur={() => setTimeout(() => setAbierto(false), 150)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && coincidencias.length) { e.preventDefault(); elegir(coincidencias[0].id_estudiante) }
+              if (e.key === 'Escape') setAbierto(false)
+            }}
+          />
+          {abierto && !disabled && (
+            <ul id="sugerencias-estudiante" role="listbox"
+              className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-xl bg-surface-container-lowest py-1 normal-case shadow-lg">
+              {coincidencias.map((e) => (
+                <li key={e.id_estudiante} role="option" aria-selected={false}>
+                  <button type="button" onMouseDown={(ev) => ev.preventDefault()} onClick={() => elegir(e.id_estudiante)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-body-md text-on-surface hover:bg-surface-container-low">
+                    <span>{e.apellidos} {e.nombres}</span>
+                    <span className="text-body-sm text-on-surface-variant">{e.identificacion}</span>
+                  </button>
+                </li>
+              ))}
+              {coincidencias.length === 0 && <li className="px-3 py-2 text-body-sm text-on-surface-variant">Sin coincidencias</li>}
+            </ul>
+          )}
+        </div>
+      )}
+      <span className="text-body-sm font-normal normal-case text-outline">
+        {elegido ? 'Perfil del estudiante' : 'Vacío: toda la promoción'}
+      </span>
+    </div>
   )
 }
 
@@ -236,8 +363,7 @@ export default function ConsolidadoRAPage() {
   const general = useApi(() => raApi.reporteRA({}))
   const catalogo = useApi(cursosApi.catalogo)
   const cohortes = useApi(() => adminApi.listar('cohortes'))
-  const periodos = useApi(raApi.listarPeriodos)
-  const cursosCohorte = useApi(() => (f.cohorte ? cursosApi.listarOfertas({ cohorte: f.cohorte }) : vacio()), [f.cohorte])
+  const ofertas = useApi(() => cursosApi.listarOfertas())
   const estudiantes = useApi(() => (f.cohorte && agrupar === 'estudiante' ? cursosApi.estudiantesCohorte(f.cohorte) : vacio()), [f.cohorte, agrupar])
 
   // Consulta principal según la opción y los filtros; null mientras falte un filtro obligatorio.
@@ -272,49 +398,68 @@ export default function ConsolidadoRAPage() {
   const listaCohortes = [...(cohortes.data ?? [])].sort((a, b) => (a.periodo_inicio < b.periodo_inicio ? -1 : 1))
   const nombreCohorte = listaCohortes.find((c) => String(c.id_cohorte) === f.cohorte)?.nombre
   const raElegido = porRAGeneral.find((r) => String(r.id_ra) === f.ra)
-  const modulos = [...new Map((catalogo.data ?? []).map((k) => [k.id_modulo, k.modulo])).entries()]
-  const cursosPlan = (catalogo.data ?? []).filter((k) => !f.ra || k.ras.some((r) => String(r.id_ra) === f.ra))
+  // Contexto del flujo de filtros: las ofertas reales cruzan RA, promoción, semestre y curso.
+  const ctx = {
+    ofertas: ofertas.data ?? [],
+    ras: porRAGeneral,
+    cohortes: listaCohortes,
+    catalogo: catalogo.data ?? [],
+    modulos: [...new Map((catalogo.data ?? []).map((k) => [k.id_modulo, k.modulo])).entries()],
+    moduloDe: new Map((catalogo.data ?? []).map((k) => [k.id_catalogo, k.id_modulo])),
+    codigoRA: new Map(porRAGeneral.map((r) => [String(r.id_ra), r.grupo])),
+  }
+  const orden = opcion?.filtros ?? []
+  const opciones = (campo) => opcionesDe(campo, f, orden, ctx)
 
   const elegirAgrupacion = (valor) => {
     setAgrupar(valor)
     setF(FILTROS_VACIOS)
   }
+  // Cambia un filtro y limpia los posteriores que dejaron de ser válidos.
   const cambiar = (campo) => (valor) =>
-    setF((x) => ({ ...x, [campo]: valor, ...Object.fromEntries((DEPENDIENTES[campo] ?? []).map((d) => [d, ''])) }))
+    setF((x) => {
+      const nuevo = { ...x, [campo]: valor }
+      if (campo === 'cohorte') nuevo.estudiante = ''
+      return depurar(nuevo, orden, ctx)
+    })
+
+  // Selector de curso: sin promoción no aplica; con un solo curso posible se inhabilita y se informa.
+  const selectorCurso = (campo, etiqueta, requierePromocion) => {
+    const lista = opciones(campo)
+    const sinPromocion = requierePromocion && !f.cohorte
+    const unico = !sinPromocion && lista.length === 1
+    let ayuda
+    if (sinPromocion) ayuda = 'Elija primero una promoción'
+    else if (lista.length === 0) ayuda = 'Ningún curso coincide con la selección'
+    else if (unico) ayuda = `Único curso con esta selección: ${lista[0].etiqueta}`
+    else if (campo === 'catalogo' && raElegido) ayuda = `Cursos que evalúan ${raElegido.grupo}`
+    return (
+      <Selector key={campo} etiqueta={etiqueta} valor={f[campo]} onChange={cambiar(campo)} ayuda={ayuda}
+        disabled={sinPromocion || unico || lista.length === 0} opciones={lista} />
+    )
+  }
 
   const CONTROLES = {
     ra: (
-      <Selector key="ra" etiqueta="Resultado de aprendizaje" valor={f.ra} onChange={cambiar('ra')}
-        opciones={porRAGeneral.map((r) => ({ valor: String(r.id_ra), etiqueta: r.grupo }))} />
+      <Selector key="ra" etiqueta="Resultado de aprendizaje" valor={f.ra} onChange={cambiar('ra')} opciones={opciones('ra')} />
     ),
     cohorte: (
       <Selector key="cohorte" etiqueta="Promoción" valor={f.cohorte} onChange={cambiar('cohorte')}
         todos={agrupar === 'estudiante' ? 'Seleccione…' : 'Todas'}
         ayuda={agrupar === 'estudiante' ? 'Obligatoria: limita la lista de estudiantes' : undefined}
-        opciones={listaCohortes.map((c) => ({ valor: String(c.id_cohorte), etiqueta: c.nombre }))} />
-    ),
-    catalogo: (
-      <Selector key="catalogo" etiqueta="Curso del plan" valor={f.catalogo} onChange={cambiar('catalogo')}
-        ayuda={raElegido ? `Cursos que evalúan ${raElegido.grupo}` : undefined}
-        opciones={cursosPlan.map((k) => ({ valor: String(k.id_catalogo), etiqueta: `${k.codigo} · ${k.nombre}` }))} />
+        opciones={opciones('cohorte')} />
     ),
     periodo: (
-      <Selector key="periodo" etiqueta="Semestre académico" valor={f.periodo} onChange={cambiar('periodo')}
-        opciones={(periodos.data ?? []).filter((p) => p.cursos).map((p) => ({ valor: p.periodo, etiqueta: p.periodo }))} />
+      <Selector key="periodo" etiqueta="Semestre académico" valor={f.periodo} onChange={cambiar('periodo')} opciones={opciones('periodo')} />
     ),
+    catalogo: selectorCurso('catalogo', 'Curso del plan', false),
     modulo: (
-      <Selector key="modulo" etiqueta="Componente de formación" valor={f.modulo} onChange={cambiar('modulo')}
-        opciones={modulos.map(([id, nombre]) => ({ valor: String(id), etiqueta: nombre }))} />
+      <Selector key="modulo" etiqueta="Componente de formación" valor={f.modulo} onChange={cambiar('modulo')} opciones={opciones('modulo')} />
     ),
-    curso: (
-      <Selector key="curso" etiqueta="Curso" valor={f.curso} onChange={cambiar('curso')} disabled={!f.cohorte}
-        ayuda={f.cohorte ? undefined : 'Elija primero una promoción'}
-        opciones={(cursosCohorte.data ?? []).map((c) => ({ valor: String(c.id_curso), etiqueta: `${c.codigo} · ${c.nombre} (${c.periodo})` }))} />
-    ),
+    curso: selectorCurso('curso', 'Curso', true),
     estudiante: (
-      <Selector key="estudiante" etiqueta="Estudiante" valor={f.estudiante} onChange={cambiar('estudiante')} disabled={!f.cohorte}
-        ayuda={f.cohorte ? undefined : 'Elija primero una promoción'}
-        opciones={(estudiantes.data ?? []).map((e) => ({ valor: e.id_estudiante, etiqueta: `${e.apellidos} ${e.nombres} · ${e.identificacion}` }))} />
+      <BuscadorEstudiante key="estudiante" estudiantes={estudiantes.data ?? []} valor={f.estudiante}
+        onChange={cambiar('estudiante')} disabled={!f.cohorte} />
     ),
   }
 
