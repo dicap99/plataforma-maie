@@ -48,7 +48,7 @@ export const MENU_POR_ROL = {
     {
       grupo: 'Resultados de aprendizaje',
       icono: 'fact_check',
-      items: [{ to: '/docente/rubricas', label: 'Calificar rúbricas', icono: 'rule' }],
+      items: [{ to: '/docente/rubricas', label: 'Mis cursos: calificar rúbricas', icono: 'rule' }],
     },
     {
       grupo: 'Evaluación docente',

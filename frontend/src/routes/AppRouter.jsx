@@ -12,7 +12,8 @@ import DatosProgramaPage from '../features/admin/DatosProgramaPage.jsx'
 import PresupuestoDashboard from '../features/admin/PresupuestoDashboard.jsx'
 import UsuariosPage from '../features/admin/UsuariosPage.jsx'
 import PerfilDocentePage from '../features/admin/PerfilDocentePage.jsx'
-import RubricaGridEvaluador from '../features/ra/RubricaGridEvaluador.jsx'
+import MisCursosPage from '../features/ra/MisCursosPage.jsx'
+import PlanillaRubricaPage from '../features/ra/PlanillaRubricaPage.jsx'
 import HistogramaRAChart from '../features/ra/HistogramaRAChart.jsx'
 import FormularioAcuerdo058 from '../features/evalDocente/FormularioAcuerdo058.jsx'
 import DocenteResultadoView from '../features/evalDocente/DocenteResultadoView.jsx'
@@ -44,7 +45,8 @@ export default function AppRouter() {
             <Route index element={<DocenteDashboard />} />
             <Route path="perfil" element={<PerfilDocentePage />} />
             <Route path="datos" element={<DatosProgramaPage />} />
-            <Route path="rubricas" element={<RubricaGridEvaluador />} />
+            <Route path="rubricas" element={<MisCursosPage />} />
+            <Route path="rubricas/:idCurso" element={<PlanillaRubricaPage />} />
             <Route path="autoevaluacion" element={<FormularioAcuerdo058 tipo="AE" />} />
             <Route path="resultados" element={<DocenteResultadoView />} />
           </Route>
