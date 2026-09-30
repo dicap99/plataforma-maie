@@ -162,7 +162,8 @@ CREATE TABLE cohorte_produccion (
     ponencias INT NOT NULL DEFAULT 0 CHECK (ponencias >= 0),
     software INT NOT NULL DEFAULT 0 CHECK (software >= 0),
     prototipos INT NOT NULL DEFAULT 0 CHECK (prototipos >= 0),
-    tesis INT NOT NULL DEFAULT 0 CHECK (tesis >= 0)
+    tesis INT NOT NULL DEFAULT 0 CHECK (tesis >= 0),
+    detalles TEXT
 );
 
 -- Pasantías / estancias por promoción (RF-ADM-04) — hoja "Pasantías"

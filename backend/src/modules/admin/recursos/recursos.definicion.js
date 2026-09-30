@@ -223,6 +223,7 @@ const RECURSOS = [
       { name: 'software', label: 'Software', type: 'entero', required: true },
       { name: 'prototipos', label: 'Prototipos', type: 'entero', required: true },
       { name: 'tesis', label: 'Tesis', type: 'entero', required: true },
+      { name: 'detalles', label: 'Detalles (lista de productos)', type: 'texto', multilinea: true },
     ],
   },
   {
