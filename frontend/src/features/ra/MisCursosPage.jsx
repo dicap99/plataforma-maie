@@ -60,8 +60,13 @@ export default function MisCursosPage() {
                     </div>
                     <Icono nombre="chevron_right" className="text-on-surface-variant" />
                   </div>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     {c.ras.map((ra) => <Insignia key={ra} tono="acento">{ra}</Insignia>)}
+                    <span className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label-sm font-bold ${
+                      c.calificacion_abierta ? 'bg-secondary-fixed text-on-secondary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                      <Icono nombre={c.calificacion_abierta ? 'lock_open' : 'lock'} className="text-[14px]" />
+                      {c.calificacion_abierta ? 'Calificación abierta' : 'Calificación cerrada'}
+                    </span>
                   </div>
                   <div>
                     <div className="mb-1 flex justify-between text-body-sm text-on-surface-variant">

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import * as cursosApi from '../../api/cursosApi'
+import * as raApi from '../../api/raApi'
 import * as usuariosApi from '../../api/usuariosApi'
 import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
@@ -246,6 +247,68 @@ function EstudiantesPromocion({ cohortes }) {
   )
 }
 
+// Apertura de la calificación de rúbricas por semestre académico: cada curso se evalúa al final
+// de su semestre y Coordinación abre o cierra la calificación de todos sus cursos a la vez.
+function CalificacionPorSemestre() {
+  const periodos = useApi(raApi.listarPeriodos)
+  const [cambiando, setCambiando] = useState(null)
+  const [error, setError] = useState(null)
+
+  const alternar = async (p) => {
+    setCambiando(p.periodo)
+    setError(null)
+    try {
+      await raApi.cambiarPeriodo(p.periodo, !p.abierto)
+      await periodos.recargar()
+    } catch (err) {
+      setError(err)
+    } finally {
+      setCambiando(null)
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+      <p className="text-body-sm text-on-surface-variant">
+        Mientras el semestre está cerrado, los docentes solo consultan sus planillas. Abra la calificación al final del
+        semestre y ciérrela cuando los docentes hayan registrado las rúbricas.
+      </p>
+      <ErrorApi error={error ?? periodos.error} onReintentar={periodos.error ? periodos.recargar : undefined} />
+      {periodos.cargando && !periodos.data ? <Cargando /> : (
+        <div className="tabla-scroll">
+          <table className="text-body-sm">
+            <thead>
+              <tr><th>Semestre académico</th><th className="num">Cursos ofertados</th><th>Calificación</th><th>Último cambio</th><th><span className="sr-only">Acciones</span></th></tr>
+            </thead>
+            <tbody>
+              {(periodos.data ?? []).map((p) => (
+                <tr key={p.periodo}>
+                  <td className="font-semibold text-primary">{p.periodo}</td>
+                  <td className="num">{p.cursos}</td>
+                  <td>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-label-sm font-bold ${
+                      p.abierto ? 'bg-secondary-fixed text-on-secondary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                      <Icono nombre={p.abierto ? 'lock_open' : 'lock'} className="text-[14px]" /> {p.abierto ? 'Abierta' : 'Cerrada'}
+                    </span>
+                  </td>
+                  <td className="texto-suave">{p.actualizado_en ? new Date(p.actualizado_en).toLocaleString('es-CO') : '—'}</td>
+                  <td className="acciones">
+                    <button type="button" className={p.abierto ? 'btn btn-secundario' : 'btn btn-primario'}
+                      disabled={cambiando !== null} onClick={() => alternar(p)}>
+                      {cambiando === p.periodo ? 'Guardando…' : p.abierto ? 'Cerrar calificación' : 'Abrir calificación'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {periodos.data?.length === 0 && <tr><td colSpan={5} className="texto-suave">Aún no hay cursos ofertados.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
 // Cursos ofertados por promoción y periodo, con sus docentes y matrícula (RF-ADM-01, RF-RA-02).
 export default function OfertasCursoPage() {
   const [pestana, setPestana] = useState('ofertas')
@@ -310,6 +373,9 @@ export default function OfertasCursoPage() {
         <button type="button" role="tab" aria-selected={pestana === 'promocion'} className={pestana === 'promocion' ? 'activa' : ''} onClick={() => setPestana('promocion')}>
           Estudiantes por promoción
         </button>
+        <button type="button" role="tab" aria-selected={pestana === 'semestres'} className={pestana === 'semestres' ? 'activa' : ''} onClick={() => setPestana('semestres')}>
+          Calificación por semestre
+        </button>
       </div>
 
       {listaCohortes.length === 0 && (
@@ -317,6 +383,8 @@ export default function OfertasCursoPage() {
       )}
 
       {pestana === 'promocion' && listaCohortes.length > 0 && <EstudiantesPromocion cohortes={listaCohortes} />}
+
+      {pestana === 'semestres' && <CalificacionPorSemestre />}
 
       {pestana === 'ofertas' && (
         <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
@@ -354,7 +422,9 @@ export default function OfertasCursoPage() {
                       <tr key={o.id_curso}>
                         <td><strong>{o.codigo}</strong><br />{o.nombre}{o.grupo > 1 && ` · grupo ${o.grupo}`}</td>
                         <td>{o.cohorte}</td>
-                        <td className="nowrap">{o.periodo}</td>
+                        <td className="nowrap">{o.periodo}<br />
+                          <span className="text-label-sm text-on-surface-variant">{o.calificacion_abierta ? 'Calificación abierta' : 'Calificación cerrada'}</span>
+                        </td>
                         <td>{o.docentes.map((d) => d.nombre).join(', ') || <span className="texto-suave">Sin asignar</span>}</td>
                         <td><div className="flex flex-wrap gap-1">{o.ras.map((r) => <Insignia key={r} tono="acento">{r}</Insignia>)}</div></td>
                         <td className="num">{o.inscritos}</td>

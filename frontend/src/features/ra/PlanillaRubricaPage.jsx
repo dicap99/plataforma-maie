@@ -77,6 +77,9 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
   if (!planilla) return null
 
   const { curso, niveles, ras, estudiantes } = planilla
+  // Con la calificación del semestre cerrada, el docente solo consulta.
+  const cerrada = !soloLectura && !curso.calificacion_abierta
+  const lectura = soloLectura || cerrada
   const ra = ras.find((r) => r.id_ra === idRa) ?? ras[0]
   const volver = soloLectura ? '/coordinacion/ra/cursos' : '/docente/rubricas'
 
@@ -156,7 +159,7 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
                 className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-label-lg text-on-primary shadow-sm hover:bg-white/20">
                 <Icono nombre="menu_book" className="text-[18px]" /> Descriptores oficiales
               </button>
-              {!soloLectura && (
+              {!lectura && (
                 <button type="button" onClick={() => guardar()} disabled={!cambios.length || invalidas.length > 0 || guardando}
                   className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-label-lg text-on-secondary shadow-md hover:bg-secondary/90 disabled:opacity-50">
                   <Icono nombre="save" className="text-[18px]" /> {guardando ? 'Guardando…' : `Guardar todo${cambios.length ? ` (${cambios.length})` : ''}`}
@@ -187,8 +190,16 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
 
       {soloLectura && (
         <p className="rounded-xl bg-surface-container-low p-space-sm text-body-sm text-on-surface-variant">
-          Vista de auditoría: las notas las registra el docente del curso.
+          Vista de auditoría: las notas las registra el docente del curso
+          {curso.calificacion_abierta ? ' (calificación del semestre abierta).' : ' (calificación del semestre cerrada).'}
         </p>
+      )}
+      {cerrada && (
+        <div className="flex items-center gap-space-sm rounded-xl bg-tertiary-fixed/60 p-space-sm text-body-sm text-on-tertiary-fixed-variant" role="status">
+          <Icono nombre="lock" className="text-[20px]" />
+          La calificación del semestre {curso.periodo} está cerrada; Coordinación la habilita al final del semestre.
+          Puede consultar la rúbrica y las notas registradas.
+        </div>
       )}
       {invalidas.length > 0 && (
         <div className="alerta-error" role="alert">Hay {invalidas.length} nota(s) no válidas: use números de 0 a 5 con máximo dos decimales.</div>
@@ -262,7 +273,7 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
           cambiosDe={cambiosDe}
           onGuardar={guardar}
           guardando={guardando}
-          soloLectura={soloLectura}
+          soloLectura={lectura}
         />
       ) : (
         <ResumenPlanilla
@@ -273,7 +284,7 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
           cambios={cambios}
           onNota={onNota}
           onVer={verEstudiante}
-          soloLectura={soloLectura}
+          soloLectura={lectura}
         />
       )}
 
