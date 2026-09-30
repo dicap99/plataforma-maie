@@ -13,6 +13,10 @@ export const planilla = (curso) => client.get('/ra/evaluaciones', { params: { cu
 export const registrarCalificaciones = (idCurso, calificaciones) =>
   client.post('/ra/evaluaciones', { id_curso: idCurso, calificaciones })
 
+// Apertura de la calificación por semestre académico (la controla Coordinación)
+export const listarPeriodos = () => client.get('/ra/periodos')
+export const cambiarPeriodo = (periodo, abierto) => client.put(`/ra/periodos/${periodo}`, { abierto })
+
 // Reportes: agrupar = ra | curso | catalogo | modulo | cohorte | estudiante, más filtros combinables
 export const reporteRA = (params) => client.get('/ra/reportes', { params })
 export const exportarRA = (params) => descargar('/ra/reportes/exportar', params)
