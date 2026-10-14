@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import * as cursosApi from '../../api/cursosApi'
 import * as raApi from '../../api/raApi'
@@ -8,7 +8,8 @@ import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import Modal from '../../components/common/Modal.jsx'
-import { BarraProgreso, Insignia } from '../admin/panel/TarjetaKpi.jsx'
+import { BarraProgreso, Insignia } from './panel/TarjetaKpi.jsx'
+import UsuariosPage from './UsuariosPage.jsx'
 import { periodoAcademico } from '../../utils/periodo'
 import { porcentaje } from '../../utils/formato'
 
@@ -474,11 +475,22 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
   )
 }
 
-// Cursos y matrícula (RF-ADM-01, RF-RA-02): por semestre académico se ofertan clases a las
-// promociones y se asignan sus docentes; además, clases, estudiantes por promoción y apertura
-// de la calificación.
-export default function OfertasCursoPage() {
-  const [pestana, setPestana] = useState('semestre')
+const PESTANAS = [
+  ['semestre', 'Asignación por semestre'],
+  ['clases', 'Clases'],
+  ['promocion', 'Estudiantes por promoción'],
+  ['usuarios', 'Usuarios'],
+  ['semestres', 'Calificación por semestre'],
+]
+
+// Gestión académica (RF-ADM-01, RF-RA-02, RNF-SEG-01): todo lo que organiza la operación académica de
+// cada semestre: clases del plan, su oferta a las promociones con los docentes asignados, la matrícula
+// de estudiantes, las cuentas de usuario y la apertura de la calificación de rúbricas.
+// La pestaña se puede indicar en la URL (?pestana=usuarios).
+export default function GestionAcademicaPage() {
+  const [parametros, setParametros] = useSearchParams()
+  const pestana = PESTANAS.some(([v]) => v === parametros.get('pestana')) ? parametros.get('pestana') : 'semestre'
+  const setPestana = (valor) => setParametros(valor === 'semestre' ? {} : { pestana: valor }, { replace: true })
   const [periodo, setPeriodo] = useState(periodoAcademico())
   const [otroSemestre, setOtroSemestre] = useState(false)
   const [filtro, setFiltro] = useState({ cohorte: '', docente: '' })
@@ -530,24 +542,17 @@ export default function OfertasCursoPage() {
     }
   }
 
-  const PESTANAS = [
-    ['semestre', 'Asignación por semestre'],
-    ['clases', 'Clases'],
-    ['promocion', 'Estudiantes por promoción'],
-    ['semestres', 'Calificación por semestre'],
-  ]
-
   return (
     <div className="flex flex-col gap-space-lg">
       <header className="flex flex-col gap-space-sm md:flex-row md:items-end md:justify-between">
         <div>
           <div className="inline-flex items-center gap-1 text-label-sm font-semibold uppercase tracking-wider text-secondary">
-            <Icono nombre="menu_book" className="text-[16px]" /> Resultados de aprendizaje
+            <Icono nombre="school" className="text-[16px]" /> Procesos administrativos
           </div>
-          <h1 className="mt-1 font-display text-headline-lg text-primary">Cursos y matrícula</h1>
-          <p className="max-w-3xl text-body-md text-on-surface-variant">
-            En cada semestre académico se ofertan clases a las promociones y se asignan sus docentes; el docente califica
-            en ellas la rúbrica de los RA que evalúa el curso del plan de la clase.
+          <h1 className="m-0 mt-1 font-display text-headline-lg text-primary">Gestión académica</h1>
+          <p className="m-0 max-w-3xl text-body-md text-on-surface-variant">
+            Clases del plan, su oferta en cada semestre con los docentes asignados, la matrícula de estudiantes, las cuentas
+            de usuario y la apertura de la calificación de rúbricas.
           </p>
         </div>
       </header>
@@ -564,6 +569,7 @@ export default function OfertasCursoPage() {
       {pestana === 'promocion' && (listaCohortes.length > 0
         ? <EstudiantesPromocion cohortes={listaCohortes} />
         : <div className="card"><p>No hay promociones registradas. Créelas en Información académica.</p></div>)}
+      {pestana === 'usuarios' && <UsuariosPage embebido />}
       {pestana === 'semestres' && <CalificacionPorSemestre />}
 
       {pestana === 'semestre' && (
@@ -644,7 +650,7 @@ export default function OfertasCursoPage() {
                             <BarraProgreso fraccion={avance} />
                           </td>
                           <td className="acciones">
-                            <Link to={String(o.id_curso)} className="btn-enlace">Planilla</Link>
+                            <Link to={`cursos/${o.id_curso}`} className="btn-enlace">Planilla</Link>
                             <button type="button" className="btn-enlace" onClick={() => setMatriculando(o)}>Matrícula</button>
                             <button type="button" className="btn-enlace" onClick={() => setEditando(o)}>Editar</button>
                             <button type="button" className="btn-enlace peligro" onClick={() => eliminar(o)}>Quitar</button>

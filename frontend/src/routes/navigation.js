@@ -19,7 +19,7 @@ export const MENU_POR_ROL = {
       items: [
         { to: '/coordinacion/datos', label: 'Información académica', icono: 'groups' },
         { to: '/coordinacion/presupuesto', label: 'Presupuesto y finanzas', icono: 'account_balance_wallet' },
-        { to: '/coordinacion/usuarios', label: 'Usuarios', icono: 'manage_accounts' },
+        { to: '/coordinacion/gestion', label: 'Gestión académica', icono: 'school' },
       ],
     },
     {
@@ -28,7 +28,6 @@ export const MENU_POR_ROL = {
       items: [
         { to: '/coordinacion/ra', label: 'Consolidado académico', icono: 'analytics', end: true },
         { to: '/coordinacion/ra/rubricas', label: 'Matriz de rúbricas', icono: 'rule' },
-        { to: '/coordinacion/ra/cursos', label: 'Cursos y matrícula', icono: 'menu_book' },
       ],
     },
     {

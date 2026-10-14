@@ -81,7 +81,7 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
   const cerrada = !soloLectura && !curso.calificacion_abierta
   const lectura = soloLectura || cerrada
   const ra = ras.find((r) => r.id_ra === idRa) ?? ras[0]
-  const volver = soloLectura ? '/coordinacion/ra/cursos' : '/docente/rubricas'
+  const volver = soloLectura ? '/coordinacion/gestion' : '/docente/rubricas'
 
   const infos = new Map(estudiantes.map((e) => [e.id_estudiante, estadoEstudiante(niveles, ediciones, e, ra.criterios)]))
   const completos = estudiantes.filter((e) => infos.get(e.id_estudiante).completo)
@@ -135,7 +135,7 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <nav className="flex flex-wrap items-center gap-space-xs text-label-sm text-primary-fixed-dim" aria-label="Ruta">
               <Link to={volver} className="text-primary-fixed-dim no-underline hover:text-on-primary">
-                {soloLectura ? 'Cursos y matrícula' : 'Calificar rúbricas'}
+                {soloLectura ? 'Gestión académica' : 'Calificar rúbricas'}
               </Link>
               <span>/</span>
               <span className="font-semibold text-on-primary">{curso.codigo} · Rúbrica {ra.codigo}</span>

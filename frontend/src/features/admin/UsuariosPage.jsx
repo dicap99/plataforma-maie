@@ -15,7 +15,8 @@ const VISTAS = [{ valor: 'graficas', etiqueta: 'Gráficas' }, { valor: 'datos', 
 const VACIO = { identificacion: '', nombres: '', apellidos: '', email: '', rol: 'docente', activo: true, password: '', id_docente: '' }
 
 // Gestión de usuarios y roles (RNF-SEG-01). Un usuario docente puede vincularse a su perfil (RF-ADM-06).
-export default function UsuariosPage() {
+// `embebido`: se muestra como pestaña de Gestión académica (sin el encabezado de página).
+export default function UsuariosPage({ embebido = false }) {
   const { usuario: sesion } = useAuth()
   const usuarios = useApi(usuariosApi.listarUsuarios)
   const docentes = useApi(() => adminApi.listar('docentes'))
@@ -37,6 +38,7 @@ export default function UsuariosPage() {
   return (
     <>
       <div className="flex flex-col gap-space-lg">
+      {!embebido && (
       <header className="flex flex-col gap-space-sm md:flex-row md:items-end md:justify-between">
         <div>
           <div className="inline-flex items-center gap-1 text-label-sm font-semibold uppercase tracking-wider text-secondary">
@@ -45,12 +47,13 @@ export default function UsuariosPage() {
           <h1 className="m-0 mt-1 font-display text-headline-lg text-primary">Usuarios</h1>
           <p className="m-0 max-w-3xl text-body-md text-on-surface-variant">Cuentas de acceso, roles y vínculo de los docentes con su perfil.</p>
         </div>
+      </header>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-space-sm">
+        <Alternador etiqueta="Vista" opciones={VISTAS} valor={vista} onChange={setVista} />
         <button type="button" className="btn btn-primario" onClick={() => setEditando(VACIO)}>
           <Icono nombre="person_add" className="text-[18px]" /> Nuevo usuario
         </button>
-      </header>
-      <div className="flex flex-wrap items-center justify-end gap-space-sm">
-        <Alternador etiqueta="Vista" opciones={VISTAS} valor={vista} onChange={setVista} />
       </div>
       <ErrorApi error={usuarios.error} onReintentar={usuarios.recargar} />
       <ErrorApi error={errorAccion} />

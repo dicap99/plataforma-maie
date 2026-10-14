@@ -109,8 +109,9 @@ frontend/src/
   components/charts/           # ChartCard (con vista de tabla), GraficoBarras, GraficoLineas, StatTile, paleta validada
   features/admin/              # EstadisticasDashboard (panel general), DatosProgramaPage (hojas académicas),
                                # PresupuestoDashboard (resumen + hojas financieras), RecursoTabla/RecursoFormulario,
-                               # CsvUploaderModal, UsuariosPage, PerfilDocentePage
-  features/ra/                 # ConsolidadoRAPage, MatrizRubricasPage, OfertasCursoPage, MisCursosPage,
+                               # CsvUploaderModal, PerfilDocentePage, GestionAcademicaPage (clases, oferta por semestre,
+                               # matrícula, usuarios y apertura de la calificación)
+  features/ra/                 # ConsolidadoRAPage, MatrizRubricasPage, MisCursosPage,
                                # PlanillaRubricaPage (+ planilla/: evaluación por estudiante y resumen general)
   features/admin/panel/        # BannerPrograma, FranjaAviso, TarjetaKpi, TarjetaLateral, LineasInvestigacion
 ```
