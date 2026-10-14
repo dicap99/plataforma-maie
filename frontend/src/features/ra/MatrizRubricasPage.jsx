@@ -176,7 +176,7 @@ export default function MatrizRubricasPage() {
             </div>
             <label className="sr-only" htmlFor={`def-${ra.id_ra}`}>Definición de {ra.codigo}</label>
             <textarea id={`def-${ra.id_ra}`} readOnly rows={2} value={ra.descripcion} title="La definición del RA proviene del PEP"
-              className="w-full cursor-default resize-none rounded-xl bg-surface-container-low px-3 py-2.5 text-body-md text-on-surface outline-none" style={CONTORNO} />
+              className="w-full cursor-default resize-none rounded-xl border-0 bg-surface-container-low px-3 py-2.5 text-body-md text-on-surface outline-none" style={CONTORNO} />
           </section>
 
           <ErrorApi error={errorGuardar} />
@@ -201,7 +201,7 @@ export default function MatrizRubricasPage() {
                       <label className="text-label-md text-on-surface-variant" htmlFor={`${id}-peso`}>Peso (%):</label>
                       <input id={`${id}-peso`} type="number" min="0" max="100" step="0.01" value={c.peso_porcentaje}
                         onChange={(e) => editar(i, 'peso_porcentaje', e.target.value)}
-                        className="w-20 rounded-lg bg-surface-container-lowest py-0.5 text-center font-display text-headline-sm text-primary shadow-sm outline-none [appearance:textfield] focus:ring-2 focus:ring-secondary/40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        className="w-20 rounded-lg border-0 bg-surface-container-lowest py-0.5 text-center font-display text-headline-sm text-primary shadow-sm outline-none [appearance:textfield] focus:ring-2 focus:ring-secondary/40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                     </div>
                     <button type="button" onClick={() => quitar(i)} disabled={borrador.length === 1}
                       title={borrador.length === 1 ? 'Una rúbrica debe tener al menos un criterio' : undefined}
@@ -215,7 +215,7 @@ export default function MatrizRubricasPage() {
                   <label className="text-label-sm font-semibold text-on-surface-variant" htmlFor={`${id}-nombre`}>Descripción del criterio</label>
                   <textarea id={`${id}-nombre`} rows={2} value={c.nombre_criterio} placeholder="Describa el criterio de evaluación…"
                     onChange={(e) => editar(i, 'nombre_criterio', e.target.value)}
-                    className="w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface shadow-sm outline-none focus:ring-2 focus:ring-secondary/30"
+                    className="w-full rounded-lg border-0 bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface shadow-sm outline-none focus:ring-2 focus:ring-secondary/30"
                     style={CONTORNO} />
                 </div>
 
@@ -231,7 +231,7 @@ export default function MatrizRubricasPage() {
                         <textarea id={`${id}-${n.campo}`} rows={4} value={c[n.campo] ?? ''}
                           placeholder={`Descriptor nivel ${(r?.etiqueta ?? n.clave).toLowerCase()}…`}
                           onChange={(e) => editar(i, n.campo, e.target.value)}
-                          className="w-full resize-none rounded-lg bg-surface-container-lowest p-2 text-body-sm text-on-surface shadow-sm outline-none focus:ring-1 focus:ring-secondary"
+                          className="w-full resize-none rounded-lg border-0 bg-surface-container-lowest p-2 text-body-sm text-on-surface shadow-sm outline-none focus:ring-1 focus:ring-secondary"
                           style={{ boxShadow: `inset 0 0 0 1px ${n.contorno}` }} />
                       </div>
                     )
