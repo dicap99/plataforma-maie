@@ -4,6 +4,7 @@ import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import { valorCampo } from '../../utils/formato'
 import RecursoFormulario from './RecursoFormulario.jsx'
+import TablaPromociones from './academico/TablaPromociones.jsx'
 
 // Tabla editable de un recurso del Módulo 1 (una hoja de "Estadísticas MaIE").
 // `filtro` = { etiqueta, fn } limita las filas visibles (p. ej. al hacer clic en una gráfica).
@@ -141,58 +142,68 @@ export default function RecursoTabla({ recurso, cohortes, onCambio, filtro, onQu
         <Cargando />
       ) : (
         filas && (
-          <div className="card tabla-scroll">
-            <table>
-              <thead>
-                <tr>
-                  {columnas.map((c) => (
-                    <th key={c.name} className={['entero', 'numero', 'dinero'].includes(c.type) ? 'num' : ''}>
-                      {c.label}
-                    </th>
-                  ))}
-                  {conOrigen && <th>Origen</th>}
-                  {tieneAcciones && <th><span className="sr-only">Acciones</span></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {visibles.length === 0 && (
-                  <tr><td colSpan={columnas.length + 1} className="texto-suave">
-                    {filtro ? 'Ningún registro coincide con el filtro.' : 'Sin registros. Agregue uno o importe el Excel.'}
-                  </td></tr>
-                )}
-                {visibles.map((fila) => (
-                  <tr key={recurso.llave.map((k) => fila[k]).join('|')}>
+          recurso.id === 'cohortes' ? (
+            <TablaPromociones
+              filas={visibles}
+              editable={editable}
+              conOrigen={conOrigen}
+              onEditar={setEditando}
+              onEliminar={eliminar}
+            />
+          ) : (
+            <div className="card tabla-scroll">
+              <table>
+                <thead>
+                  <tr>
                     {columnas.map((c) => (
-                      <td key={c.name} className={['entero', 'numero', 'dinero'].includes(c.type) ? 'num' : ['periodo', 'fecha', 'dinero'].includes(c.type) ? 'nowrap' : ''}>
-                        {celda(c, fila)}
-                      </td>
+                      <th key={c.name} className={['entero', 'numero', 'dinero'].includes(c.type) ? 'num' : ''}>
+                        {c.label}
+                      </th>
                     ))}
-                    {conOrigen && (
-                      <td className="nowrap">
-                        <span className={`rounded-full px-2 py-0.5 text-label-sm font-semibold ${fila.origen === 'gestion' ? 'bg-secondary-fixed text-on-secondary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'}`}
-                          title={fila.origen === 'gestion' ? 'Calculado desde Gestión académica' : 'Registro histórico de la hoja'}>
-                          {fila.origen === 'gestion' ? 'Gestión' : 'Registro'}
-                        </span>
-                      </td>
-                    )}
-                    {tieneAcciones && (
-                      <td className="acciones">
-                        {tieneDetalles && (
-                          <button type="button" className="btn-enlace text-indigo-600 font-medium" onClick={() => setViendoDetalles(fila)}>Detalles</button>
-                        )}
-                        {editable && (
-                          <>
-                            <button type="button" className="btn-enlace" onClick={() => setEditando(fila)}>Editar</button>
-                            <button type="button" className="btn-enlace peligro" onClick={() => eliminar(fila)}>Eliminar</button>
-                          </>
-                        )}
-                      </td>
-                    )}
+                    {conOrigen && <th>Origen</th>}
+                    {tieneAcciones && <th><span className="sr-only">Acciones</span></th>}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {visibles.length === 0 && (
+                    <tr><td colSpan={columnas.length + 1} className="texto-suave">
+                      {filtro ? 'Ningún registro coincide con el filtro.' : 'Sin registros. Agregue uno o importe el Excel.'}
+                    </td></tr>
+                  )}
+                  {visibles.map((fila) => (
+                    <tr key={recurso.llave.map((k) => fila[k]).join('|')}>
+                      {columnas.map((c) => (
+                        <td key={c.name} className={['entero', 'numero', 'dinero'].includes(c.type) ? 'num' : ['periodo', 'fecha', 'dinero'].includes(c.type) ? 'nowrap' : ''}>
+                          {celda(c, fila)}
+                        </td>
+                      ))}
+                      {conOrigen && (
+                        <td className="nowrap">
+                          <span className={`rounded-full px-2 py-0.5 text-label-sm font-semibold ${fila.origen === 'gestion' ? 'bg-secondary-fixed text-on-secondary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'}`}
+                            title={fila.origen === 'gestion' ? 'Calculado desde Gestión académica' : 'Registro histórico de la hoja'}>
+                            {fila.origen === 'gestion' ? 'Gestión' : 'Registro'}
+                          </span>
+                        </td>
+                      )}
+                      {tieneAcciones && (
+                        <td className="acciones">
+                          {tieneDetalles && (
+                            <button type="button" className="btn-enlace text-indigo-600 font-medium" onClick={() => setViendoDetalles(fila)}>Detalles</button>
+                          )}
+                          {editable && (
+                            <>
+                              <button type="button" className="btn-enlace" onClick={() => setEditando(fila)}>Editar</button>
+                              <button type="button" className="btn-enlace peligro" onClick={() => eliminar(fila)}>Eliminar</button>
+                            </>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )
       )}
 

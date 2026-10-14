@@ -7,6 +7,8 @@ import { numero, porcentaje } from '../../../utils/formato'
 import TarjetaKpi, { BarraProgreso, Insignia } from '../panel/TarjetaKpi.jsx'
 import { Alternador, FilaIndicadores, RejillaGraficas, SinDatos } from './comunes.jsx'
 import { ETAPAS, indicadoresPromociones, razon } from './estadisticas'
+import DiagramaTriangular from './DiagramaTriangular.jsx'
+import GraficoAprobadosSemestre from './GraficoAprobadosSemestre.jsx'
 
 const MODOS = [{ valor: 'cantidad', etiqueta: 'Estudiantes' }, { valor: 'pct', etiqueta: '% de matriculados' }]
 
@@ -46,6 +48,25 @@ export default function PanelPromociones({ cohortes, onFiltrar }) {
           <Insignia tono="neutro">Sin egresados aún</Insignia>
         </TarjetaKpi>
       </FilaIndicadores>
+
+      {/* Gráficas destacadas por promoción: Diagrama Triangular de Eficiencia y Aprobación por Semestre */}
+      <RejillaGraficas>
+        <ChartCard
+          titulo="Balance Ternario de la Promoción"
+          subtitulo="Relación porcentual entre Egresados, Graduados, Retiros Reales y Estudiantes en Curso."
+          altura="h-auto"
+        >
+          <DiagramaTriangular cohortes={cohortes} />
+        </ChartCard>
+
+        <ChartCard
+          titulo="Aprobación por Semestre y Promoción"
+          subtitulo="Estadísticas de cuántos estudiantes aprobaron cada semestre académico a lo largo del programa."
+          altura="h-auto"
+        >
+          <GraficoAprobadosSemestre cohortes={cohortes} />
+        </ChartCard>
+      </RejillaGraficas>
 
       <ChartCard
         titulo="Curva de permanencia"
