@@ -40,10 +40,10 @@ export default function AppRouter() {
             <Route path="gestion" element={<GestionAcademicaPage />} />
             <Route path="gestion/cursos/:idCurso" element={<PlanillaRubricaPage soloLectura />} />
             {/* Rutas anteriores: Usuarios y Cursos y matrícula viven ahora en Gestión académica */}
-            <Route path="usuarios" element={<Navigate to="/coordinacion/gestion?pestana=usuarios" replace />} />
+            <Route path="usuarios" element={<Navigate to="/coordinacion/gestion" replace />} />
             <Route path="ra" element={<ConsolidadoRAPage />} />
             <Route path="ra/rubricas" element={<MatrizRubricasPage />} />
-            <Route path="ra/cursos" element={<Navigate to="/coordinacion/gestion" replace />} />
+            <Route path="ra/cursos" element={<Navigate to="/coordinacion/gestion?pestana=semestre" replace />} />
             <Route path="ra/cursos/:idCurso" element={<PlanillaRubricaPage soloLectura />} />
             <Route path="evaluacion-coordinacion" element={<FormularioAcuerdo058 tipo="EC" />} />
           </Route>

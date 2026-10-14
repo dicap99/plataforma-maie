@@ -475,13 +475,16 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
   )
 }
 
+// Orden del flujo de trabajo: cuentas de usuario → estudiantes de cada promoción → catálogo de clases →
+// oferta de clases por semestre (docentes y matrícula) → apertura de la calificación.
 const PESTANAS = [
-  ['semestre', 'Asignación por semestre'],
-  ['clases', 'Clases'],
-  ['promocion', 'Estudiantes por promoción'],
   ['usuarios', 'Usuarios'],
+  ['promocion', 'Estudiantes por promoción'],
+  ['clases', 'Clases'],
+  ['semestre', 'Asignación por semestre'],
   ['semestres', 'Calificación por semestre'],
 ]
+const PESTANA_INICIAL = PESTANAS[0][0]
 
 // Gestión académica (RF-ADM-01, RF-RA-02, RNF-SEG-01): todo lo que organiza la operación académica de
 // cada semestre: clases del plan, su oferta a las promociones con los docentes asignados, la matrícula
@@ -489,8 +492,8 @@ const PESTANAS = [
 // La pestaña se puede indicar en la URL (?pestana=usuarios).
 export default function GestionAcademicaPage() {
   const [parametros, setParametros] = useSearchParams()
-  const pestana = PESTANAS.some(([v]) => v === parametros.get('pestana')) ? parametros.get('pestana') : 'semestre'
-  const setPestana = (valor) => setParametros(valor === 'semestre' ? {} : { pestana: valor }, { replace: true })
+  const pestana = PESTANAS.some(([v]) => v === parametros.get('pestana')) ? parametros.get('pestana') : PESTANA_INICIAL
+  const setPestana = (valor) => setParametros(valor === PESTANA_INICIAL ? {} : { pestana: valor }, { replace: true })
   const [periodo, setPeriodo] = useState(periodoAcademico())
   const [otroSemestre, setOtroSemestre] = useState(false)
   const [filtro, setFiltro] = useState({ cohorte: '', docente: '' })
