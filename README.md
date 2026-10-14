@@ -45,7 +45,7 @@ Usuario inicial (seed): `coordinacion.maie@udenar.edu.co` / `CambiarMaIE2026`. *
 > **Cambios de esquema:** no hay migraciones; `init.sql` y `seed.sql` solo corren al crear el volumen de la BD.
 > Para conservar los datos de una base existente aplique los scripts de `database/migraciones/` (respalde antes con
 > `pg_dump`), p. ej. `docker compose exec -T db psql -v ON_ERROR_STOP=1 -U maie_admin -d maie_db < database/migraciones/2026-09-30_modulo2_ra.sql`
-> y luego `2026-09-30_clases.sql` (en orden de fecha).
+> y luego las demás de `database/migraciones/` en orden de fecha.
 > La alternativa es recrear la base (`docker compose down -v && docker compose up -d db`) y reimportar el libro del Módulo 1.
 
 Datos sintéticos del Módulo 2 (promociones «Sintética I…V», docentes y estudiantes con correos `@sintetico.maie.local`,
@@ -129,7 +129,8 @@ Las rutas de las hojas del Módulo 1 se generan desde `recursos.definicion.js` (
 | Recurso | Rutas | Rol |
 |---|---|---|
 | Auth | `POST /auth/login`, `GET /auth/me`, `PUT /auth/password` | Público / Todos |
-| Usuarios | CRUD `/usuarios` (vincula el perfil docente con `id_docente`) | Coord |
+| Usuarios | CRUD `/usuarios`: estudiante con `id_cohorte` y `beca`; docente con `afiliacion` y `campos_formacion` (perfil docente); `GET /usuarios/campos-formacion` | Coord |
+| Reflejo académico | `GET /admin/academico/reflejo`: promociones, beneficios y cursos/docentes por semestre calculados desde Gestión cuando hay registros | Coord, Docente |
 | Metadatos | `GET /admin/recursos` (hojas visibles para el rol) | Coord, Docente |
 | Promociones | CRUD `/admin/cohortes` | Coord (Docente: lectura) |
 | Cursos y docentes | CRUD `/admin/cohorte-semestres/:id_cohorte/:semestre` | Coord (Docente: lectura) |
