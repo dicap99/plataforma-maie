@@ -96,11 +96,11 @@ export default function MatrizRubricasPage() {
     <div className="flex w-full flex-col gap-space-lg">
       {/* Encabezado */}
       <header className="flex flex-col gap-1 pb-2">
-        <div className="flex items-center gap-1.5 text-label-sm font-bold uppercase tracking-wider text-secondary">
+        <div className="inline-flex items-center gap-1 text-label-sm font-semibold uppercase tracking-wider text-secondary">
           <Icono nombre="tune" className="text-[16px]" /> Resultados de aprendizaje
         </div>
-        <h1 className="font-display text-[26px] font-bold leading-tight tracking-tight text-primary">Matriz de rúbricas</h1>
-        <p className="max-w-4xl pt-0.5 text-[13px] text-on-surface-variant">
+        <h1 className="m-0 mt-1 font-display text-headline-lg tracking-tight text-primary">Matriz de rúbricas</h1>
+        <p className="m-0 max-w-4xl text-body-md text-on-surface-variant">
           Rúbricas institucionales de cada RA. Los pesos de los criterios deben sumar 100 %; no se pueden quitar criterios
           que ya tienen calificaciones registradas.
         </p>
@@ -112,7 +112,7 @@ export default function MatrizRubricasPage() {
           <div className="flex flex-col gap-space-sm rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
             <div className="flex items-center justify-between px-1">
               <span className="text-label-sm font-bold uppercase tracking-wider text-outline">Resultados (RA)</span>
-              <span className="text-label-sm font-semibold text-secondary">{ras.length} Registrados</span>
+              <span className="text-label-sm font-semibold text-secondary">{ras.length} registrados</span>
             </div>
             <nav className="flex flex-col gap-2" aria-label="Resultados de aprendizaje">
               {ras.map((r) => {
@@ -126,7 +126,7 @@ export default function MatrizRubricasPage() {
                     type="button"
                     onClick={() => cambiarRa(r.id_ra)}
                     aria-current={activo}
-                    className={`group flex w-full items-center justify-between rounded-xl p-3 text-left transition-all ${
+                    className={`group flex w-full items-center justify-between rounded-xl p-3 text-left transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary ${
                       activo ? 'bg-secondary text-on-secondary shadow-md' : 'bg-surface-container-low text-on-surface shadow-sm hover:bg-surface-container'
                     }`}
                   >
@@ -147,17 +147,17 @@ export default function MatrizRubricasPage() {
               })}
             </nav>
             <button type="button" onClick={() => setVerAyudaRa(true)}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container px-3 py-2.5 text-label-md text-primary transition-all hover:bg-surface-container-high">
-              <Icono nombre="add_circle" className="text-[18px]" /> Nuevo Resultado (RA)
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container px-3 py-2.5 text-label-md text-primary transition-all hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+              <Icono nombre="add_circle" className="text-[18px]" /> Nuevo resultado (RA)
             </button>
           </div>
 
           <div className="flex flex-col gap-2 rounded-xl bg-primary-container p-space-md text-on-primary shadow-sm">
             <div className="flex items-center gap-2">
-              <Icono nombre="model_training" className="text-[20px] text-secondary-fixed" />
-              <span className="text-label-md font-bold">Rúbricas institucionales del PEP</span>
+              <Icono nombre="verified" className="text-[20px] text-secondary-fixed" />
+              <span className="text-label-md">Rúbricas institucionales del PEP</span>
             </div>
-            <p className="text-body-sm text-primary-fixed-dim">
+            <p className="m-0 text-body-sm text-primary-fixed-dim">
               Los {ras.length} RA y sus rúbricas provienen del documento de Resultados de Aprendizaje del PEP MaIE
               (secciones 3.2.f y 3.6.a).
             </p>
@@ -176,7 +176,7 @@ export default function MatrizRubricasPage() {
             </div>
             <label className="sr-only" htmlFor={`def-${ra.id_ra}`}>Definición de {ra.codigo}</label>
             <textarea id={`def-${ra.id_ra}`} readOnly rows={2} value={ra.descripcion} title="La definición del RA proviene del PEP"
-              className="w-full resize-none rounded-xl bg-surface-container-lowest px-3 py-2.5 text-body-md text-on-surface outline-none" style={CONTORNO} />
+              className="w-full cursor-default resize-none rounded-xl bg-surface-container-low px-3 py-2.5 text-body-md text-on-surface outline-none" style={CONTORNO} />
           </section>
 
           <ErrorApi error={errorGuardar} />
@@ -193,7 +193,7 @@ export default function MatrizRubricasPage() {
               <article key={c.id_criterio ?? `nuevo-${i}`} className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
                 <div className="flex flex-col justify-between gap-3 pb-1 md:flex-row md:items-center">
                   <div className="flex items-center gap-2">
-                    <h2 className="font-display text-headline-sm text-primary">Criterio {c.orden}</h2>
+                    <h2 className="m-0 font-display text-headline-sm text-primary">Criterio {c.orden}</h2>
                     <span className="h-2 w-2 rounded-full bg-secondary" aria-hidden="true" />
                   </div>
                   <div className="flex items-center gap-4">
@@ -201,11 +201,11 @@ export default function MatrizRubricasPage() {
                       <label className="text-label-md text-on-surface-variant" htmlFor={`${id}-peso`}>Peso (%):</label>
                       <input id={`${id}-peso`} type="number" min="0" max="100" step="0.01" value={c.peso_porcentaje}
                         onChange={(e) => editar(i, 'peso_porcentaje', e.target.value)}
-                        className="w-16 rounded bg-surface-container-lowest py-0.5 text-center font-display text-headline-sm font-bold text-primary shadow-sm outline-none focus:ring-2 focus:ring-secondary/40" />
+                        className="w-20 rounded-lg bg-surface-container-lowest py-0.5 text-center font-display text-headline-sm text-primary shadow-sm outline-none [appearance:textfield] focus:ring-2 focus:ring-secondary/40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                     </div>
                     <button type="button" onClick={() => quitar(i)} disabled={borrador.length === 1}
                       title={borrador.length === 1 ? 'Una rúbrica debe tener al menos un criterio' : undefined}
-                      className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-label-md text-error transition-all hover:bg-error-container/20 hover:text-on-error-container disabled:opacity-40">
+                      className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-label-md text-error transition-all hover:bg-error-container/40 hover:text-on-error-container disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
                       <Icono nombre="delete" className="text-[18px]" /> Quitar
                     </button>
                   </div>
@@ -242,7 +242,7 @@ export default function MatrizRubricasPage() {
           })}
 
           <button type="button" onClick={agregar}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container py-4 text-label-lg font-bold text-primary shadow-sm transition-all hover:bg-surface-container-high">
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container py-4 text-label-lg text-primary shadow-sm transition-all hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
             <Icono nombre="add_circle" className="text-[24px] text-secondary" /> Agregar nuevo criterio
           </button>
 
@@ -256,8 +256,9 @@ export default function MatrizRubricasPage() {
                 </span>
               </div>
             </div>
-            <button type="button" className="text-label-sm font-semibold text-secondary hover:underline" onClick={() => setVerMomentos((v) => !v)}
-              aria-expanded={verMomentos}>
+            <button type="button" onClick={() => setVerMomentos((v) => !v)} aria-expanded={verMomentos}
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-label-md text-secondary transition-colors hover:bg-secondary-fixed/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+              <Icono nombre={verMomentos ? 'expand_less' : 'grid_on'} className="text-[18px]" />
               {verMomentos ? 'Ocultar momentos de evaluación' : 'Ver momentos de evaluación'}
             </button>
           </div>
@@ -288,7 +289,7 @@ export default function MatrizRubricasPage() {
       {verMomentos && (
         <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
           <div>
-            <h2 className="flex items-center gap-2 font-display text-headline-md text-primary">
+            <h2 className="m-0 flex items-center gap-2 font-display text-headline-md text-primary">
               <Icono nombre="grid_on" className="text-[22px] text-secondary" /> Momentos y estrategias de evaluación
             </h2>
             <p className="text-body-sm text-on-surface-variant">

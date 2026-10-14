@@ -12,6 +12,17 @@ body {
   line-height: 1.5;
 }
 
+/* Sin preflight de Tailwind, los controles de formulario no heredan la fuente: el navegador usa la
+   del sistema en botones y una monoespaciada en textarea. Las utilidades de Tailwind (capa utilities)
+   siguen pudiendo fijar tamaño y peso. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
 h1, h2, h3 {
   font-family: var(--fuente-titulo);
   line-height: 1.25;
