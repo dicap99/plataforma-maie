@@ -19,6 +19,10 @@ const limpiar = async (cliente) => {
     [correo],
   );
   await cliente.query(
+    'DELETE FROM docentes_perfil d USING usuarios u WHERE u.id_usuario = d.id_usuario AND u.email LIKE $1',
+    [correo],
+  );
+  await cliente.query(
     'DELETE FROM cursos c USING cohortes h WHERE h.id_cohorte = c.id_cohorte AND h.nombre LIKE $1',
     [cohorte],
   );
@@ -31,12 +35,17 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
   const hash = await bcrypt.hash(password, 10);
 
   const cohortes = mapa((await cliente.query(
-    `INSERT INTO cohortes (nombre, periodo_inicio, periodo_fin, inscritos, matriculados)
-     SELECT * FROM unnest($1::varchar[], $2::varchar[], $3::varchar[], $4::int[], $5::int[])
+    `INSERT INTO cohortes (nombre, periodo_inicio, periodo_fin, inscritos, matriculados,
+                           aprobados_sem1, aprobados_sem2, aprobados_sem3, egresados, graduados)
+     SELECT * FROM unnest($1::varchar[], $2::varchar[], $3::varchar[], $4::int[], $5::int[],
+                          $6::int[], $7::int[], $8::int[], $9::int[], $10::int[])
      ON CONFLICT (nombre) DO UPDATE SET periodo_inicio = EXCLUDED.periodo_inicio, periodo_fin = EXCLUDED.periodo_fin,
-       inscritos = EXCLUDED.inscritos, matriculados = EXCLUDED.matriculados
+       inscritos = EXCLUDED.inscritos, matriculados = EXCLUDED.matriculados, aprobados_sem1 = EXCLUDED.aprobados_sem1,
+       aprobados_sem2 = EXCLUDED.aprobados_sem2, aprobados_sem3 = EXCLUDED.aprobados_sem3,
+       egresados = EXCLUDED.egresados, graduados = EXCLUDED.graduados
      RETURNING id_cohorte, nombre`,
-    ['nombre', 'periodo_inicio', 'periodo_fin', 'inscritos', 'matriculados'].map((k) => datos.cohortes.map((c) => c[k])),
+    ['nombre', 'periodo_inicio', 'periodo_fin', 'inscritos', 'matriculados', 'aprobados_sem1', 'aprobados_sem2',
+      'aprobados_sem3', 'egresados', 'graduados'].map((k) => datos.cohortes.map((c) => c[k] ?? null)),
   )).rows, 'nombre', 'id_cohorte');
 
   const personas = [...datos.docentes.map((d) => ({ ...d, rol: 'docente' })), ...datos.estudiantes.map((e) => ({ ...e, rol: 'estudiante' }))];
@@ -103,6 +112,31 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
      ON CONFLICT (periodo) DO UPDATE SET abierto = TRUE, actualizado_en = CURRENT_TIMESTAMP`,
     [datos.periodosAbiertos ?? []],
   );
+
+  const m1 = datos.modulo1;
+  if (m1) {
+    await cliente.query(
+      `INSERT INTO docentes_perfil (id_usuario, nombre_completo, formacion_profesional, campo_formacion, afiliacion)
+       SELECT a, b, c, d, e::tipo_afiliacion FROM unnest($1::uuid[], $2::varchar[], $3::text[], $4::varchar[], $5::text[]) AS x(a, b, c, d, e)
+       ON CONFLICT (nombre_completo) DO NOTHING`,
+      [m1.perfiles.map((p) => usuarios.get(p.email)), ...['nombre_completo', 'formacion_profesional', 'campo_formacion', 'afiliacion']
+        .map((k) => m1.perfiles.map((p) => p[k]))],
+    );
+    const porCohorte = async (tabla, filas, columnas, tipos) => {
+      if (!filas.length) return;
+      const lista = columnas.map((c, i) => `$${i + 2}::${tipos[i]}[]`).join(', ');
+      await cliente.query(
+        `INSERT INTO ${tabla} (id_cohorte, ${columnas.join(', ')}) SELECT * FROM unnest($1::int[], ${lista})`,
+        [filas.map((f) => cohortes.get(f.cohorte)), ...columnas.map((c) => filas.map((f) => f[c]))],
+      );
+    };
+    await porCohorte('cohorte_semestres', m1.semestres, ['semestre', 'n_cursos', 'docentes_udenar', 'docentes_externos'], ['smallint', 'int', 'int', 'int']);
+    await porCohorte('cohorte_beneficios', m1.beneficios,
+      ['becas_100', 'becas_hora_catedra', 'becas_sintraunicol', 'asistentes_investigacion', 'ayudantes_docencia'], ['int', 'int', 'int', 'int', 'int']);
+    await porCohorte('cohorte_produccion', m1.produccion,
+      ['articulos', 'ponencias', 'software', 'prototipos', 'tesis', 'detalles'], ['int', 'int', 'int', 'int', 'int', 'text']);
+    await porCohorte('cohorte_pasantias', m1.pasantias, ['nacionales', 'internacionales'], ['int', 'int']);
+  }
 
   return {
     cohortes: cohortes.size,

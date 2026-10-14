@@ -46,6 +46,90 @@ const limitar = (x, min, max) => Math.min(max, Math.max(min, x));
 const redondear2 = (x) => Math.round(x * 100) / 100;
 const sinTildes = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+// Hojas del Módulo 1 de las promociones sintéticas (avance de estudiantes, cursos y docentes por
+// semestre, perfiles docentes, beneficios, producción y pasantías), coherentes con las ofertas y
+// matrículas generadas. Se calcula al final para no alterar los datos del Módulo 2 de cada semilla.
+const LINEAS = ['Automatización y Control', 'Sistemas de Comunicaciones', 'Energía Eléctrica',
+  'Procesamiento de Señales', 'Robótica', 'Machine Learning'];
+const TITULOS = ['Doctorado en Ingeniería', 'Doctorado en Ingeniería Electrónica', 'Doctorado en Ciencias de la Computación',
+  'Maestría en Ingeniería Electrónica'];
+const PRODUCTOS = { articulos: 'Artículo', ponencias: 'Ponencia', software: 'Registro de software', prototipos: 'Prototipo' };
+
+const generarModulo1 = (azar, { cohortes, docentes, estudiantes, cursos, actual }) => {
+  const semestreDe = new Map(CATALOGO.map((k) => [k.codigo, k.semestre]));
+  const perfiles = docentes.map((d) => ({
+    email: d.email,
+    nombre_completo: `${d.nombres} ${d.apellidos}`,
+    afiliacion: azar.probabilidad(0.6) ? 'UDENAR' : 'EXTERNO',
+    formacion_profesional: azar.elegir(TITULOS),
+    campo_formacion: azar.barajar(LINEAS).slice(0, azar.probabilidad(0.3) ? 2 : 1).join(', '),
+  }));
+  const afiliacion = new Map(perfiles.map((p) => [p.email, p.afiliacion]));
+  const semestres = [];
+  const beneficios = [];
+  const produccion = [];
+  const pasantias = [];
+
+  for (const h of cohortes) {
+    const inicio = aIndice(h.periodo_inicio);
+    const propios = estudiantes.filter((e) => e.cohorte === h.nombre);
+    const n = propios.length;
+    const activos = n - propios.filter((e) => e.estado === 'retirado').length;
+    const cerrado = (s) => inicio + s - 1 < actual; // el semestre s de la promoción ya terminó
+    const terminado = cerrado(4);
+
+    h.inscritos = n + azar.entero(1, 4);
+    h.aprobados_sem1 = cerrado(1) ? n : null;
+    h.aprobados_sem2 = cerrado(2) ? n : null;
+    h.aprobados_sem3 = cerrado(3) ? activos : null;
+    h.egresados = terminado ? activos : null;
+    h.graduados = terminado ? Math.max(0, activos - azar.entero(0, 3)) : 0;
+
+    for (let s = 1; s <= 4; s += 1) {
+      const ofertas = cursos.filter((c) => c.cohorte === h.nombre && semestreDe.get(c.catalogo) === s);
+      if (!ofertas.length) continue;
+      const equipo = [...new Set(ofertas.flatMap((c) => c.docentes))];
+      semestres.push({
+        cohorte: h.nombre,
+        semestre: s,
+        n_cursos: ofertas.length,
+        docentes_udenar: equipo.filter((e) => afiliacion.get(e) === 'UDENAR').length,
+        docentes_externos: equipo.filter((e) => afiliacion.get(e) === 'EXTERNO').length,
+      });
+    }
+
+    beneficios.push({
+      cohorte: h.nombre,
+      becas_100: azar.entero(0, 2),
+      becas_hora_catedra: azar.entero(0, 2),
+      becas_sintraunicol: azar.entero(0, 1),
+      asistentes_investigacion: azar.entero(0, 4),
+      ayudantes_docencia: azar.entero(0, 3),
+    });
+
+    const investiga = cerrado(2); // la producción y las pasantías llegan desde el semestre III
+    const p = {
+      cohorte: h.nombre,
+      articulos: investiga ? azar.entero(0, 5) : 0,
+      ponencias: investiga ? azar.entero(1, 7) : 0,
+      software: investiga ? azar.entero(0, 2) : 0,
+      prototipos: investiga ? azar.entero(0, 3) : 0,
+      tesis: h.graduados,
+    };
+    p.detalles = Object.entries(PRODUCTOS)
+      .flatMap(([campo, tipo]) => Array.from({ length: p[campo] }, (_, i) => `- ${tipo} ${i + 1} (${azar.elegir(LINEAS)})`))
+      .join('\n') || null;
+    produccion.push(p);
+    pasantias.push({
+      cohorte: h.nombre,
+      nacionales: investiga ? azar.entero(0, 3) : 0,
+      internacionales: investiga ? azar.entero(0, 2) : 0,
+    });
+  }
+
+  return { perfiles, semestres, beneficios, produccion, pasantias };
+};
+
 const generar = ({
   semilla = 2026,
   nCohortes = 5,
@@ -134,7 +218,9 @@ const generar = ({
   // La calificación del semestre en curso queda abierta; los anteriores ya se cerraron.
   const periodosAbiertos = [periodoActual];
 
-  return { semilla, cohortes, docentes, estudiantes, cursos, inscripciones, calificaciones, periodosAbiertos };
+  const modulo1 = generarModulo1(azar, { cohortes, docentes, estudiantes, cursos, actual });
+
+  return { semilla, cohortes, docentes, estudiantes, cursos, inscripciones, calificaciones, periodosAbiertos, modulo1 };
 };
 
 module.exports = { generar, CATALOGO, CLASE_UNICA, CRITERIOS_POR_RA, DOMINIO, PREFIJO_COHORTE, aIndice, aPeriodo };
