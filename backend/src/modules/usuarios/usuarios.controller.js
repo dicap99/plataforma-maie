@@ -8,6 +8,11 @@ const listar = asyncHandler(async (req, res) => {
   success(res, await service.listar(requestContext(req)));
 });
 
+// GET /api/v1/usuarios/campos-formacion
+const camposFormacion = asyncHandler(async (req, res) => {
+  success(res, await service.camposFormacion(requestContext(req)));
+});
+
 // GET /api/v1/usuarios/:id
 const obtener = asyncHandler(async (req, res) => {
   success(res, await service.obtener(requestContext(req)));
@@ -28,4 +33,4 @@ const eliminar = asyncHandler(async (req, res) => {
   success(res, await service.eliminar(requestContext(req)));
 });
 
-module.exports = { listar, obtener, crear, actualizar, eliminar };
+module.exports = { listar, camposFormacion, obtener, crear, actualizar, eliminar };

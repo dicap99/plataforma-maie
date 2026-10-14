@@ -345,6 +345,49 @@ describe('Ofertas de curso, matrícula y calificación (RF-RA-02)', () => {
   });
 });
 
+describe('Usuarios en Gestión académica y reflejo en Información académica', () => {
+  const base = { nombres: 'Prueba', activo: true, password: 'ClavePrueba2026' };
+
+  it('registra al estudiante con promoción y beca, y Información académica lo refleja', async () => {
+    const { id_cohorte: idCohorte } = await idDe("SELECT id_cohorte FROM cohortes WHERE nombre = 'Sintética V'");
+    const antes = (await coord.get('/admin/academico/reflejo')).body.data;
+    const benAntes = antes.beneficios.find((b) => b.id_cohorte === idCohorte)
+    const cohAntes = antes.cohortes.find((c) => c.id_cohorte === idCohorte)
+
+    expect((await coord.post('/usuarios', { ...base, identificacion: 'EST-R1', apellidos: 'Becada', email: 'becada@prueba.co', rol: 'estudiante', beca: '100' })).status).toBe(400);
+    const res = await coord.post('/usuarios', {
+      ...base, identificacion: 'EST-R1', apellidos: 'Becada', email: 'becada@prueba.co', rol: 'estudiante', id_cohorte: idCohorte, beca: 'sintraunicol',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ id_cohorte: idCohorte, cohorte: 'Sintética V', beca: 'sintraunicol' });
+
+    const despues = (await coord.get('/admin/academico/reflejo')).body.data;
+    expect(despues.cohortes.find((c) => c.id_cohorte === idCohorte)).toMatchObject({ matriculados: cohAntes.matriculados + 1, origen: 'gestion' });
+    expect(despues.beneficios.find((b) => b.id_cohorte === idCohorte).becas_sintraunicol).toBe(benAntes.becas_sintraunicol + 1);
+
+    const sinPromocion = await coord.put(`/usuarios/${res.body.data.id_usuario}`, {
+      ...base, identificacion: 'EST-R1', apellidos: 'Becada', email: 'becada@prueba.co', rol: 'estudiante', id_cohorte: null,
+    });
+    expect(sinPromocion.body.data).toMatchObject({ id_cohorte: null, beca: null });
+  });
+
+  it('registra al docente con afiliación y campos de formación en su perfil', async () => {
+    const sinAfiliacion = await coord.post('/usuarios', { ...base, identificacion: 'DOC-R1', apellidos: 'Docente R', email: 'docr@prueba.co', rol: 'docente' });
+    expect(sinAfiliacion.status).toBe(400);
+    const res = await coord.post('/usuarios', {
+      ...base, identificacion: 'DOC-R1', apellidos: 'Docente R', email: 'docr@prueba.co', rol: 'docente',
+      afiliacion: 'EXTERNO', campos_formacion: ['Robótica', 'Visión Artificial', 'Robótica'],
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ afiliacion: 'EXTERNO', campo_formacion: 'Robótica, Visión Artificial', docente_vinculado: 'Prueba Docente R' });
+    expect((await coord.get('/usuarios/campos-formacion')).body.data).toContain('Visión Artificial');
+    expect((await coord.post('/usuarios', { ...base, identificacion: 'DOC-R2', apellidos: 'X', email: 'x@prueba.co', rol: 'coordinador', afiliacion: 'UDENAR' })).status).toBe(400);
+
+    const docentes = (await coord.get('/admin/docentes')).body.data;
+    expect(docentes.find((d) => d.nombre_completo === 'Prueba Docente R')).toMatchObject({ afiliacion: 'EXTERNO' });
+  });
+});
+
 describe('Estudiantes (RNF-SEG-01)', () => {
   it('un estudiante no consulta resultados de aprendizaje ni ofertas', async () => {
     const estudiante = conToken(await login(datos.estudiantes[0].email));

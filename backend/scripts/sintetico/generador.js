@@ -84,6 +84,10 @@ const generarModulo1 = (azar, { cohortes, docentes, estudiantes, cursos, actual 
     h.aprobados_sem3 = cerrado(3) ? activos : null;
     h.egresados = terminado ? activos : null;
     h.graduados = terminado ? Math.max(0, activos - azar.entero(0, 3)) : 0;
+    // Estado de cada estudiante coherente con la promoción: al terminar, graduados y egresados.
+    if (terminado) {
+      propios.filter((e) => e.estado !== 'retirado').forEach((e, i) => { e.estado = i < h.graduados ? 'graduado' : 'egresado'; });
+    }
 
     for (let s = 1; s <= 4; s += 1) {
       const ofertas = cursos.filter((c) => c.cohorte === h.nombre && semestreDe.get(c.catalogo) === s);
@@ -98,11 +102,18 @@ const generarModulo1 = (azar, { cohortes, docentes, estudiantes, cursos, actual 
       });
     }
 
+    // Becas por estudiante (Gestión académica › Usuarios); la hoja de beneficios cuenta lo mismo.
+    const cupos = { 100: azar.entero(0, 2), hora_catedra: azar.entero(0, 2), sintraunicol: azar.entero(0, 1) };
+    const candidatos = azar.barajar(propios);
+    for (const [beca, n] of Object.entries(cupos)) {
+      for (const e of candidatos.splice(0, n)) e.beca = beca;
+    }
+    const contar = (beca) => propios.filter((e) => e.beca === beca).length;
     beneficios.push({
       cohorte: h.nombre,
-      becas_100: azar.entero(0, 2),
-      becas_hora_catedra: azar.entero(0, 2),
-      becas_sintraunicol: azar.entero(0, 1),
+      becas_100: contar('100'),
+      becas_hora_catedra: contar('hora_catedra'),
+      becas_sintraunicol: contar('sintraunicol'),
       asistentes_investigacion: azar.entero(0, 4),
       ayudantes_docencia: azar.entero(0, 3),
     });

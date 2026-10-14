@@ -12,4 +12,9 @@ const resumenPresupuesto = asyncHandler(async (req, res) => {
   success(res, await service.resumenPresupuesto());
 });
 
-module.exports = { estadisticas, resumenPresupuesto };
+// GET /api/v1/admin/academico/reflejo
+const reflejoAcademico = asyncHandler(async (req, res) => {
+  success(res, await service.reflejoAcademico());
+});
+
+module.exports = { estadisticas, resumenPresupuesto, reflejoAcademico };

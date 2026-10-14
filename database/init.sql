@@ -256,6 +256,8 @@ CREATE TABLE cohorte_estudiantes (
     estado VARCHAR(20) NOT NULL DEFAULT 'matriculado'
         CHECK (estado IN ('inscrito', 'matriculado', 'egresado', 'graduado', 'retirado')),
     fecha_grado DATE,
+    -- Beca del estudiante en su promoción (columnas de la hoja «Beneficios»); NULL = sin beca
+    beca VARCHAR(20) CHECK (beca IN ('100', 'hora_catedra', 'sintraunicol')),
     PRIMARY KEY (id_cohorte, id_estudiante)
 );
 

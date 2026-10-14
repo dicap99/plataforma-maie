@@ -139,6 +139,10 @@ const Usuario = {
     email: { type: 'string', format: 'email' },
     rol: { type: 'string', enum: TODOS },
     activo: { type: 'boolean' },
+    id_docente: { type: 'string', format: 'uuid', nullable: true }, docente_vinculado: { type: 'string', nullable: true },
+    afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'], nullable: true }, campo_formacion: { type: 'string', nullable: true },
+    id_cohorte: { type: 'integer', nullable: true }, cohorte: { type: 'string', nullable: true },
+    beca: { type: 'string', enum: ['100', 'hora_catedra', 'sintraunicol'], nullable: true },
   },
 };
 
@@ -154,6 +158,10 @@ const UsuarioEntrada = {
     activo: { type: 'boolean', default: true },
     password: { type: 'string', minLength: 8, description: 'Obligatoria al crear; opcional al editar' },
     id_docente: { type: 'string', format: 'uuid', nullable: true, description: 'Perfil docente a vincular (solo rol docente)' },
+    afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'], nullable: true, description: 'Docente: obligatoria si no tiene perfil' },
+    campos_formacion: { type: 'array', items: { type: 'string', maxLength: 100 }, description: 'Docente: campos de formación' },
+    id_cohorte: { type: 'integer', nullable: true, description: 'Estudiante: promoción (null la quita)' },
+    beca: { type: 'string', enum: ['100', 'hora_catedra', 'sintraunicol'], nullable: true, description: 'Estudiante: tipo de beca (requiere promoción)' },
   },
 };
 
@@ -235,6 +243,17 @@ const construir = () => {
       '/usuarios': {
         get: { tags: ['Usuarios'], summary: 'Listar usuarios', description: roles(['coordinador']), responses: { 200: exito({ type: 'array', items: ref('Usuario') }), ...errores(401, 403) } },
         post: { tags: ['Usuarios'], summary: 'Crear usuario', description: roles(['coordinador']), requestBody: cuerpo(ref('UsuarioEntrada')), responses: { 201: exito(ref('Usuario'), 'Creado'), ...errores(400, 401, 403, 409) } },
+      },
+      '/usuarios/campos-formacion': {
+        get: { tags: ['Usuarios'], summary: 'Campos de formación registrados (selector del formulario)', description: roles(['coordinador']),
+          responses: { 200: exito({ type: 'array', items: { type: 'string' } }), ...errores(401, 403) } },
+      },
+      '/admin/academico/reflejo': {
+        get: {
+          tags: ['Módulo 1 · General'], summary: 'Hojas académicas con el reflejo de Gestión académica',
+          description: 'Promociones, beneficios y cursos y docentes por semestre: las promociones con registros en Gestión (estudiantes, becas, clases ofertadas) se calculan desde ahí; las demás conservan la hoja. Cada fila trae `origen` (gestion | registro). ' + roles(['coordinador', 'docente']),
+          responses: { 200: exito({ type: 'object', properties: { cohortes: { type: 'array', items: { type: 'object' } }, beneficios: { type: 'array', items: { type: 'object' } }, 'cohorte-semestres': { type: 'array', items: { type: 'object' } } } }), ...errores(401, 403) },
+        },
       },
       '/usuarios/{id}': {
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],

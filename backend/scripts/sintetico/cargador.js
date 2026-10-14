@@ -66,11 +66,11 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
   )).rows, 'email', 'id_usuario');
 
   await cliente.query(
-    `INSERT INTO cohorte_estudiantes (id_cohorte, id_estudiante, estado)
-     SELECT * FROM unnest($1::int[], $2::uuid[], $3::varchar[])
-     ON CONFLICT (id_cohorte, id_estudiante) DO UPDATE SET estado = EXCLUDED.estado`,
+    `INSERT INTO cohorte_estudiantes (id_cohorte, id_estudiante, estado, beca)
+     SELECT * FROM unnest($1::int[], $2::uuid[], $3::varchar[], $4::varchar[])
+     ON CONFLICT (id_cohorte, id_estudiante) DO UPDATE SET estado = EXCLUDED.estado, beca = EXCLUDED.beca`,
     [datos.estudiantes.map((e) => cohortes.get(e.cohorte)), datos.estudiantes.map((e) => usuarios.get(e.email)),
-      datos.estudiantes.map((e) => e.estado)],
+      datos.estudiantes.map((e) => e.estado), datos.estudiantes.map((e) => e.beca ?? null)],
   );
 
   const clases = new Map((await cliente.query('SELECT id_clase, id_catalogo, nombre FROM clases')).rows.map((c) => [c.nombre, c]));

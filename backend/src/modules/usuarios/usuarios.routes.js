@@ -20,6 +20,11 @@ const reglas = (passwordObligatoria) => [
     ? body('password').isLength({ min: 8 }).withMessage('La contraseña debe tener al menos 8 caracteres')
     : body('password').optional({ values: 'falsy' }).isLength({ min: 8 }).withMessage('La contraseña debe tener al menos 8 caracteres'),
   body('id_docente').optional({ values: 'null' }).isUUID().withMessage('Perfil docente inválido'),
+  body('afiliacion').optional({ values: 'null' }).isIn(['UDENAR', 'EXTERNO']).withMessage('Afiliación debe ser UDENAR o EXTERNO'),
+  body('campos_formacion').optional({ values: 'null' }).isArray({ max: 20 }).withMessage('campos_formacion debe ser una lista'),
+  body('campos_formacion.*').isString().trim().notEmpty().isLength({ max: 100 }).withMessage('Campo de formación inválido (máx. 100)'),
+  body('id_cohorte').optional({ values: 'null' }).isInt({ min: 1 }).withMessage('Promoción inválida').toInt(),
+  body('beca').optional({ values: 'null' }).isIn(['100', 'hora_catedra', 'sintraunicol']).withMessage('Tipo de beca inválido'),
   validate,
 ];
 const idValido = [param('id').isUUID().withMessage('Identificador inválido'), validate];
@@ -27,6 +32,7 @@ const soloCoord = [authenticate, authorize(COORDINADOR)];
 
 // Montado en /api/v1/usuarios
 router.get('/', ...soloCoord, query('rol').optional().isIn(TODOS).withMessage(`Rol debe ser uno de: ${TODOS.join(', ')}`), validate, controller.listar);
+router.get('/campos-formacion', ...soloCoord, controller.camposFormacion);
 router.get('/:id', ...soloCoord, ...idValido, controller.obtener);
 router.post('/', ...soloCoord, ...reglas(true), controller.crear);
 router.put('/:id', ...soloCoord, ...idValido, ...reglas(false), controller.actualizar);
