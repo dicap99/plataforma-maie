@@ -1,15 +1,19 @@
 import { useMemo } from 'react'
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import LeyendaInteractiva, { useSeriesOcultas } from './LeyendaInteractiva.jsx'
 import { GRILLA, SERIES, SUPERFICIE, TEXTO_SECUNDARIO } from './paleta'
 
 // Barras agrupadas o apiladas con un solo eje de valores.
 // series: [{ clave, nombre, color? }] — el color se fija por posición en la definición, no por rango.
 // horizontal: categorías en el eje vertical (útil con etiquetas largas).
 // onSeleccionar(fila): clic en una barra (p. ej. para filtrar la tabla de datos).
+// Con más de una serie, la leyenda permite ocultar y mostrar cada serie.
 export default function GraficoBarras({
   datos, ejeX, series, apilado = false, horizontal = false, formato = (v) => v, formatoEje, onSeleccionar, anchoEtiquetas = 160,
 }) {
-  const ultima = series.length - 1
+  const { ocultas, alternar } = useSeriesOcultas(series.length)
+  const visibles = series.filter((s) => !ocultas.has(s.clave))
+  const ultima = series.indexOf(visibles.at(-1))
   // Tooltip en el orden de definición (Recharts ordena alfabéticamente por defecto). Se memoiza:
   // una función nueva en cada render hace que Recharts recalcule el diseño y desalinee los ejes.
   const claves = series.map((s) => s.clave).join('|')
@@ -31,19 +35,21 @@ export default function GraficoBarras({
   }
 
   return (
+    <div className="flex h-full flex-col">
+    <div className="min-h-0 flex-1">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={datos} layout={horizontal ? 'vertical' : 'horizontal'} margin={{ top: 8, right: 16, left: 8, bottom: 0 }} barGap={2}>
         <CartesianGrid vertical={horizontal} horizontal={!horizontal} stroke={GRILLA} />
         {ejeCategorias}
         {ejeValores}
         <Tooltip itemSorter={orden} formatter={(v, nombre) => [formato(v), nombre]} cursor={{ fill: 'rgba(15, 23, 42, 0.04)' }} />
-        {series.length > 1 && <Legend itemSorter={null} iconType="square" wrapperStyle={{ fontSize: 12, color: TEXTO_SECUNDARIO }} />}
         {series.map((s, i) => (
           <Bar
             key={s.clave}
             dataKey={s.clave}
             name={s.nombre}
             fill={s.color ?? SERIES[i]}
+            hide={ocultas.has(s.clave)}
             stackId={apilado ? 'total' : undefined}
             maxBarSize={horizontal ? 20 : 24}
             radius={radio(i)}
@@ -55,5 +61,10 @@ export default function GraficoBarras({
         ))}
       </BarChart>
     </ResponsiveContainer>
+    </div>
+    {series.length > 1 && (
+      <LeyendaInteractiva items={series.map((s, i) => ({ clave: s.clave, nombre: s.nombre, color: s.color ?? SERIES[i] }))} ocultas={ocultas} onAlternar={alternar} />
+    )}
+    </div>
   )
 }
