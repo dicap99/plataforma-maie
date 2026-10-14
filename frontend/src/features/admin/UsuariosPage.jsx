@@ -6,24 +6,35 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import Modal from '../../components/common/Modal.jsx'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
-import { Alternador } from './academico/comunes.jsx'
-import PanelUsuarios from './PanelUsuarios.jsx'
 import { ETIQUETA_ROL } from '../../routes/navigation'
+import SelectorCampos from './SelectorCampos.jsx'
 
 const ROLES = ['coordinador', 'docente', 'estudiante']
-const VISTAS = [{ valor: 'graficas', etiqueta: 'Gráficas' }, { valor: 'datos', etiqueta: 'Datos' }]
-const VACIO = { identificacion: '', nombres: '', apellidos: '', email: '', rol: 'docente', activo: true, password: '', id_docente: '' }
+const BECAS = [
+  { valor: '100', etiqueta: 'Beca 100 %' },
+  { valor: 'hora_catedra', etiqueta: 'Beca hora cátedra' },
+  { valor: 'sintraunicol', etiqueta: 'Beca SINTRAUNICOL' },
+]
+const VACIO = {
+  identificacion: '', nombres: '', apellidos: '', email: '', rol: 'docente', activo: true, password: '',
+  id_docente: '', afiliacion: '', campos_formacion: [], id_cohorte: '', beca: '',
+}
+const separarCampos = (texto) => String(texto ?? '').split(/\n|,|\s-\s|\+/).map((c) => c.replace(/^[-•\s]+/, '').trim()).filter(Boolean)
+const etiquetaBeca = (b) => BECAS.find((x) => x.valor === b)?.etiqueta ?? '—'
 
-// Gestión de usuarios y roles (RNF-SEG-01). Un usuario docente puede vincularse a su perfil (RF-ADM-06).
-// `embebido`: se muestra como pestaña de Gestión académica (sin el encabezado de página).
+// Usuarios y roles (RNF-SEG-01), pestaña de Gestión académica. Lo propio de cada rol se registra aquí:
+// el estudiante con su promoción y beca, y el docente con su afiliación y campos de formación (perfil
+// de la hoja «Docentes», RF-ADM-06). Información académica refleja estos datos.
 export default function UsuariosPage({ embebido = false }) {
   const { usuario: sesion } = useAuth()
   const usuarios = useApi(usuariosApi.listarUsuarios)
   const docentes = useApi(() => adminApi.listar('docentes'))
+  const cohortes = useApi(() => adminApi.listar('cohortes'))
+  const campos = useApi(usuariosApi.camposFormacion)
   const [editando, setEditando] = useState(null) // null | VACIO | usuario
+  const [rol, setRol] = useState('')
+  const [busqueda, setBusqueda] = useState('')
   const [errorAccion, setErrorAccion] = useState(null)
-  const [vista, setVista] = useState('graficas')
-  const [filtro, setFiltro] = useState(null) // { etiqueta, fn } desde un clic en una gráfica
 
   const eliminar = async (u) => {
     if (!window.confirm(`¿Eliminar el usuario ${u.email}?`)) return
@@ -34,62 +45,73 @@ export default function UsuariosPage({ embebido = false }) {
       setErrorAccion(err)
     }
   }
+  const editar = (u) => setEditando({
+    ...u, password: '', id_docente: u.id_docente ?? '', afiliacion: u.afiliacion ?? '', campos_formacion: separarCampos(u.campo_formacion),
+    id_cohorte: u.id_cohorte ? String(u.id_cohorte) : '', beca: u.beca ?? '',
+  })
+
+  const q = busqueda.trim().toLowerCase()
+  const visibles = (usuarios.data ?? []).filter((u) => (!rol || u.rol === rol)
+    && (!q || `${u.nombres} ${u.apellidos} ${u.email} ${u.identificacion}`.toLowerCase().includes(q)))
+  const detalleRol = (u) => {
+    if (u.rol === 'estudiante') return u.cohorte ? `Promoción ${u.cohorte}${u.beca ? ` · ${etiquetaBeca(u.beca)}` : ''}` : 'Sin promoción'
+    if (u.rol === 'docente') {
+      if (!u.id_docente) return 'Sin perfil docente'
+      return [u.afiliacion === 'EXTERNO' ? 'Externo' : 'UDENAR', separarCampos(u.campo_formacion).join(', ')].filter(Boolean).join(' · ')
+    }
+    return '—'
+  }
 
   return (
-    <>
-      <div className="flex flex-col gap-space-lg">
+    <div className="flex flex-col gap-space-lg">
       {!embebido && (
-      <header className="flex flex-col gap-space-sm md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="inline-flex items-center gap-1 text-label-sm font-semibold uppercase tracking-wider text-secondary">
-            <Icono nombre="manage_accounts" className="text-[16px]" /> Procesos administrativos
-          </div>
-          <h1 className="m-0 mt-1 font-display text-headline-lg text-primary">Usuarios</h1>
-          <p className="m-0 max-w-3xl text-body-md text-on-surface-variant">Cuentas de acceso, roles y vínculo de los docentes con su perfil.</p>
-        </div>
-      </header>
+        <header>
+          <h1 className="m-0 font-display text-headline-lg text-primary">Usuarios</h1>
+        </header>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-space-sm">
-        <Alternador etiqueta="Vista" opciones={VISTAS} valor={vista} onChange={setVista} />
+      <div className="flex flex-wrap items-end justify-between gap-space-sm">
+        <div className="flex flex-wrap items-end gap-space-sm">
+          <div className="campo">
+            <label htmlFor="u-filtro-rol">Rol</label>
+            <select id="u-filtro-rol" value={rol} onChange={(e) => setRol(e.target.value)}>
+              <option value="">Todos</option>
+              {ROLES.map((r) => <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>)}
+            </select>
+          </div>
+          <div className="campo">
+            <label htmlFor="u-buscar">Buscar</label>
+            <input id="u-buscar" type="search" placeholder="Nombre, correo o identificación" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+          </div>
+        </div>
         <button type="button" className="btn btn-primario" onClick={() => setEditando(VACIO)}>
           <Icono nombre="person_add" className="text-[18px]" /> Nuevo usuario
         </button>
       </div>
       <ErrorApi error={usuarios.error} onReintentar={usuarios.recargar} />
       <ErrorApi error={errorAccion} />
-      {usuarios.cargando && !usuarios.data ? <Cargando /> : usuarios.data && vista === 'graficas' && (
-        <PanelUsuarios usuarios={usuarios.data} onFiltrar={(f) => { setFiltro(f); setVista('datos') }} />
-      )}
-      {usuarios.data && vista === 'datos' && filtro && (
-        <span className="inline-flex items-center gap-1 self-start rounded-full bg-secondary-fixed px-3 py-1 text-label-sm font-semibold text-on-secondary-fixed-variant">
-          <Icono nombre="filter_alt" className="text-[16px]" /> {filtro.etiqueta} · {usuarios.data.filter(filtro.fn).length} de {usuarios.data.length}
-          <button type="button" className="ml-1 grid place-items-center rounded-full hover:bg-secondary/20" onClick={() => setFiltro(null)} aria-label="Quitar filtro">
-            <Icono nombre="close" className="text-[16px]" />
-          </button>
-        </span>
-      )}
-      {usuarios.data && vista === 'datos' && (
+      {usuarios.cargando && !usuarios.data ? <Cargando /> : usuarios.data && (
         <div className="card tabla-scroll">
           <table>
             <thead>
-              <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Perfil docente</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
+              <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Promoción / perfil</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
             </thead>
             <tbody>
-              {(filtro ? usuarios.data.filter(filtro.fn) : usuarios.data).map((u) => (
+              {visibles.map((u) => (
                 <tr key={u.id_usuario}>
                   <td>{u.nombres} {u.apellidos}</td>
                   <td>{u.email}</td>
                   <td>{ETIQUETA_ROL[u.rol] ?? u.rol}</td>
-                  <td>{u.docente_vinculado ?? '—'}</td>
+                  <td>{detalleRol(u)}</td>
                   <td>{u.activo ? 'Activo' : 'Inactivo'}</td>
                   <td className="acciones">
-                    <button type="button" className="btn-enlace" onClick={() => setEditando({ ...u, password: '', id_docente: u.id_docente ?? '' })}>Editar</button>
+                    <button type="button" className="btn-enlace" onClick={() => editar(u)}>Editar</button>
                     {u.id_usuario !== sesion.id && (
                       <button type="button" className="btn-enlace peligro" onClick={() => eliminar(u)}>Eliminar</button>
                     )}
                   </td>
                 </tr>
               ))}
+              {visibles.length === 0 && <tr><td colSpan={6} className="texto-suave">Ningún usuario coincide con el filtro.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -98,29 +120,46 @@ export default function UsuariosPage({ embebido = false }) {
         <FormularioUsuario
           inicial={editando}
           docentes={docentes.data ?? []}
+          cohortes={[...(cohortes.data ?? [])].sort((a, b) => (a.periodo_inicio < b.periodo_inicio ? 1 : -1))}
+          campos={campos.data ?? []}
           onClose={() => setEditando(null)}
-          onGuardado={() => usuarios.recargar()}
+          onGuardado={() => {
+            usuarios.recargar()
+            docentes.recargar()
+            campos.recargar()
+          }}
         />
       )}
-      </div>
-    </>
+    </div>
   )
 }
 
-function FormularioUsuario({ inicial, docentes, onClose, onGuardado }) {
+function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGuardado }) {
   const nuevo = !inicial.id_usuario
   const [v, setV] = useState(inicial)
+  const [becado, setBecado] = useState(Boolean(inicial.beca))
   const [errores, setErrores] = useState([])
   const [guardando, setGuardando] = useState(false)
   const campo = (nombre) => ({ id: `u-${nombre}`, value: v[nombre] ?? '', onChange: (e) => setV({ ...v, [nombre]: e.target.value }) })
+  // Perfiles sin cuenta (p. ej. importados del Excel) o el propio, para vincular.
+  const perfilesLibres = docentes.filter((d) => !d.id_usuario || d.id_docente === inicial.id_docente)
+
+  const vincular = (idDocente) => {
+    const p = docentes.find((d) => d.id_docente === idDocente)
+    setV({ ...v, id_docente: idDocente, ...(p ? { afiliacion: p.afiliacion, campos_formacion: separarCampos(p.campo_formacion) } : {}) })
+  }
 
   const enviar = async (e) => {
     e.preventDefault()
     setGuardando(true)
+    const esDocente = v.rol === 'docente'
+    const esEstudiante = v.rol === 'estudiante'
     const datos = {
       identificacion: v.identificacion, nombres: v.nombres, apellidos: v.apellidos, email: v.email,
       rol: v.rol, activo: v.activo, password: v.password || undefined,
-      id_docente: v.rol === 'docente' ? v.id_docente || null : null,
+      id_docente: esDocente ? v.id_docente || null : null,
+      ...(esDocente ? { afiliacion: v.afiliacion || null, campos_formacion: v.campos_formacion } : {}),
+      ...(esEstudiante ? { id_cohorte: v.id_cohorte ? Number(v.id_cohorte) : null, beca: becado ? v.beca || null : null } : {}),
     }
     try {
       await (nuevo ? usuariosApi.crearUsuario(datos) : usuariosApi.actualizarUsuario(inicial.id_usuario, datos))
@@ -134,7 +173,7 @@ function FormularioUsuario({ inicial, docentes, onClose, onGuardado }) {
   }
 
   return (
-    <Modal titulo={nuevo ? 'Nuevo usuario' : 'Editar usuario'} onClose={onClose}>
+    <Modal titulo={nuevo ? 'Nuevo usuario' : 'Editar usuario'} onClose={onClose} ancho={640}>
       <form onSubmit={enviar}>
         <div className="form-grid">
           <div className="campo"><label htmlFor="u-identificacion">Identificación *</label><input required {...campo('identificacion')} /></div>
@@ -143,21 +182,66 @@ function FormularioUsuario({ inicial, docentes, onClose, onGuardado }) {
           <div className="campo"><label htmlFor="u-apellidos">Apellidos *</label><input required {...campo('apellidos')} /></div>
           <div className="campo">
             <label htmlFor="u-rol">Rol *</label>
-            <select {...campo('rol')}>{ROLES.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+            <select {...campo('rol')}>{ROLES.map((r) => <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>)}</select>
           </div>
           <div className="campo">
             <label htmlFor="u-password">{nuevo ? 'Contraseña *' : 'Nueva contraseña (opcional)'}</label>
             <input type="password" minLength={8} required={nuevo} autoComplete="new-password" {...campo('password')} />
           </div>
-          {v.rol === 'docente' && (
-            <div className="campo campo-ancho">
-              <label htmlFor="u-id_docente">Perfil docente vinculado</label>
-              <select {...campo('id_docente')}>
-                <option value="">Sin vincular</option>
-                {docentes.map((d) => <option key={d.id_docente} value={d.id_docente}>{d.nombre_completo} ({d.afiliacion})</option>)}
-              </select>
-            </div>
+
+          {v.rol === 'estudiante' && (
+            <fieldset className="campo-ancho flex flex-col gap-space-sm rounded-xl border border-outline-variant p-space-sm">
+              <legend className="px-1 text-label-md font-semibold text-primary">Datos del estudiante</legend>
+              <div className="campo">
+                <label htmlFor="u-id_cohorte">Promoción</label>
+                <select {...campo('id_cohorte')}>
+                  <option value="">Sin asignar</option>
+                  {cohortes.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>Promoción {c.nombre} ({c.periodo_inicio})</option>)}
+                </select>
+              </div>
+              <label className="campo-check">
+                <input type="checkbox" checked={becado} disabled={!v.id_cohorte}
+                  onChange={(e) => { setBecado(e.target.checked); if (e.target.checked && !v.beca) setV({ ...v, beca: '100' }) }} />
+                Becado
+              </label>
+              {becado && v.id_cohorte && (
+                <div className="campo">
+                  <label htmlFor="u-beca">Tipo de beca</label>
+                  <select {...campo('beca')}>{BECAS.map((b) => <option key={b.valor} value={b.valor}>{b.etiqueta}</option>)}</select>
+                </div>
+              )}
+              {!v.id_cohorte && <p className="texto-suave">Asigne la promoción para registrar la beca.</p>}
+            </fieldset>
           )}
+
+          {v.rol === 'docente' && (
+            <fieldset className="campo-ancho flex flex-col gap-space-sm rounded-xl border border-outline-variant p-space-sm">
+              <legend className="px-1 text-label-md font-semibold text-primary">Perfil docente</legend>
+              <div className="campo">
+                <span id="u-afiliacion" className="font-semibold">Afiliación *</span>
+                <div className="flex gap-space-md" role="radiogroup" aria-labelledby="u-afiliacion">
+                  {[['UDENAR', 'UDENAR'], ['EXTERNO', 'Externo']].map(([valor, etiqueta]) => (
+                    <label key={valor} className="campo-check">
+                      <input type="radio" name="afiliacion" value={valor} checked={v.afiliacion === valor} required
+                        onChange={() => setV({ ...v, afiliacion: valor })} />
+                      {etiqueta}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <SelectorCampos opciones={campos} valor={v.campos_formacion} onChange={(lista) => setV({ ...v, campos_formacion: lista })} />
+              {perfilesLibres.length > 0 && (
+                <div className="campo">
+                  <label htmlFor="u-id_docente">Vincular a un perfil registrado (opcional)</label>
+                  <select id="u-id_docente" value={v.id_docente} onChange={(e) => vincular(e.target.value)}>
+                    <option value="">Crear o usar el perfil con su nombre</option>
+                    {perfilesLibres.map((d) => <option key={d.id_docente} value={d.id_docente}>{d.nombre_completo} ({d.afiliacion})</option>)}
+                  </select>
+                </div>
+              )}
+            </fieldset>
+          )}
+
           <label className="campo-check campo-ancho">
             <input type="checkbox" checked={v.activo} onChange={(e) => setV({ ...v, activo: e.target.checked })} /> Usuario activo
           </label>

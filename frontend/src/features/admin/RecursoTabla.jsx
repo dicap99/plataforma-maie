@@ -7,8 +7,14 @@ import RecursoFormulario from './RecursoFormulario.jsx'
 
 // Tabla editable de un recurso del Módulo 1 (una hoja de "Estadísticas MaIE").
 // `filtro` = { etiqueta, fn } limita las filas visibles (p. ej. al hacer clic en una gráfica).
-export default function RecursoTabla({ recurso, cohortes, onCambio, filtro, onQuitarFiltro }) {
-  const { data: filas, error, cargando, recargar } = useApi(() => adminApi.listar(recurso.id), [recurso.id])
+// `soloLectura`: sin agregar, editar ni eliminar. `filasExternas`: filas ya calculadas (p. ej. el reflejo
+// de Gestión académica) en lugar de las de la hoja; si traen `origen`, se muestra de dónde sale cada fila.
+export default function RecursoTabla({ recurso, cohortes, onCambio, filtro, onQuitarFiltro, soloLectura = false, filasExternas }) {
+  const api = useApi(() => (filasExternas ? Promise.resolve({ data: null }) : adminApi.listar(recurso.id)), [recurso.id, Boolean(filasExternas)])
+  const filas = filasExternas ?? api.data
+  const { error, cargando, recargar } = api
+  const editable = recurso.editable && !soloLectura
+  const conOrigen = (filas ?? []).some((f) => f.origen)
   const [editando, setEditando] = useState(null) // null | 'nuevo' | fila
   const [viendoDetalles, setViendoDetalles] = useState(null) // fila
   const [viendoTodosDetalles, setViendoTodosDetalles] = useState(false)
@@ -36,7 +42,7 @@ export default function RecursoTabla({ recurso, cohortes, onCambio, filtro, onQu
   const celda = (campo, fila) => (campo.type === 'cohorte' ? fila.cohorte : valorCampo(campo, fila[campo.name]))
 
   const tieneDetalles = recurso.id === 'produccion' || recurso.campos.some(c => c.name === 'detalles' && c.multilinea)
-  const tieneAcciones = recurso.editable || tieneDetalles
+  const tieneAcciones = editable || tieneDetalles
 
   if (viendoTodosDetalles) {
     return (
@@ -124,7 +130,7 @@ export default function RecursoTabla({ recurso, cohortes, onCambio, filtro, onQu
             </button>
           )}
         </div>
-        {recurso.editable && (
+        {editable && (
           <button type="button" className="btn btn-primario" onClick={() => setEditando('nuevo')}>Agregar</button>
         )}
       </header>
@@ -144,6 +150,7 @@ export default function RecursoTabla({ recurso, cohortes, onCambio, filtro, onQu
                       {c.label}
                     </th>
                   ))}
+                  {conOrigen && <th>Origen</th>}
                   {tieneAcciones && <th><span className="sr-only">Acciones</span></th>}
                 </tr>
               </thead>
@@ -160,12 +167,20 @@ export default function RecursoTabla({ recurso, cohortes, onCambio, filtro, onQu
                         {celda(c, fila)}
                       </td>
                     ))}
+                    {conOrigen && (
+                      <td className="nowrap">
+                        <span className={`rounded-full px-2 py-0.5 text-label-sm font-semibold ${fila.origen === 'gestion' ? 'bg-secondary-fixed text-on-secondary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'}`}
+                          title={fila.origen === 'gestion' ? 'Calculado desde Gestión académica' : 'Registro histórico de la hoja'}>
+                          {fila.origen === 'gestion' ? 'Gestión' : 'Registro'}
+                        </span>
+                      </td>
+                    )}
                     {tieneAcciones && (
                       <td className="acciones">
                         {tieneDetalles && (
                           <button type="button" className="btn-enlace text-indigo-600 font-medium" onClick={() => setViendoDetalles(fila)}>Detalles</button>
                         )}
-                        {recurso.editable && (
+                        {editable && (
                           <>
                             <button type="button" className="btn-enlace" onClick={() => setEditando(fila)}>Editar</button>
                             <button type="button" className="btn-enlace peligro" onClick={() => eliminar(fila)}>Eliminar</button>

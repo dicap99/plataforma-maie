@@ -1,10 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
-import CsvUploaderModal from './CsvUploaderModal.jsx'
 import { Alternador } from './academico/comunes.jsx'
 import { ordenarCohortes } from './academico/estadisticas'
 import PanelPromociones from './academico/PanelPromociones.jsx'
@@ -17,13 +17,16 @@ const VISTAS = [{ valor: 'graficas', etiqueta: 'Gráficas' }, { valor: 'datos', 
 // Hojas que no dependen de la promoción (el rango de promociones no las filtra).
 const SIN_PROMOCION = ['docentes', 'parametros']
 
-// Panel de gráficas de una hoja: carga sus filas y elige la visualización según el recurso.
-function PanelRecurso({ recurso, cohortes, recarga, onFiltrar }) {
-  const usaCohortes = recurso.id === 'cohortes'
-  const filas = useApi(() => (usaCohortes ? Promise.resolve({ data: [] }) : adminApi.listar(recurso.id)), [recurso.id, recarga])
-  if (!usaCohortes && filas.cargando && !filas.data) return <Cargando texto="Preparando gráficas…" />
+// Hojas que reflejan Gestión académica (sus filas vienen de /admin/academico/reflejo).
+const REFLEJADAS = ['cohortes', 'beneficios', 'cohorte-semestres']
+
+// Panel de gráficas de una hoja: usa el reflejo o carga sus filas, y elige la visualización.
+function PanelRecurso({ recurso, cohortes, reflejo, onFiltrar }) {
+  const reflejada = REFLEJADAS.includes(recurso.id)
+  const filas = useApi(() => (reflejada ? Promise.resolve({ data: null }) : adminApi.listar(recurso.id)), [recurso.id])
+  if (!reflejada && filas.cargando && !filas.data) return <Cargando texto="Preparando gráficas…" />
   if (filas.error) return <ErrorApi error={filas.error} onReintentar={filas.recargar} />
-  const datos = filas.data ?? []
+  const datos = reflejada ? reflejo[recurso.id] ?? [] : filas.data ?? []
   const comunes = { cohortes, onFiltrar }
   switch (recurso.id) {
     case 'cohortes': return <PanelPromociones {...comunes} />
@@ -38,26 +41,27 @@ function PanelRecurso({ recurso, cohortes, recarga, onFiltrar }) {
 }
 
 // "Información académica": una pestaña por hoja académica de «Estadísticas MaIE» (RF-ADM-01 a RF-ADM-06).
-// Cada pestaña condensa la hoja en indicadores y gráficas dinámicas; la vista «Datos» conserva la tabla
-// editable. Las pestañas visibles dependen del rol (el API solo devuelve los recursos que el rol puede leer).
+// Es un reflejo de Gestión académica y no se edita aquí: promociones, beneficios y cursos y docentes por
+// semestre combinan lo registrado en Gestión con el histórico de la hoja. Cada pestaña muestra indicadores y
+// gráficas, y la vista «Datos» la tabla en solo lectura. Las pestañas visibles dependen del rol.
 export default function DatosProgramaPage() {
   const recursos = useApi(adminApi.listarRecursos)
-  const cohortes = useApi(() => adminApi.listar('cohortes'))
+  const reflejo = useApi(adminApi.reflejoAcademico)
+  const cohortes = { data: reflejo.data?.cohortes }
   const [activo, setActivo] = useState('cohortes')
   const [vista, setVista] = useState('graficas')
   const [rango, setRango] = useState({ desde: '', hasta: '' })
   const [filtro, setFiltro] = useState(null) // { etiqueta, fn } desde un clic en una gráfica
-  const [importando, setImportando] = useState(false)
-  const [version, setVersion] = useState(0) // fuerza recarga de la tabla tras importar
-  const [recarga, setRecarga] = useState(0) // recarga las gráficas tras editar la tabla
 
-  if (recursos.cargando && !recursos.data) return <Cargando />
+  if ((recursos.cargando && !recursos.data) || (reflejo.cargando && !reflejo.data)) return <Cargando />
   if (recursos.error) return <ErrorApi error={recursos.error} onReintentar={recursos.recargar} />
+  if (reflejo.error) return <ErrorApi error={reflejo.error} onReintentar={reflejo.recargar} />
 
   const lista = (recursos.data || []).filter((r) => r.categoria === 'academico')
   if (lista.length === 0) return <p className="texto-suave">Su rol no tiene acceso a los datos del programa.</p>
   const recurso = lista.find((r) => r.id === activo) ?? lista[0]
   const puedeEditar = lista.some((r) => r.editable)
+  const reflejada = REFLEJADAS.includes(recurso.id)
 
   // Rango de promociones (desde–hasta) en orden cronológico.
   const todas = ordenarCohortes(cohortes.data ?? [])
@@ -94,19 +98,14 @@ export default function DatosProgramaPage() {
           </div>
           <h1 className="m-0 mt-1 font-display text-headline-lg text-primary">Información académica</h1>
           <p className="m-0 max-w-3xl text-body-md text-on-surface-variant">
-            Promociones, cursos y docentes, beneficios, producción científica y pasantías del programa. Cada hoja se resume en
-            indicadores y gráficas; en «Datos» está el registro completo.
+            Promociones, cursos y docentes, beneficios, producción científica y pasantías del programa, tal como se
+            registran en Gestión académica. Cada hoja se resume en indicadores y gráficas; en «Datos» está el detalle.
           </p>
         </div>
         {puedeEditar && (
-          <div className="flex flex-wrap gap-space-sm">
-            <button type="button" className="btn btn-secundario" onClick={() => adminApi.descargarPlantilla(true)}>
-              <Icono nombre="file_download" className="text-[18px]" /> Exportar a Excel
-            </button>
-            <button type="button" className="btn btn-primario" onClick={() => setImportando(true)}>
-              <Icono nombre="upload_file" className="text-[18px]" /> Importar Excel/CSV
-            </button>
-          </div>
+          <Link to="/coordinacion/gestion?pestana=datos" className="btn btn-secundario no-underline">
+            <Icono nombre="edit" className="text-[18px]" /> Editar en Gestión académica
+          </Link>
         )}
       </header>
 
@@ -139,32 +138,19 @@ export default function DatosProgramaPage() {
         <PanelRecurso
           key={recurso.id}
           recurso={recurso}
-          cohortes={recurso.id === 'cohortes' ? enRango : aplicaRango ? enRango : todas}
-          recarga={`${recarga}-${version}`}
+          cohortes={aplicaRango ? enRango : todas}
+          reflejo={reflejo.data}
           onFiltrar={filtrar}
         />
       ) : (
         <RecursoTabla
-          key={`${recurso.id}-${version}`}
+          key={recurso.id}
           recurso={recurso}
           cohortes={cohortes.data ?? []}
           filtro={filtro}
           onQuitarFiltro={() => setFiltro(null)}
-          onCambio={() => {
-            if (recurso.id === 'cohortes') cohortes.recargar()
-            setRecarga((n) => n + 1)
-          }}
-        />
-      )}
-
-      {importando && (
-        <CsvUploaderModal
-          recursos={lista}
-          onClose={() => setImportando(false)}
-          onImportado={() => {
-            cohortes.recargar()
-            setVersion((v) => v + 1)
-          }}
+          soloLectura
+          filasExternas={reflejada ? reflejo.data[recurso.id] : undefined}
         />
       )}
     </div>

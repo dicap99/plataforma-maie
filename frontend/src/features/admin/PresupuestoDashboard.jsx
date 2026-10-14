@@ -1,10 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
-import CsvUploaderModal from './CsvUploaderModal.jsx'
 import { Alternador } from './academico/comunes.jsx'
 import { ordenarCohortes } from './academico/estadisticas'
 import {
@@ -32,17 +32,14 @@ function PanelRecurso({ recurso, cohortes, recarga, onFiltrar }) {
 }
 
 // Presupuesto y finanzas (RF-ADM-03): resumen de ejecución y una pestaña por hoja financiera con
-// indicadores y gráficas dinámicas; la vista «Datos» conserva la tabla editable.
+// indicadores y gráficas dinámicas; la vista «Datos» muestra la tabla en solo lectura (se edita en
+// Gestión académica › Datos del programa).
 export default function PresupuestoDashboard() {
   const [activo, setActivo] = useState(RESUMEN)
   const [vista, setVista] = useState('graficas')
   const [rango, setRango] = useState({ desde: '', hasta: '' })
   const [filtro, setFiltro] = useState(null)
-  const [importando, setImportando] = useState(false)
-  const [version, setVersion] = useState(0)
-  const [recarga, setRecarga] = useState(0)
-
-  const resumen = useApi(adminApi.resumenPresupuesto, [recarga, version])
+  const resumen = useApi(adminApi.resumenPresupuesto)
   const recursos = useApi(adminApi.listarRecursos)
   const cohortes = useApi(() => adminApi.listar('cohortes'))
 
@@ -95,14 +92,9 @@ export default function PresupuestoDashboard() {
           </p>
         </div>
         {puedeEditar && (
-          <div className="flex flex-wrap gap-space-sm">
-            <button type="button" className="btn btn-secundario" onClick={() => adminApi.descargarPlantilla(true)}>
-              <Icono nombre="file_download" className="text-[18px]" /> Exportar a Excel
-            </button>
-            <button type="button" className="btn btn-primario" onClick={() => setImportando(true)}>
-              <Icono nombre="upload_file" className="text-[18px]" /> Importar Excel/CSV
-            </button>
-          </div>
+          <Link to="/coordinacion/gestion?pestana=datos" className="btn btn-secundario no-underline">
+            <Icono nombre="edit" className="text-[18px]" /> Editar en Gestión académica
+          </Link>
         )}
       </header>
 
@@ -138,30 +130,20 @@ export default function PresupuestoDashboard() {
             <Alternador etiqueta="Vista" opciones={VISTAS} valor={vista} onChange={setVista} />
           </div>
           {vista === 'graficas' ? (
-            <PanelRecurso key={recurso.id} recurso={recurso} cohortes={enRango} recarga={`${recarga}-${version}`} onFiltrar={filtrar} />
+            <PanelRecurso key={recurso.id} recurso={recurso} cohortes={enRango} recarga={0} onFiltrar={filtrar} />
           ) : (
             <RecursoTabla
-              key={`${recurso.id}-${version}`}
+              key={recurso.id}
               recurso={recurso}
               cohortes={cohortes.data ?? []}
               filtro={filtro}
               onQuitarFiltro={() => setFiltro(null)}
-              onCambio={() => setRecarga((n) => n + 1)}
+              soloLectura
             />
           )}
         </>
       )}
 
-      {importando && (
-        <CsvUploaderModal
-          recursos={lista}
-          onClose={() => setImportando(false)}
-          onImportado={() => {
-            cohortes.recargar()
-            setVersion((v) => v + 1)
-          }}
-        />
-      )}
     </div>
   )
 }

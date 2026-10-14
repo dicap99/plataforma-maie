@@ -10,10 +10,10 @@ import Icono from '../../components/common/Icono.jsx'
 import Modal from '../../components/common/Modal.jsx'
 import { BarraProgreso, Insignia } from './panel/TarjetaKpi.jsx'
 import UsuariosPage from './UsuariosPage.jsx'
+import DatosDelPrograma from './DatosDelPrograma.jsx'
 import { periodoAcademico } from '../../utils/periodo'
 import { porcentaje } from '../../utils/formato'
 
-const ESTADOS = ['inscrito', 'matriculado', 'egresado', 'graduado', 'retirado']
 const OTRO = '__otro__'
 const nombreDe = (u) => `${u.apellidos} ${u.nombres}`
 
@@ -180,7 +180,7 @@ function MatriculaOferta({ oferta, onClose, onGuardada }) {
       {promocion.data && detalle.data && (
         <>
           {promocion.data.length === 0 ? (
-            <p className="texto-suave">La promoción no tiene estudiantes. Agréguelos en la pestaña «Estudiantes por promoción».</p>
+            <p className="texto-suave">La promoción no tiene estudiantes. Asígneles la promoción en la pestaña «Usuarios».</p>
           ) : (
             <div className="grid max-h-80 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
               {promocion.data.map((e) => (
@@ -206,88 +206,6 @@ function MatriculaOferta({ oferta, onClose, onGuardada }) {
         </>
       )}
     </Modal>
-  )
-}
-
-// Estudiantes de una promoción (cohorte_estudiantes) con su estado académico.
-function EstudiantesPromocion({ cohortes }) {
-  const [idCohorte, setIdCohorte] = useState(cohortes.at(-1)?.id_cohorte ?? '')
-  const lista = useApi(() => (idCohorte ? cursosApi.estudiantesCohorte(idCohorte) : Promise.resolve({ data: [] })), [idCohorte])
-  const usuarios = useApi(() => usuariosApi.listarUsuarios('estudiante'))
-  const [cambios, setCambios] = useState(null) // [{ id_estudiante, estado }]
-  const [agregar, setAgregar] = useState('')
-  const [error, setError] = useState(null)
-  const [mensaje, setMensaje] = useState(null)
-
-  const filas = cambios ?? (lista.data ?? []).map((e) => ({ id_estudiante: e.id_estudiante, estado: e.estado }))
-  const porId = new Map((usuarios.data ?? []).map((u) => [u.id_usuario, u]))
-  const disponibles = (usuarios.data ?? []).filter((u) => !filas.some((f) => f.id_estudiante === u.id_usuario))
-
-  const guardar = async () => {
-    setError(null)
-    try {
-      await cursosApi.guardarEstudiantesCohorte(idCohorte, filas)
-      setCambios(null)
-      setMensaje('Estudiantes de la promoción actualizados.')
-      lista.recargar()
-    } catch (err) {
-      setError(err)
-    }
-  }
-
-  return (
-    <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
-      <div className="flex flex-wrap items-end gap-space-sm">
-        <div className="campo">
-          <label htmlFor="ep-cohorte">Promoción</label>
-          <select id="ep-cohorte" value={idCohorte} onChange={(e) => { setIdCohorte(e.target.value); setCambios(null); setMensaje(null) }}>
-            {cohortes.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>{c.nombre}</option>)}
-          </select>
-        </div>
-        <div className="campo">
-          <label htmlFor="ep-agregar">Agregar estudiante</label>
-          <select id="ep-agregar" value={agregar} onChange={(e) => setAgregar(e.target.value)}>
-            <option value="">Seleccione…</option>
-            {disponibles.map((u) => <option key={u.id_usuario} value={u.id_usuario}>{nombreDe(u)} · {u.identificacion}</option>)}
-          </select>
-        </div>
-        <button type="button" className="btn btn-secundario" disabled={!agregar}
-          onClick={() => { setCambios([...filas, { id_estudiante: agregar, estado: 'matriculado' }]); setAgregar('') }}>
-          Agregar
-        </button>
-        <button type="button" className="btn btn-primario" disabled={!cambios} onClick={guardar}>Guardar cambios</button>
-      </div>
-      <p className="texto-suave">Los usuarios con rol estudiante se crean en Procesos administrativos › Usuarios.</p>
-      <ErrorApi error={error ?? lista.error ?? usuarios.error} />
-      {mensaje && <p className="texto-exito" role="status">{mensaje}</p>}
-      {lista.cargando && !lista.data ? <Cargando /> : (
-        <div className="tabla-scroll">
-          <table className="text-body-sm">
-            <thead><tr><th>Estudiante</th><th>Identificación</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>
-            <tbody>
-              {filas.map((f, i) => {
-                const u = porId.get(f.id_estudiante)
-                return (
-                  <tr key={f.id_estudiante}>
-                    <td>{u ? nombreDe(u) : f.id_estudiante}</td>
-                    <td>{u?.identificacion}</td>
-                    <td>
-                      <select aria-label="Estado" value={f.estado} onChange={(e) => setCambios(filas.map((x, j) => (j === i ? { ...x, estado: e.target.value } : x)))}>
-                        {ESTADOS.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </td>
-                    <td className="acciones">
-                      <button type="button" className="btn-enlace peligro" onClick={() => setCambios(filas.filter((_, j) => j !== i))}>Quitar</button>
-                    </td>
-                  </tr>
-                )
-              })}
-              {filas.length === 0 && <tr><td colSpan={4} className="texto-suave">Sin estudiantes.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
   )
 }
 
@@ -475,14 +393,15 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
   )
 }
 
-// Orden del flujo de trabajo: cuentas de usuario → estudiantes de cada promoción → catálogo de clases →
-// oferta de clases por semestre (docentes y matrícula) → apertura de la calificación.
+// Orden del flujo de trabajo: cuentas de usuario (estudiantes con su promoción y beca, docentes con su
+// perfil) → catálogo de clases → oferta de clases por semestre (docentes y matrícula) → apertura de la
+// calificación; «Datos del programa» guarda las hojas del Excel (promociones, finanzas, histórico).
 const PESTANAS = [
   ['usuarios', 'Usuarios'],
-  ['promocion', 'Estudiantes por promoción'],
   ['clases', 'Clases'],
   ['semestre', 'Asignación por semestre'],
   ['semestres', 'Calificación por semestre'],
+  ['datos', 'Datos del programa'],
 ]
 const PESTANA_INICIAL = PESTANAS[0][0]
 
@@ -569,11 +488,9 @@ export default function GestionAcademicaPage() {
       </div>
 
       {pestana === 'clases' && <ClasesPanel clases={clases.data} catalogo={catalogo.data} onCambio={clases.recargar} />}
-      {pestana === 'promocion' && (listaCohortes.length > 0
-        ? <EstudiantesPromocion cohortes={listaCohortes} />
-        : <div className="card"><p>No hay promociones registradas. Créelas en Información académica.</p></div>)}
       {pestana === 'usuarios' && <UsuariosPage embebido />}
       {pestana === 'semestres' && <CalificacionPorSemestre />}
+      {pestana === 'datos' && <DatosDelPrograma />}
 
       {pestana === 'semestre' && (
         <>

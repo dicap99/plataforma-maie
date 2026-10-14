@@ -25,3 +25,6 @@ export const importarArchivo = (archivo, opciones = {}) => {
 // conDatos=true exporta los datos actuales en el formato de la plantilla
 export const descargarPlantilla = (conDatos = false) =>
   descargar('/admin/plantillas', conDatos ? { datos: true } : undefined)
+
+// Hojas académicas con el reflejo de Gestión académica (cada fila con su origen: gestion | registro)
+export const reflejoAcademico = () => client.get('/admin/academico/reflejo')
