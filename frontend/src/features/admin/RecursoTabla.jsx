@@ -6,7 +6,8 @@ import { valorCampo } from '../../utils/formato'
 import RecursoFormulario from './RecursoFormulario.jsx'
 
 // Tabla editable de un recurso del Módulo 1 (una hoja de "Estadísticas MaIE").
-export default function RecursoTabla({ recurso, cohortes, onCambio }) {
+// `filtro` = { etiqueta, fn } limita las filas visibles (p. ej. al hacer clic en una gráfica).
+export default function RecursoTabla({ recurso, cohortes, onCambio, filtro, onQuitarFiltro }) {
   const { data: filas, error, cargando, recargar } = useApi(() => adminApi.listar(recurso.id), [recurso.id])
   const [editando, setEditando] = useState(null) // null | 'nuevo' | fila
   const [viendoDetalles, setViendoDetalles] = useState(null) // fila
@@ -30,6 +31,7 @@ export default function RecursoTabla({ recurso, cohortes, onCambio }) {
     }
   }
 
+  const visibles = filas ? (filtro ? filas.filter(filtro.fn) : filas) : []
   const columnas = recurso.campos.filter((c) => !c.multilinea || c.mostrarEnTabla)
   const celda = (campo, fila) => (campo.type === 'cohorte' ? fila.cohorte : valorCampo(campo, fila[campo.name]))
 
@@ -51,7 +53,7 @@ export default function RecursoTabla({ recurso, cohortes, onCambio }) {
           </div>
         </header>
         <div className="grid gap-6">
-          {filas?.map(fila => (
+          {visibles.map(fila => (
             <div key={fila.id_cohorte} className="card p-6 bg-white shadow-sm border border-slate-200 rounded-xl">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3 border-b pb-2">
                 Promoción {fila.cohorte}
@@ -103,8 +105,18 @@ export default function RecursoTabla({ recurso, cohortes, onCambio }) {
       <header className="barra-herramientas">
         <div className="flex items-center gap-4">
           <p className="texto-suave">
-            {recurso.requisito} · Hoja «{recurso.hoja}» · {filas?.length ?? 0} registro(s)
+            {recurso.requisito} · Hoja «{recurso.hoja}» ·{' '}
+            {filtro && filas ? `${visibles.length} de ${filas.length}` : filas?.length ?? 0} registro(s)
           </p>
+          {filtro && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-secondary-fixed px-3 py-1 text-label-sm font-semibold text-on-secondary-fixed-variant">
+              <span className="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span>
+              {filtro.etiqueta}
+              <button type="button" className="ml-1 grid place-items-center rounded-full hover:bg-secondary/20" onClick={onQuitarFiltro} aria-label="Quitar filtro">
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+              </button>
+            </span>
+          )}
           {tieneDetalles && filas?.length > 0 && (
             <button type="button" className="btn-enlace text-indigo-600 text-sm font-medium ml-4" onClick={() => setViendoTodosDetalles(true)}>
               <span className="material-symbols-outlined text-[16px] mr-1 align-text-bottom">visibility</span>
@@ -136,10 +148,12 @@ export default function RecursoTabla({ recurso, cohortes, onCambio }) {
                 </tr>
               </thead>
               <tbody>
-                {filas.length === 0 && (
-                  <tr><td colSpan={columnas.length + 1} className="texto-suave">Sin registros. Agregue uno o importe el Excel.</td></tr>
+                {visibles.length === 0 && (
+                  <tr><td colSpan={columnas.length + 1} className="texto-suave">
+                    {filtro ? 'Ningún registro coincide con el filtro.' : 'Sin registros. Agregue uno o importe el Excel.'}
+                  </td></tr>
                 )}
-                {filas.map((fila) => (
+                {visibles.map((fila) => (
                   <tr key={recurso.llave.map((k) => fila[k]).join('|')}>
                     {columnas.map((c) => (
                       <td key={c.name} className={['entero', 'numero', 'dinero'].includes(c.type) ? 'num' : ['periodo', 'fecha', 'dinero'].includes(c.type) ? 'nowrap' : ''}>
