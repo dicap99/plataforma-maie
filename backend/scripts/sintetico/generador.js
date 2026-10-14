@@ -127,7 +127,63 @@ const generarModulo1 = (azar, { cohortes, docentes, estudiantes, cursos, actual 
     });
   }
 
-  return { perfiles, semestres, beneficios, produccion, pasantias };
+  return { perfiles, semestres, beneficios, produccion, pasantias, finanzas: generarFinanzas(azar, { cohortes, actual }) };
+};
+
+// Hojas financieras de las promociones sintéticas: punto de equilibrio, cortes de presupuesto (alguno
+// con gastos por encima de los ingresos), estudiantes de pregrado y transferencias y contrataciones OPS
+// por periodo. Valores en pesos con el SMMLV de la semilla (seed.sql: smmlv_2025).
+const SMMLV = 1400000;
+const finDeSemestre = (indice) => `${Math.floor(indice / 2)}-${indice % 2 ? '12-15' : '06-30'}`;
+const redondearMiles = (x) => Math.round(x / 1000) * 1000;
+
+const generarFinanzas = (azar, { cohortes, actual }) => {
+  const puntoEquilibrio = [];
+  const presupuesto = [];
+  const pregrado = [];
+  for (const h of cohortes) {
+    const inicio = aIndice(h.periodo_inicio);
+    const valorSmmlv = azar.elegir([4.5, 5, 5.5]);
+    const proyectados = redondearMiles(h.matriculados * valorSmmlv * SMMLV * 4);
+    puntoEquilibrio.push({ cohorte: h.nombre, estudiantes_equilibrio: azar.entero(6, 9), valor_matricula_smmlv: valorSmmlv, ingresos_proyectados: proyectados });
+
+    const cerrados = Math.min(4, actual - inicio); // semestres de la promoción ya terminados
+    for (let s = 1; s <= cerrados; s += 1) {
+      if (s % 2 === 1 && s !== cerrados) continue; // un corte por año y el corte más reciente
+      const ingresos = redondearMiles(proyectados * (s / 4) * (0.9 + azar.siguiente() * 0.1));
+      const gastos = redondearMiles(ingresos * (0.55 + azar.siguiente() * 0.5));
+      presupuesto.push({
+        cohorte: h.nombre,
+        fecha_corte: finDeSemestre(inicio + s - 1),
+        ingresos,
+        gastos_comprometidos: gastos,
+        saldo_certificado: Math.max(0, redondearMiles((ingresos - gastos) * 0.95)),
+      });
+      const estudiantes = azar.entero(0, 5);
+      pregrado.push({
+        cohorte: h.nombre,
+        periodo: aPeriodo(inicio + s - 1),
+        estudiantes,
+        inscripciones: estudiantes + azar.entero(0, 3),
+        ingreso: redondearMiles(estudiantes * 0.5 * SMMLV),
+      });
+    }
+  }
+
+  // Transferencias a la Vicerrectoría Académica y contrataciones OPS por periodo académico.
+  const transferencias = [];
+  const contrataciones = [];
+  const primero = Math.min(...cohortes.map((h) => aIndice(h.periodo_inicio)));
+  for (let p = primero; p <= actual; p += 1) {
+    const activas = cohortes.filter((h) => aIndice(h.periodo_inicio) <= p && p <= aIndice(h.periodo_inicio) + 3);
+    if (!activas.length) continue;
+    const promociones = `Sintética ${activas.map((h) => h.nombre.split(' ')[1]).join(', ')}`;
+    const nDocentes = azar.entero(1, 4);
+    const nOps = azar.entero(1, 4);
+    transferencias.push({ periodo: aPeriodo(p), promociones, n_docentes: nDocentes, valor: nDocentes * azar.entero(6, 9) * 1000000 });
+    contrataciones.push({ periodo: aPeriodo(p), promociones, n_ops: nOps, valor: nOps * azar.entero(5, 8) * 1000000 });
+  }
+  return { puntoEquilibrio, presupuesto, pregrado, transferencias, contrataciones };
 };
 
 const generar = ({

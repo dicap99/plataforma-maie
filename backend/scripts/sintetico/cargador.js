@@ -26,6 +26,9 @@ const limpiar = async (cliente) => {
     'DELETE FROM cursos c USING cohortes h WHERE h.id_cohorte = c.id_cohorte AND h.nombre LIKE $1',
     [cohorte],
   );
+  for (const tabla of ['transferencias_periodo', 'contrataciones_periodo']) {
+    await cliente.query(`DELETE FROM ${tabla} WHERE promociones LIKE $1`, [cohorte]);
+  }
   const usuarios = await cliente.query('DELETE FROM usuarios WHERE email LIKE $1', [correo]);
   const cohortes = await cliente.query('DELETE FROM cohortes WHERE nombre LIKE $1', [cohorte]);
   return { usuarios: usuarios.rowCount, cohortes: cohortes.rowCount };
@@ -136,6 +139,20 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
     await porCohorte('cohorte_produccion', m1.produccion,
       ['articulos', 'ponencias', 'software', 'prototipos', 'tesis', 'detalles'], ['int', 'int', 'int', 'int', 'int', 'text']);
     await porCohorte('cohorte_pasantias', m1.pasantias, ['nacionales', 'internacionales'], ['int', 'int']);
+
+    const f = m1.finanzas;
+    await porCohorte('cohorte_punto_equilibrio', f.puntoEquilibrio, ['estudiantes_equilibrio', 'valor_matricula_smmlv', 'ingresos_proyectados'], ['int', 'numeric', 'numeric']);
+    await porCohorte('presupuesto_cohorte', f.presupuesto,
+      ['fecha_corte', 'ingresos', 'gastos_comprometidos', 'saldo_certificado'], ['date', 'numeric', 'numeric', 'numeric']);
+    await porCohorte('pregrado_periodo', f.pregrado, ['periodo', 'estudiantes', 'inscripciones', 'ingreso'], ['varchar', 'int', 'int', 'numeric']);
+    // Por periodo: no se sobrescriben periodos que ya tengan datos reales.
+    for (const [tabla, filas, cantidad] of [['transferencias_periodo', f.transferencias, 'n_docentes'], ['contrataciones_periodo', f.contrataciones, 'n_ops']]) {
+      await cliente.query(
+        `INSERT INTO ${tabla} (periodo, promociones, ${cantidad}, valor)
+         SELECT * FROM unnest($1::varchar[], $2::varchar[], $3::int[], $4::numeric[]) ON CONFLICT (periodo) DO NOTHING`,
+        [filas.map((x) => x.periodo), filas.map((x) => x.promociones), filas.map((x) => x[cantidad]), filas.map((x) => x.valor)],
+      );
+    }
   }
 
   return {
