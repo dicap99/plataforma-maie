@@ -126,7 +126,7 @@ export default function MatrizRubricasPage() {
                     type="button"
                     onClick={() => cambiarRa(r.id_ra)}
                     aria-current={activo}
-                    className={`group flex w-full items-center justify-between rounded-xl p-3 text-left transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary ${
+                    className={`group flex w-full items-center justify-between rounded-xl border-0 p-3 text-left cursor-pointer transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary ${
                       activo ? 'bg-secondary text-on-secondary shadow-md' : 'bg-surface-container-low text-on-surface shadow-sm hover:bg-surface-container'
                     }`}
                   >
@@ -147,7 +147,7 @@ export default function MatrizRubricasPage() {
               })}
             </nav>
             <button type="button" onClick={() => setVerAyudaRa(true)}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container px-3 py-2.5 text-label-md text-primary transition-all hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border-0 cursor-pointer bg-surface-container px-3 py-2.5 text-label-md text-primary transition-all hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
               <Icono nombre="add_circle" className="text-[18px]" /> Nuevo resultado (RA)
             </button>
           </div>
@@ -205,7 +205,7 @@ export default function MatrizRubricasPage() {
                     </div>
                     <button type="button" onClick={() => quitar(i)} disabled={borrador.length === 1}
                       title={borrador.length === 1 ? 'Una rúbrica debe tener al menos un criterio' : undefined}
-                      className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-label-md text-error transition-all hover:bg-error-container/40 hover:text-on-error-container disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+                      className="flex items-center gap-1 rounded-lg border-0 cursor-pointer bg-transparent px-2.5 py-1.5 text-label-md text-error transition-all hover:bg-error-container/40 hover:text-on-error-container disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
                       <Icono nombre="delete" className="text-[18px]" /> Quitar
                     </button>
                   </div>
@@ -242,7 +242,7 @@ export default function MatrizRubricasPage() {
           })}
 
           <button type="button" onClick={agregar}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container py-4 text-label-lg text-primary shadow-sm transition-all hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+            className="flex w-full items-center justify-center gap-2 rounded-xl border-0 cursor-pointer bg-surface-container py-4 text-label-lg text-primary shadow-sm transition-all hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
             <Icono nombre="add_circle" className="text-[24px] text-secondary" /> Agregar nuevo criterio
           </button>
 
@@ -257,7 +257,7 @@ export default function MatrizRubricasPage() {
               </div>
             </div>
             <button type="button" onClick={() => setVerMomentos((v) => !v)} aria-expanded={verMomentos}
-              className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-label-md text-secondary transition-colors hover:bg-secondary-fixed/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg border-0 cursor-pointer bg-transparent px-2 py-1 text-label-md text-secondary transition-colors hover:bg-secondary-fixed/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
               <Icono nombre={verMomentos ? 'expand_less' : 'grid_on'} className="text-[18px]" />
               {verMomentos ? 'Ocultar momentos de evaluación' : 'Ver momentos de evaluación'}
             </button>
