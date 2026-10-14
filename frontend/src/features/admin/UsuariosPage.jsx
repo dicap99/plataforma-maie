@@ -5,8 +5,13 @@ import useApi from '../../hooks/useApi'
 import { useAuth } from '../../context/AuthContext.jsx'
 import Modal from '../../components/common/Modal.jsx'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
+import Icono from '../../components/common/Icono.jsx'
+import { Alternador } from './academico/comunes.jsx'
+import PanelUsuarios from './PanelUsuarios.jsx'
+import { ETIQUETA_ROL } from '../../routes/navigation'
 
 const ROLES = ['coordinador', 'docente', 'estudiante']
+const VISTAS = [{ valor: 'graficas', etiqueta: 'Gráficas' }, { valor: 'datos', etiqueta: 'Datos' }]
 const VACIO = { identificacion: '', nombres: '', apellidos: '', email: '', rol: 'docente', activo: true, password: '', id_docente: '' }
 
 // Gestión de usuarios y roles (RNF-SEG-01). Un usuario docente puede vincularse a su perfil (RF-ADM-06).
@@ -16,6 +21,8 @@ export default function UsuariosPage() {
   const docentes = useApi(() => adminApi.listar('docentes'))
   const [editando, setEditando] = useState(null) // null | VACIO | usuario
   const [errorAccion, setErrorAccion] = useState(null)
+  const [vista, setVista] = useState('graficas')
+  const [filtro, setFiltro] = useState(null) // { etiqueta, fn } desde un clic en una gráfica
 
   const eliminar = async (u) => {
     if (!window.confirm(`¿Eliminar el usuario ${u.email}?`)) return
@@ -29,24 +36,47 @@ export default function UsuariosPage() {
 
   return (
     <>
-      <header className="encabezado-pagina">
-        <h1>Usuarios</h1>
-        <button type="button" className="btn btn-primario" onClick={() => setEditando(VACIO)}>Nuevo usuario</button>
+      <div className="flex flex-col gap-space-lg">
+      <header className="flex flex-col gap-space-sm md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-1 text-label-sm font-semibold uppercase tracking-wider text-secondary">
+            <Icono nombre="manage_accounts" className="text-[16px]" /> Procesos administrativos
+          </div>
+          <h1 className="m-0 mt-1 font-display text-headline-lg text-primary">Usuarios</h1>
+          <p className="m-0 max-w-3xl text-body-md text-on-surface-variant">Cuentas de acceso, roles y vínculo de los docentes con su perfil.</p>
+        </div>
+        <button type="button" className="btn btn-primario" onClick={() => setEditando(VACIO)}>
+          <Icono nombre="person_add" className="text-[18px]" /> Nuevo usuario
+        </button>
       </header>
+      <div className="flex flex-wrap items-center justify-end gap-space-sm">
+        <Alternador etiqueta="Vista" opciones={VISTAS} valor={vista} onChange={setVista} />
+      </div>
       <ErrorApi error={usuarios.error} onReintentar={usuarios.recargar} />
       <ErrorApi error={errorAccion} />
-      {usuarios.cargando && !usuarios.data ? <Cargando /> : usuarios.data && (
+      {usuarios.cargando && !usuarios.data ? <Cargando /> : usuarios.data && vista === 'graficas' && (
+        <PanelUsuarios usuarios={usuarios.data} onFiltrar={(f) => { setFiltro(f); setVista('datos') }} />
+      )}
+      {usuarios.data && vista === 'datos' && filtro && (
+        <span className="inline-flex items-center gap-1 self-start rounded-full bg-secondary-fixed px-3 py-1 text-label-sm font-semibold text-on-secondary-fixed-variant">
+          <Icono nombre="filter_alt" className="text-[16px]" /> {filtro.etiqueta} · {usuarios.data.filter(filtro.fn).length} de {usuarios.data.length}
+          <button type="button" className="ml-1 grid place-items-center rounded-full hover:bg-secondary/20" onClick={() => setFiltro(null)} aria-label="Quitar filtro">
+            <Icono nombre="close" className="text-[16px]" />
+          </button>
+        </span>
+      )}
+      {usuarios.data && vista === 'datos' && (
         <div className="card tabla-scroll">
           <table>
             <thead>
               <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Perfil docente</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
             </thead>
             <tbody>
-              {usuarios.data.map((u) => (
+              {(filtro ? usuarios.data.filter(filtro.fn) : usuarios.data).map((u) => (
                 <tr key={u.id_usuario}>
                   <td>{u.nombres} {u.apellidos}</td>
                   <td>{u.email}</td>
-                  <td>{u.rol}</td>
+                  <td>{ETIQUETA_ROL[u.rol] ?? u.rol}</td>
                   <td>{u.docente_vinculado ?? '—'}</td>
                   <td>{u.activo ? 'Activo' : 'Inactivo'}</td>
                   <td className="acciones">
@@ -69,6 +99,7 @@ export default function UsuariosPage() {
           onGuardado={() => usuarios.recargar()}
         />
       )}
+      </div>
     </>
   )
 }
