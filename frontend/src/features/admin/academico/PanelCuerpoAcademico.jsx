@@ -4,10 +4,9 @@ import GraficoBarras from '../../../components/charts/GraficoBarras.jsx'
 import GraficoDona from '../../../components/charts/GraficoDona.jsx'
 import GraficoLineas from '../../../components/charts/GraficoLineas.jsx'
 import { SERIES } from '../../../components/charts/paleta'
-import { numero, porcentaje } from '../../../utils/formato'
-import TarjetaKpi, { BarraProgreso, Insignia } from '../panel/TarjetaKpi.jsx'
-import { FilaIndicadores, RejillaGraficas, SinDatos } from './comunes.jsx'
-import { camposDeFormacion, docentesPorCampo, porCohorte, razon, suma } from './estadisticas'
+import { numero } from '../../../utils/formato'
+import { RejillaGraficas, SinDatos } from './comunes.jsx'
+import { camposDeFormacion, docentesPorCampo, porCohorte, suma } from './estadisticas'
 
 const ROMANOS = ['I', 'II', 'III', 'IV']
 
@@ -24,7 +23,6 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
   // Métricas de docentes
   const udenar = filasDocentes.filter((d) => d.afiliacion === 'UDENAR').length
   const externos = filasDocentes.filter((d) => d.afiliacion === 'EXTERNO').length
-  const totalDocentes = filasDocentes.length
   const campos = docentesPorCampo(filasDocentes)
   const afiliacion = [
     { nombre: 'UDENAR', valor: udenar, color: SERIES[0] },
@@ -33,7 +31,6 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
 
   // Métricas de cursos por cohorte y semestre
   const datosCursos = porCohorte(filasCursos, cohortes)
-  const totalCursos = suma(datosCursos.map((f) => f.n_cursos))
   const promociones = cohortes.filter((c) => datosCursos.some((f) => f.id_cohorte === c.id_cohorte))
 
   const elegidas = idCohorte ? datosCursos.filter((f) => String(f.id_cohorte) === idCohorte) : datosCursos
@@ -66,32 +63,9 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
   }))
   const hayCreditos = creditos.some((c) => c.creditos !== null)
 
-  const docentesUdenarOferta = suma(datosCursos.map((f) => f.docentes_udenar))
-  const docentesExtOferta = suma(datosCursos.map((f) => f.docentes_externos))
-  const ratioDocentesCurso = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 }).format(
-    razon(docentesUdenarOferta + docentesExtOferta, totalCursos) ?? 0
-  )
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <FilaIndicadores>
-        <TarjetaKpi etiqueta="Docentes registrados" valor={numero(totalDocentes)} icono="badge" destacado>
-          <Insignia>{numero(udenar)} UDENAR · {numero(externos)} externos</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Cursos ofertados" valor={numero(totalCursos)} icono="menu_book">
-          <Insignia>{numero(promociones.length)} promociones con oferta</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Planta UDENAR" valor={porcentaje(razon(udenar, totalDocentes))} icono="account_balance">
-          <BarraProgreso fraccion={razon(udenar, totalDocentes)} />
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Docentes externos" valor={porcentaje(razon(externos, totalDocentes))} icono="flight_land">
-          <BarraProgreso fraccion={razon(externos, totalDocentes)} />
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Docentes por curso" valor={ratioDocentesCurso} icono="diversity_3">
-          <Insignia tono="neutro">Promedio semestral</Insignia>
-        </TarjetaKpi>
-      </FilaIndicadores>
-
       <RejillaGraficas>
         <ChartCard
           titulo="Docentes UDENAR y externos por semestre"

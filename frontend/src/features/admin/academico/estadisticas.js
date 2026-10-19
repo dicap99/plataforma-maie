@@ -29,17 +29,6 @@ export const ETAPAS = [
   { clave: 'graduados', nombre: 'Graduados' },
 ]
 
-export const indicadoresPromociones = (cohortes) => {
-  // Las tasas globales solo consideran promociones que ya egresaron.
-  const egresadas = cohortes.filter((c) => esNumero(c.egresados))
-  return {
-    matriculados: suma(cohortes.map((c) => c.matriculados)),
-    tasaEgreso: razon(suma(egresadas.map((c) => c.egresados)), suma(egresadas.map((c) => c.matriculados))),
-    tasaGraduacion: razon(suma(egresadas.map((c) => c.graduados)), suma(egresadas.map((c) => c.egresados))),
-    enCurso: cohortes.length - egresadas.length,
-  }
-}
-
 // Campos de formación de los docentes (texto libre con varios campos por docente).
 export const camposDeFormacion = (texto) =>
   String(texto ?? 'Sin registrar')

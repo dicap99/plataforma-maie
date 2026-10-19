@@ -4,8 +4,7 @@ import GraficoBarras from '../../../components/charts/GraficoBarras.jsx'
 import GraficoLineas from '../../../components/charts/GraficoLineas.jsx'
 import { SERIES } from '../../../components/charts/paleta'
 import { fecha, numero, pesos, pesosCompactos, porcentaje } from '../../../utils/formato'
-import TarjetaKpi, { BarraProgreso, Insignia } from '../panel/TarjetaKpi.jsx'
-import { FilaIndicadores, RejillaGraficas, SinDatos } from '../academico/comunes.jsx'
+import { RejillaGraficas, SinDatos } from '../academico/comunes.jsx'
 import { porCohorte, razon, suma } from '../academico/estadisticas'
 
 // Paneles de «Presupuesto y finanzas». `onFiltrar({ hoja, etiqueta, fn })` abre «Datos» en la hoja
@@ -69,9 +68,6 @@ export function PanelEjecucion({ resumen, filasPresupuesto, parametros = [], coh
   const filas = ultimosCortes(resumen, cohortes)
   if (!filas.length) return <SinDatos texto="No hay cortes de presupuesto para estas promociones." />
 
-  const ingresos = suma(filas.map((f) => f.ingresos))
-  const gastos = suma(filas.map((f) => f.gastos_comprometidos))
-  const ejecucion = razon(gastos, ingresos)
   const sobregiro = filas.filter((f) => (f.pct_ejecucion ?? 0) > 1)
   const certificadas = filas.filter((f) => f.diferencia_certificado !== null)
   const descuadres = certificadas.filter((f) => Math.abs(f.diferencia_certificado) >= 1)
@@ -82,23 +78,13 @@ export function PanelEjecucion({ resumen, filasPresupuesto, parametros = [], coh
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <FilaIndicadores>
-        <TarjetaKpi etiqueta="Ingresos recaudados" valor={pesosCompactos(ingresos)} icono="savings" destacado><Insignia>{pesos(ingresos)}</Insignia></TarjetaKpi>
-        <TarjetaKpi etiqueta="Gastos comprometidos" valor={pesosCompactos(gastos)} icono="receipt_long"><Insignia tono="neutro">{pesos(gastos)}</Insignia></TarjetaKpi>
-        <TarjetaKpi etiqueta="Saldo neto" valor={pesosCompactos(ingresos - gastos)} icono="account_balance_wallet"><Insignia tono="acento">Ingresos − gastos</Insignia></TarjetaKpi>
-        <TarjetaKpi etiqueta="Ejecución global" valor={porcentaje(ejecucion)} icono="speed">
-          <BarraProgreso fraccion={ejecucion} />
-          {sobregiro.length > 0 && <p className="mt-2 text-body-sm text-error">Sobregiro en {sobregiro.map((f) => f.promocion).join(', ')}</p>}
-        </TarjetaKpi>
-      </FilaIndicadores>
-
       <RejillaGraficas>
         <ChartCard titulo="Ingresos y gastos por promoción" subtitulo={`Último corte (${fecha(resumen.fecha_corte)}) · clic para ver los cortes`}
           tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'fecha_corte', titulo: 'Corte', formato: fecha }, { clave: 'ingresos', titulo: 'Ingresos', formato: pesos }, { clave: 'gastos_comprometidos', titulo: 'Gastos', formato: pesos }])}>
           <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
             series={[{ clave: 'ingresos', nombre: 'Ingresos', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }]} />
         </ChartCard>
-        <ChartCard titulo="Ejecución por promoción" subtitulo="Gastos comprometidos sobre ingresos; más de 100 % es sobregiro"
+        <ChartCard titulo="Ejecución por promoción" subtitulo={`Gastos comprometidos sobre ingresos; más de 100 % es sobregiro${sobregiro.length ? ` (${sobregiro.map((f) => f.promocion).join(', ')})` : ''}`}
           tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'pct_ejecucion', titulo: 'Ejecución', formato: porcentaje }])}>
           <GraficoBarras datos={filas} ejeX="promocion" horizontal anchoEtiquetas={110} formato={porcentaje} onSeleccionar={filtrar}
             series={[{ clave: 'pct_ejecucion', nombre: 'Ejecución', color: SERIES[6] }]} />
@@ -155,7 +141,6 @@ export function PanelSostenibilidad({ equilibrio, pregrado, resumen, cohortes, o
   })
   if (!datos.length && !filasPregrado.length) return <SinDatos />
 
-  const sobre = datos.filter((f) => (f.matriculados ?? 0) >= f.estudiantes_equilibrio)
   const conRecaudo = datos.filter((f) => f.ingresos !== null)
   const conPregrado = datos.filter((f) => f.ingreso_pregrado !== null)
   const periodos = [...new Set(filasPregrado.map((f) => f.periodo))].sort().map((p) => {
@@ -166,21 +151,6 @@ export function PanelSostenibilidad({ equilibrio, pregrado, resumen, cohortes, o
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <FilaIndicadores>
-        <TarjetaKpi etiqueta="Ingresos proyectados" valor={pesosCompactos(suma(datos.map((f) => f.ingresos_proyectados)))} icono="trending_up" destacado>
-          <Insignia>Suma del rango</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Promociones en equilibrio" valor={`${sobre.length} de ${datos.length}`} icono="balance">
-          <BarraProgreso fraccion={razon(sobre.length, datos.length)} />
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Estudiantes de equilibrio" valor={datos.length ? numero(suma(datos.map((f) => f.estudiantes_equilibrio)) / datos.length) : '—'} icono="groups">
-          <Insignia tono="neutro">Promedio por promoción</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Matrícula" valor={datos.length ? `${numero(suma(datos.map((f) => f.valor_matricula_smmlv)) / datos.length)} SMMLV` : '—'} icono="payments">
-          <Insignia tono="neutro">Promedio por semestre</Insignia>
-        </TarjetaKpi>
-      </FilaIndicadores>
-
       <RejillaGraficas>
         <ChartCard titulo="Matriculados frente al punto de equilibrio" subtitulo="Promociones sobre el mínimo de estudiantes que hace viable la cohorte"
           tabla={tablaDe(datos, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'matriculados', titulo: 'Matriculados', formato: numero }, { clave: 'estudiantes_equilibrio', titulo: 'Equilibrio', formato: numero }])}>
@@ -233,37 +203,17 @@ export function PanelOperacion({ transferencias, contrataciones, totalProyectado
       medio_ops: razon(c?.valor, c?.n_ops),
     }
   })
-  const totalTransferido = suma(datos.map((f) => f.valor_transferencias))
-  const totalOps = suma(datos.map((f) => f.valor_ops))
-  const docentes = suma(datos.map((f) => f.n_docentes))
-  const ops = suma(datos.map((f) => f.n_ops))
-  const pctIngresos = razon(totalOps, totalProyectado)
+  const pctIngresos = razon(suma(datos.map((f) => f.valor_ops)), totalProyectado)
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <FilaIndicadores>
-        <TarjetaKpi etiqueta="Inversión en personal" valor={pesosCompactos(totalTransferido + totalOps)} icono="payments" destacado>
-          <Insignia>Transferencias + OPS</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Docentes vía Vicerrectoría Académica" valor={numero(docentes)} icono="swap_horiz">
-          <Insignia tono="neutro">{pesosCompactos(razon(totalTransferido, docentes))} por docente</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Contratos OPS" valor={numero(ops)} icono="contract">
-          <Insignia tono="neutro">{pesosCompactos(razon(totalOps, ops))} por contrato</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="OPS sobre ingresos proyectados" valor={porcentaje(pctIngresos)} icono="pie_chart">
-          <BarraProgreso fraccion={pctIngresos} />
-          <p className="mt-2 text-body-sm text-on-surface-variant">Total OPS ÷ ingresos proyectados de todas las promociones</p>
-        </TarjetaKpi>
-      </FilaIndicadores>
-
       <RejillaGraficas>
         <ChartCard titulo="Transferencias a la Vicerrectoría Académica" subtitulo="Valor transferido por periodo; la tabla incluye los docentes"
           tabla={tablaDe(datos, [{ clave: 'periodo', titulo: 'Periodo' }, { clave: 'n_docentes', titulo: 'Docentes', formato: numero }, { clave: 'valor_transferencias', titulo: 'Valor', formato: pesos }])}>
           <GraficoBarras datos={datos} ejeX="periodo" formato={pesos} formatoEje={ejePesos} onSeleccionar={(f) => onFiltrar(porPeriodoEn('transferencias')(f))}
             series={[{ clave: 'valor_transferencias', nombre: 'Valor transferido', color: SERIES[0] }]} />
         </ChartCard>
-        <ChartCard titulo="Contrataciones OPS" subtitulo="Valor de los contratos por periodo; la tabla incluye el número de OPS"
+        <ChartCard titulo="Contrataciones OPS" subtitulo={`Valor de los contratos por periodo; el total equivale al ${porcentaje(pctIngresos)} de los ingresos proyectados de todas las promociones`}
           tabla={tablaDe(datos, [{ clave: 'periodo', titulo: 'Periodo' }, { clave: 'n_ops', titulo: 'Contratos OPS', formato: numero }, { clave: 'valor_ops', titulo: 'Valor', formato: pesos }])}>
           <GraficoBarras datos={datos} ejeX="periodo" formato={pesos} formatoEje={ejePesos} onSeleccionar={(f) => onFiltrar(porPeriodoEn('contrataciones')(f))}
             series={[{ clave: 'valor_ops', nombre: 'Valor OPS', color: SERIES[1] }]} />

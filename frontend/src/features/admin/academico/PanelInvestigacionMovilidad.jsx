@@ -4,9 +4,8 @@ import GraficoBarras from '../../../components/charts/GraficoBarras.jsx'
 import GraficoDona from '../../../components/charts/GraficoDona.jsx'
 import { SERIES } from '../../../components/charts/paleta'
 import { numero, porcentaje } from '../../../utils/formato'
-import TarjetaKpi, { BarraProgreso, Insignia } from '../panel/TarjetaKpi.jsx'
-import { Alternador, FilaIndicadores, RejillaGraficas, SinDatos } from './comunes.jsx'
-import { porCohorte, razon, relativo, suma } from './estadisticas'
+import { Alternador, RejillaGraficas, SinDatos } from './comunes.jsx'
+import { porCohorte, relativo, suma } from './estadisticas'
 
 const dosDecimales = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 })
 
@@ -46,13 +45,11 @@ export default function PanelInvestigacionMovilidad({
   const clavesProd = COLUMNAS_PRODUCCION.map((c) => c.clave)
   const conTotalProd = datosProd.map((f) => ({ ...f, total: suma(clavesProd.map((c) => f[c])) }))
   const totalesProd = Object.fromEntries(clavesProd.map((c) => [c, suma(conTotalProd.map((f) => f[c]))]))
-  const totalProd = suma(Object.values(totalesProd))
 
   // Totales de Pasantías
   const clavesPas = COLUMNAS_PASANTIAS.map((c) => c.clave)
   const conTotalPas = datosPas.map((f) => ({ ...f, total: suma(clavesPas.map((c) => f[c])) }))
   const totalesPas = Object.fromEntries(clavesPas.map((c) => [c, suma(conTotalPas.map((f) => f[c]))]))
-  const totalPas = suma(Object.values(totalesPas))
 
   const poblacion = suma(conTotalProd.map((f) => f.poblacion))
 
@@ -85,28 +82,6 @@ export default function PanelInvestigacionMovilidad({
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <FilaIndicadores>
-        <TarjetaKpi etiqueta="Productos de investigación" valor={numero(totalProd)} icono="science" destacado>
-          <Insignia>Artículos, ponencias, software, tesis</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Pasantías realizadas" valor={numero(totalPas)} icono="flight_takeoff">
-          <Insignia>{numero(totalesPas.internacionales)} internacionales</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Artículos científicos" valor={numero(totalesProd.articulos)} icono="menu_book">
-          <Insignia tono="acento">{numero(totalesProd.ponencias)} ponencias</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Tesis de maestría" valor={numero(totalesProd.tesis)} icono="school">
-          <Insignia tono="neutro">Trabajos de grado aprobados</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi
-          etiqueta="Productos por estudiante"
-          valor={dosDecimales.format(razon(totalProd, poblacion) ?? 0)}
-          icono="person"
-        >
-          <Insignia tono="neutro">Sobre población de referencia</Insignia>
-        </TarjetaKpi>
-      </FilaIndicadores>
-
       <RejillaGraficas>
         <ChartCard
           titulo="Producción científica por promoción"

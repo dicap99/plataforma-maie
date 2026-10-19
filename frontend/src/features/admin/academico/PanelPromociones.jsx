@@ -4,9 +4,8 @@ import GraficoBarras from '../../../components/charts/GraficoBarras.jsx'
 import GraficoLineas from '../../../components/charts/GraficoLineas.jsx'
 import { SERIES } from '../../../components/charts/paleta'
 import { numero, porcentaje } from '../../../utils/formato'
-import TarjetaKpi, { BarraProgreso, Insignia } from '../panel/TarjetaKpi.jsx'
-import { Alternador, FilaIndicadores, RejillaGraficas, SinDatos } from './comunes.jsx'
-import { ETAPAS, indicadoresPromociones, razon } from './estadisticas'
+import { Alternador, RejillaGraficas, SinDatos } from './comunes.jsx'
+import { ETAPAS, razon } from './estadisticas'
 import DiagramaTriangular from './DiagramaTriangular.jsx'
 import GraficoAprobadosSemestre from './GraficoAprobadosSemestre.jsx'
 
@@ -18,7 +17,6 @@ export default function PanelPromociones({ cohortes, onFiltrar }) {
   const terminadas = cohortes.filter((c) => typeof c.egresados === 'number')
   const [idEmbudo, setIdEmbudo] = useState(null)
   const embudo = cohortes.find((c) => c.id_cohorte === idEmbudo) ?? terminadas.at(-1) ?? cohortes.at(-1)
-  const ind = indicadoresPromociones(cohortes)
 
   if (!cohortes.length) return <SinDatos texto="No hay promociones registradas en este rango." />
 
@@ -34,21 +32,6 @@ export default function PanelPromociones({ cohortes, onFiltrar }) {
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <FilaIndicadores>
-        <TarjetaKpi etiqueta="Estudiantes matriculados" valor={numero(ind.matriculados)} icono="groups" destacado>
-          <Insignia>{numero(cohortes.length)} promociones</Insignia>
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Tasa de egreso" valor={porcentaje(ind.tasaEgreso)} icono="school">
-          <BarraProgreso fraccion={ind.tasaEgreso} />
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Tasa de graduación" valor={porcentaje(ind.tasaGraduacion)} icono="workspace_premium">
-          <BarraProgreso fraccion={ind.tasaGraduacion} />
-        </TarjetaKpi>
-        <TarjetaKpi etiqueta="Promociones en curso" valor={numero(ind.enCurso)} icono="pending">
-          <Insignia tono="neutro">Sin egresados aún</Insignia>
-        </TarjetaKpi>
-      </FilaIndicadores>
-
       {/* Gráficas destacadas por promoción: Diagrama Triangular de Eficiencia y Aprobación por Semestre */}
       <RejillaGraficas>
         <ChartCard

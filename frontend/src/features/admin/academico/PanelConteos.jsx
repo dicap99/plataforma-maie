@@ -4,8 +4,7 @@ import GraficoBarras from '../../../components/charts/GraficoBarras.jsx'
 import GraficoDona from '../../../components/charts/GraficoDona.jsx'
 import { SERIES } from '../../../components/charts/paleta'
 import { numero, porcentaje } from '../../../utils/formato'
-import TarjetaKpi, { BarraProgreso, Insignia } from '../panel/TarjetaKpi.jsx'
-import { Alternador, FilaIndicadores, RejillaGraficas, SinDatos } from './comunes.jsx'
+import { Alternador, RejillaGraficas, SinDatos } from './comunes.jsx'
 import { porCohorte, razon, relativo, suma } from './estadisticas'
 
 const dosDecimales = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 })
@@ -37,14 +36,6 @@ export default function PanelConteos({ filas, cohortes, onFiltrar, config }) {
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <FilaIndicadores>
-        {config.kpis({ totales, total, poblacion, datos: conTotal }).map((k) => (
-          <TarjetaKpi key={k.etiqueta} etiqueta={k.etiqueta} valor={k.valor} icono={k.icono} destacado={k.destacado}>
-            {k.fraccion !== undefined ? <BarraProgreso fraccion={k.fraccion} /> : k.nota && <Insignia tono={k.tono ?? 'neutro'}>{k.nota}</Insignia>}
-          </TarjetaKpi>
-        ))}
-      </FilaIndicadores>
-
       <RejillaGraficas>
         <ChartCard
           titulo={`${config.titulo} por promoción`}
