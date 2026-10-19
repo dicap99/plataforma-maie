@@ -144,13 +144,13 @@ export default function GraficoAprobadosSemestre({ cohortes = [] }) {
               barGap={3}
             >
               <CartesianGrid vertical={false} stroke={GRILLA} strokeDasharray="3 3" />
-              <XAxis dataKey="promocion" tickLine={false} axisLine={{ stroke: GRILLA }} tick={ticks} />
+              <XAxis dataKey="promocion" tickLine={false} axisLine={{ stroke: GRILLA }} tick={ticks} interval={0} tickFormatter={(v) => v.replace(/^Promoción /, '')} />
               <YAxis
                 tickLine={false}
                 axisLine={false}
                 tick={ticks}
                 tickFormatter={formatoValor}
-                domain={modo === 'pct' ? [0, 1] : ['auto', 'auto']}
+                domain={modo === 'pct' ? [0, 1] : [0, 'auto']}
               />
               <Tooltip
                 formatter={(v, nombre) => [v != null ? formatoValor(v) : 'No cursado', nombre]}
@@ -181,7 +181,7 @@ export default function GraficoAprobadosSemestre({ cohortes = [] }) {
                 axisLine={false}
                 tick={ticks}
                 tickFormatter={formatoValor}
-                domain={modo === 'pct' ? [0, 1] : ['auto', 'auto']}
+                domain={modo === 'pct' ? [0, 1] : [0, 'auto']}
               />
               <Tooltip
                 formatter={(v) => [v != null ? formatoValor(v) : 'Sin datos', modo === 'pct' ? '% Aprobados' : 'Estudiantes Aprobados']}

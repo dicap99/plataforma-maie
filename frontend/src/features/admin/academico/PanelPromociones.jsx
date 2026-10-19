@@ -6,7 +6,7 @@ import { SERIES } from '../../../components/charts/paleta'
 import { numero, porcentaje } from '../../../utils/formato'
 import { Alternador, RejillaGraficas, SinDatos } from './comunes.jsx'
 import { ETAPAS, razon } from './estadisticas'
-import DiagramaTriangular from './DiagramaTriangular.jsx'
+import DiagramaTriangular, { metricasTitulacion } from './DiagramaTriangular.jsx'
 import GraficoAprobadosSemestre from './GraficoAprobadosSemestre.jsx'
 
 const MODOS = [{ valor: 'cantidad', etiqueta: 'Estudiantes' }, { valor: 'pct', etiqueta: '% de matriculados' }]
@@ -35,9 +35,13 @@ export default function PanelPromociones({ cohortes, onFiltrar }) {
       {/* Gráficas destacadas por promoción: Diagrama Triangular de Eficiencia y Aprobación por Semestre */}
       <RejillaGraficas>
         <ChartCard
-          titulo="Balance Ternario de la Promoción"
-          subtitulo="Relación porcentual entre Egresados, Graduados, Retiros Reales y Estudiantes en Curso."
+          titulo="Titulación"
+          subtitulo="% Egresados (sobre matriculados), % Graduados (sobre egresados) y % Retiros de las promociones culminadas."
           altura="h-auto"
+          tabla={{
+            columnas: [{ clave: 'eje', titulo: 'Indicador' }, { clave: 'valor', titulo: '%', formato: porcentaje }, { clave: 'detalle', titulo: 'Detalle' }],
+            filas: metricasTitulacion(cohortes).datos,
+          }}
         >
           <DiagramaTriangular cohortes={cohortes} />
         </ChartCard>
