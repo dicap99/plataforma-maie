@@ -13,7 +13,8 @@ const ROMANOS = ['I', 'II', 'III', 'IV']
 
 // Cuerpo Académico y Oferta Curricular (RF-ADM-01, RF-ADM-06):
 // Integra la planta docente (filiación UDENAR/Externos, campos de formación) con la oferta de cursos por semestre.
-export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos = [], cohortes = [], onFiltrar }) {
+// `parametros`: filas de Parámetros del programa (solo Coordinación); de ellas salen los créditos por semestre.
+export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos = [], cohortes = [], parametros = [], onFiltrar }) {
   const [idCohorte, setIdCohorte] = useState('')
 
   if (!filasDocentes.length && !filasCursos.length) {
@@ -58,6 +59,12 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
     color: SERIES[i % SERIES.length],
   }))
   const nombreElegida = promociones.find((c) => String(c.id_cohorte) === idCohorte)?.nombre
+
+  const creditos = [1, 2, 3, 4].map((s) => ({
+    semestre: `Semestre ${ROMANOS[s - 1]}`,
+    creditos: parametros.find((p) => p.clave === `creditos_semestre_${s}`)?.valor ?? null,
+  }))
+  const hayCreditos = creditos.some((c) => c.creditos !== null)
 
   const docentesUdenarOferta = suma(datosCursos.map((f) => f.docentes_udenar))
   const docentesExtOferta = suma(datosCursos.map((f) => f.docentes_externos))
@@ -195,6 +202,23 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
           <GraficoLineas datos={evolucion} ejeX="semestre" series={seriesPromociones} formato={numero} />
         </ChartCard>
       </RejillaGraficas>
+
+      {hayCreditos && (
+        <ChartCard
+          titulo="Créditos por semestre"
+          subtitulo={`${numero(suma(creditos.map((c) => c.creditos)))} créditos según Parámetros del programa (fila «Número de créditos» de la hoja «Cursos y Docentes»)`}
+          tabla={{
+            columnas: [
+              { clave: 'semestre', titulo: 'Semestre' },
+              { clave: 'creditos', titulo: 'Créditos', formato: numero },
+            ],
+            filas: creditos,
+          }}
+          altura="h-56"
+        >
+          <GraficoBarras datos={creditos} ejeX="semestre" series={[{ clave: 'creditos', nombre: 'Créditos', color: SERIES[6] }]} formato={numero} />
+        </ChartCard>
+      )}
     </div>
   )
 }

@@ -57,6 +57,8 @@ export default function DatosProgramaPage() {
   const docentesApi = useApi(() => adminApi.listar('docentes'))
   const produccionApi = useApi(() => adminApi.listar('produccion'))
   const pasantiasApi = useApi(() => adminApi.listar('pasantias'))
+  // Solo Coordinación lee los parámetros; si no hay acceso, la gráfica de créditos no se muestra.
+  const parametrosApi = useApi(() => adminApi.listar('parametros'))
 
   const [activo, setActivo] = useState('cohortes')
   const [subActivo, setSubActivo] = useState({
@@ -371,6 +373,7 @@ export default function DatosProgramaPage() {
               filasDocentes={docentesApi.data ?? []}
               filasCursos={reflejo.data?.['cohorte-semestres'] ?? []}
               cohortes={enRango}
+              parametros={parametrosApi.data ?? []}
               onFiltrar={(f) => {
                 cambiarSubrecurso(f.esSemestre ? 'cohorte-semestres' : 'docentes')
                 filtrar(f)

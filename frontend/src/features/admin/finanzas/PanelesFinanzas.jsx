@@ -19,6 +19,12 @@ const DISTRIBUCION = [
   { clave: 'unidad_academica', nombre: 'Unidad Académica' },
 ]
 const tablaDe = (filas, columnas) => ({ columnas, filas })
+const PCT_DISTRIBUCION = {
+  transferencia_central: 'pct_transferencia_central',
+  transferencia_viis: 'pct_transferencia_viis',
+  fondo_investigaciones: 'pct_fondo_investigaciones',
+  unidad_academica: 'pct_unidad_academica',
+}
 const porPromocion = (hoja) => (f) => ({ hoja, etiqueta: `Promoción ${f.promocion}`, fn: (x) => x.id_cohorte === f.id_cohorte })
 const porPeriodoEn = (hoja) => (f) => ({ hoja, etiqueta: `Periodo ${f.periodo}`, fn: (x) => x.periodo === f.periodo })
 
@@ -59,7 +65,7 @@ function EvolucionCortes({ filas, cohortes, onFiltrar }) {
 }
 
 // 1. Ejecución presupuestal y saldos (RF-ADM-03): último corte de cada promoción.
-export function PanelEjecucion({ resumen, filasPresupuesto, cohortes, onFiltrar }) {
+export function PanelEjecucion({ resumen, filasPresupuesto, parametros = [], cohortes, onFiltrar }) {
   const filas = ultimosCortes(resumen, cohortes)
   if (!filas.length) return <SinDatos texto="No hay cortes de presupuesto para estas promociones." />
 
@@ -70,6 +76,9 @@ export function PanelEjecucion({ resumen, filasPresupuesto, cohortes, onFiltrar 
   const certificadas = filas.filter((f) => f.diferencia_certificado !== null)
   const descuadres = certificadas.filter((f) => Math.abs(f.diferencia_certificado) >= 1)
   const filtrar = (f) => onFiltrar(porPromocion('presupuesto')(f))
+  const valorParametro = (clave) => parametros.find((p) => p.clave === clave)?.valor ?? null
+  const reparto = { fila: 'Saldo', ...Object.fromEntries(DISTRIBUCION.map((d) => [d.clave, valorParametro(PCT_DISTRIBUCION[d.clave])])) }
+  const sumaReparto = suma(DISTRIBUCION.map((d) => reparto[d.clave]))
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -94,11 +103,24 @@ export function PanelEjecucion({ resumen, filasPresupuesto, cohortes, onFiltrar 
           <GraficoBarras datos={filas} ejeX="promocion" horizontal anchoEtiquetas={110} formato={porcentaje} onSeleccionar={filtrar}
             series={[{ clave: 'pct_ejecucion', nombre: 'Ejecución', color: SERIES[6] }]} />
         </ChartCard>
+      </RejillaGraficas>
+
+      <RejillaGraficas>
         <ChartCard titulo="Distribución del saldo por promoción" subtitulo="Registrada en el corte o calculada con los porcentajes de Parámetros del programa"
           tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, ...DISTRIBUCION.map((d) => ({ clave: d.clave, titulo: d.nombre, formato: pesos }))])}>
           <GraficoBarras datos={filas} ejeX="promocion" apilado formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
             series={DISTRIBUCION.map((d, i) => ({ ...d, color: SERIES[i + 2] }))} />
         </ChartCard>
+        <ChartCard titulo="Distribución porcentual del saldo"
+          subtitulo={sumaReparto === 100 ? 'Porcentaje del saldo que se transfiere a cada destino (suma 100 %)' : `Los porcentajes de Parámetros suman ${numero(sumaReparto)} %, no 100 %`}
+          tabla={tablaDe(DISTRIBUCION.map((d) => ({ nombre: d.nombre, valor: reparto[d.clave] })), [{ clave: 'nombre', titulo: 'Destino' }, { clave: 'valor', titulo: '%', formato: numero }])}
+          altura="h-40">
+          <GraficoBarras datos={[reparto]} ejeX="fila" horizontal apilado anchoEtiquetas={50} formato={(v) => `${numero(v)} %`}
+            series={DISTRIBUCION.map((d, i) => ({ ...d, color: SERIES[i + 2] }))} />
+        </ChartCard>
+      </RejillaGraficas>
+
+      <RejillaGraficas>
         <ChartCard titulo="Saldo comprometido frente al certificado"
           subtitulo={certificadas.length
             ? (descuadres.length ? `Diferencia con la Oficina de Presupuesto en ${descuadres.map((f) => f.promocion).join(', ')}` : 'Los saldos coinciden con el certificado')
@@ -107,9 +129,8 @@ export function PanelEjecucion({ resumen, filasPresupuesto, cohortes, onFiltrar 
           <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
             series={[{ clave: 'saldo_comprometido', nombre: 'Saldo comprometido', color: SERIES[2] }, { clave: 'saldo_certificado', nombre: 'Saldo certificado', color: SERIES[3] }]} />
         </ChartCard>
+        <EvolucionCortes filas={filasPresupuesto} cohortes={cohortes} onFiltrar={onFiltrar} />
       </RejillaGraficas>
-
-      <EvolucionCortes filas={filasPresupuesto} cohortes={cohortes} onFiltrar={onFiltrar} />
     </div>
   )
 }

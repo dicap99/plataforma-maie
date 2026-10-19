@@ -7,9 +7,8 @@ import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
 import { ordenarCohortes, suma } from './academico/estadisticas'
 import { PanelEjecucion, PanelOperacion, PanelSostenibilidad } from './finanzas/PanelesFinanzas.jsx'
-import PanelParametros from './academico/PanelParametros.jsx'
 
-// Presupuesto y finanzas (RF-ADM-03): 4 pestañas por propósito. La vista «Datos» muestra las hojas
+// Presupuesto y finanzas (RF-ADM-03): 3 pestañas por propósito. La vista «Datos» muestra las hojas
 // de cada pestaña en solo lectura; se editan en Gestión académica › Datos del programa.
 const PESTANAS = [
   {
@@ -39,14 +38,9 @@ const PESTANAS = [
       { id: 'contrataciones', etiqueta: 'Contrataciones OPS', icono: 'contract' },
     ],
   },
-  {
-    id: 'parametros',
-    titulo: 'Parámetros y reglas financieras',
-    icono: 'tune',
-    hojas: [{ id: 'parametros', etiqueta: 'Parámetros del programa', icono: 'tune' }],
-  },
 ]
-const HOJAS = PESTANAS.flatMap((p) => p.hojas.map((h) => h.id))
+// Los parámetros (SMMLV, reparto del saldo) alimentan las gráficas; se consultan en Gestión académica.
+const HOJAS = [...PESTANAS.flatMap((p) => p.hojas.map((h) => h.id)), 'parametros']
 
 const cargarHojas = async () => {
   const respuestas = await Promise.all(HOJAS.map((id) => adminApi.listar(id)))
@@ -130,7 +124,7 @@ export default function PresupuestoDashboard() {
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Presupuesto y finanzas</h1>
           <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">
-            Ejecución presupuestal, sostenibilidad de las promociones, gastos de personal y parámetros que gobiernan los cálculos.
+            Ejecución presupuestal y saldos, sostenibilidad de las promociones y gastos de personal del programa.
             Información confidencial de Coordinación.
           </p>
         </div>
@@ -149,7 +143,7 @@ export default function PresupuestoDashboard() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center space-x-2 text-violet-700 font-semibold text-xs bg-violet-50/80 px-2.5 py-1.5 rounded-lg border border-violet-200/70">
             <Icono nombre="date_range" className="text-[16px]" />
-            <span>{{ periodos: 'Rango de semestres:', promociones: 'Rango de promociones:' }[pestana.filtro] ?? 'Parámetros:'}</span>
+            <span>{pestana.filtro === 'periodos' ? 'Rango de semestres:' : 'Rango de promociones:'}</span>
           </div>
           {pestana.filtro === 'promociones' && (
             <>
@@ -170,7 +164,6 @@ export default function PresupuestoDashboard() {
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
             {pestana.filtro === 'promociones' && `${enRango.length} de ${todas.length} promociones`}
             {pestana.filtro === 'periodos' && `${periodosEnRango.length} de ${periodos.length} semestres`}
-            {!pestana.filtro && 'Valores vigentes del programa (sin filtro)'}
           </span>
         </div>
       </section>
@@ -232,7 +225,7 @@ export default function PresupuestoDashboard() {
       {vista === 'graficas' ? (
         <div>
           {activo === 'ejecucion' && (
-            <PanelEjecucion resumen={resumen.data} filasPresupuesto={filas.presupuesto} cohortes={enRango} onFiltrar={filtrar} />
+            <PanelEjecucion resumen={resumen.data} filasPresupuesto={filas.presupuesto} parametros={filas.parametros} cohortes={enRango} onFiltrar={filtrar} />
           )}
           {activo === 'sostenibilidad' && (
             <PanelSostenibilidad equilibrio={filas['punto-equilibrio']} pregrado={filas.pregrado} resumen={resumen.data} cohortes={enRango} onFiltrar={filtrar} />
@@ -241,7 +234,6 @@ export default function PresupuestoDashboard() {
             <PanelOperacion transferencias={filas.transferencias.filter(enPeriodos)} contrataciones={filas.contrataciones.filter(enPeriodos)}
               totalProyectado={suma(filas['punto-equilibrio'].map((f) => f.ingresos_proyectados))} onFiltrar={filtrar} />
           )}
-          {activo === 'parametros' && <PanelParametros filas={filas.parametros} />}
         </div>
       ) : recurso ? (
         <RecursoTabla
