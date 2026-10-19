@@ -111,8 +111,11 @@ const cursosDocentes = (filas, parametros) => {
 };
 
 // Presupuesto: toma el corte más reciente de cada promoción y completa la distribución del saldo
-// con los porcentajes parametrizados cuando no fue registrada.
-const presupuesto = (filas, parametros) => {
+// con los porcentajes parametrizados cuando no fue registrada. Con las filas de punto de equilibrio
+// compara lo recaudado con lo proyectado; la diferencia con el saldo certificado es la conciliación
+// con la Oficina de Presupuesto.
+const presupuesto = (filas, parametros, equilibrio = []) => {
+  const proyectado = new Map(equilibrio.map((e) => [e.id_cohorte, e.ingresos_proyectados]));
   const ultimoPorCohorte = Object.values(
     filas.reduce((acc, f) => {
       if (!acc[f.id_cohorte] || f.fecha_corte > acc[f.id_cohorte].fecha_corte) acc[f.id_cohorte] = f;
@@ -133,7 +136,16 @@ const presupuesto = (filas, parametros) => {
         return [campo, base > 0 && typeof p === 'number' ? (base * p) / 100 : null];
       }),
     );
-    return { ...f, ...distribucion, pct_ejecucion: razon(f.gastos_comprometidos, f.ingresos) };
+    const ingresosProyectados = proyectado.get(f.id_cohorte) ?? null;
+    return {
+      ...f,
+      ...distribucion,
+      pct_ejecucion: razon(f.gastos_comprometidos, f.ingresos),
+      ingresos_proyectados: ingresosProyectados,
+      pct_recaudo_vs_proyeccion: razon(f.ingresos, ingresosProyectados),
+      diferencia_certificado:
+        typeof f.saldo_certificado === 'number' ? f.saldo_certificado - f.saldo_comprometido : null,
+    };
   });
   const cols = ['ingresos', 'gastos_comprometidos', 'saldo_comprometido', 'saldo_certificado', ...Object.keys(pct)];
   const r = resumenColumnas(resultado, cols);
@@ -141,7 +153,13 @@ const presupuesto = (filas, parametros) => {
     fecha_corte: resultado.reduce((max, f) => (max === null || f.fecha_corte > max ? f.fecha_corte : max), null),
     filas: resultado,
     ...r,
-    indicadores: { pct_ejecucion: razon(r.totales.gastos_comprometidos, r.totales.ingresos) },
+    indicadores: {
+      pct_ejecucion: razon(r.totales.gastos_comprometidos, r.totales.ingresos),
+      pct_recaudo_vs_proyeccion: razon(
+        suma(resultado.filter((f) => f.ingresos_proyectados !== null).map((f) => f.ingresos)),
+        suma(resultado.map((f) => f.ingresos_proyectados)),
+      ),
+    },
   };
 };
 
@@ -243,7 +261,7 @@ const calcular = (datos) => {
     promociones: prom,
     puntoEquilibrio: equilibrio,
     cursosDocentes: cursosDocentes(datos['cohorte-semestres'], parametros),
-    presupuesto: presupuesto(datos.presupuesto, parametros),
+    presupuesto: presupuesto(datos.presupuesto, parametros, datos['punto-equilibrio']),
     pregrado: pregrado(datos.pregrado, datos['punto-equilibrio']),
     transferencias: porPeriodo(datos.transferencias, 'n_docentes'),
     contrataciones: contrataciones(datos.contrataciones, equilibrio.totales.ingresos_proyectados),

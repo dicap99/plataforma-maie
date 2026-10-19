@@ -309,7 +309,8 @@ const construir = () => {
       },
       '/admin/presupuesto/resumen': {
         get: {
-          tags: ['Módulo 1 · General'], summary: 'Consolidado presupuestal (último corte por promoción)', description: roles(['coordinador']),
+          tags: ['Módulo 1 · General'], summary: 'Consolidado presupuestal (último corte por promoción)',
+          description: `Incluye ejecución, distribución del saldo, recaudo frente a los ingresos proyectados (punto de equilibrio) y diferencia con el saldo certificado. ${roles(['coordinador'])}`,
           responses: { 200: exito({ type: 'object' }), ...errores(401, 403) },
         },
       },

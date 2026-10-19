@@ -22,9 +22,13 @@ module.exports = {
     return Object.fromEntries(ids.map((id) => [id, combinado[id]]));
   },
 
-  // Consolidado presupuestal por promoción (corte más reciente).
+  // Consolidado presupuestal por promoción (corte más reciente), comparado con su proyección.
   async resumenPresupuesto() {
-    const [filas, parametros] = await Promise.all([repositorios.presupuesto.list(), repositorios.parametros.list()]);
-    return estadisticas.presupuesto(filas, Object.fromEntries(parametros.map((p) => [p.clave, p.valor])));
+    const [filas, parametros, equilibrio] = await Promise.all([
+      repositorios.presupuesto.list(),
+      repositorios.parametros.list(),
+      repositorios['punto-equilibrio'].list(),
+    ]);
+    return estadisticas.presupuesto(filas, Object.fromEntries(parametros.map((p) => [p.clave, p.valor])), equilibrio);
   },
 };

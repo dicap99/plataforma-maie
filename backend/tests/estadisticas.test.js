@@ -1,5 +1,5 @@
 // Cálculos del informe administrativo contra valores de la hoja "Estadísticas MaIE 2025-B".
-const { calcular, desviacion, poblacionReferencia } = require('../src/modules/admin/reportes/estadisticas');
+const { calcular, desviacion, poblacionReferencia, presupuesto } = require('../src/modules/admin/reportes/estadisticas');
 const { validarFila } = require('../src/shared/crud/campos');
 
 const cohorte = (id, nombre, datos) => ({ id_cohorte: id, nombre, cohorte: nombre, ...datos });
@@ -87,6 +87,20 @@ describe('Estadísticas administrativas (RF-ADM-05)', () => {
     cerca(III.fondo_investigaciones, 46538472);
     expect(VI.transferencia_central).toBeNull();
     expect(r.presupuesto.fecha_corte).toBe('2025-11-23');
+  });
+
+  it('compara lo recaudado con lo proyectado y concilia con el saldo certificado', () => {
+    const equilibrio = [cohorte(3, 'III', { estudiantes_equilibrio: 10, valor_matricula_smmlv: 6, ingresos_proyectados: 235294160 })];
+    const filas = [{ ...datos.presupuesto[0], saldo_certificado: 93000000 }, datos.presupuesto[1]];
+    const p = presupuesto(filas, {}, equilibrio);
+    const III = p.filas.find((f) => f.cohorte === 'III');
+    const VI = p.filas.find((f) => f.cohorte === 'VI');
+    cerca(III.pct_recaudo_vs_proyeccion, 99466747 / 235294160);
+    expect(III.diferencia_certificado).toBe(93000000 - 93076944);
+    expect(VI.ingresos_proyectados).toBeNull();
+    expect(VI.pct_recaudo_vs_proyeccion).toBeNull();
+    expect(VI.diferencia_certificado).toBe(0);
+    cerca(p.indicadores.pct_recaudo_vs_proyeccion, 99466747 / 235294160);
   });
 
   it('aporte del pregrado frente a la viabilidad de la promoción', () => {
