@@ -1,153 +1,259 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
-import { Alternador } from './academico/comunes.jsx'
-import { ordenarCohortes } from './academico/estadisticas'
-import {
-  CONTRATACIONES, PanelPorPeriodo, PanelPregrado, PanelPresupuesto, PanelPuntoEquilibrio, PanelResumen, TRANSFERENCIAS,
-} from './finanzas/PanelesFinanzas.jsx'
+import { ordenarCohortes, suma } from './academico/estadisticas'
+import { PanelEjecucion, PanelOperacion, PanelSostenibilidad } from './finanzas/PanelesFinanzas.jsx'
 import PanelParametros from './academico/PanelParametros.jsx'
 
-const VISTAS = [{ valor: 'graficas', etiqueta: 'Gráficas' }, { valor: 'datos', etiqueta: 'Datos' }]
-const RESUMEN = 'resumen'
-// Hojas por periodo o sin promoción (no se filtran por promoción).
-const POR_PERIODO = ['transferencias', 'contrataciones', 'parametros']
+// Presupuesto y finanzas (RF-ADM-03): 4 pestañas por propósito. La vista «Datos» muestra las hojas
+// de cada pestaña en solo lectura; se editan en Gestión académica › Datos del programa.
+const PESTANAS = [
+  {
+    id: 'ejecucion',
+    titulo: 'Ejecución presupuestal y saldos',
+    icono: 'account_balance_wallet',
+    filtro: 'promociones',
+    hojas: [{ id: 'presupuesto', etiqueta: 'Cortes de presupuesto', icono: 'receipt_long' }],
+  },
+  {
+    id: 'sostenibilidad',
+    titulo: 'Sostenibilidad y punto de equilibrio',
+    icono: 'balance',
+    filtro: 'promociones',
+    hojas: [
+      { id: 'punto-equilibrio', etiqueta: 'Punto de equilibrio', icono: 'balance' },
+      { id: 'pregrado', etiqueta: 'Aporte de estudiantes de pregrado', icono: 'school' },
+    ],
+  },
+  {
+    id: 'operacion',
+    titulo: 'Gastos de personal y contrataciones',
+    icono: 'payments',
+    filtro: 'periodos',
+    hojas: [
+      { id: 'transferencias', etiqueta: 'Transferencias Vicerrectoría Académica', icono: 'swap_horiz' },
+      { id: 'contrataciones', etiqueta: 'Contrataciones OPS', icono: 'contract' },
+    ],
+  },
+  {
+    id: 'parametros',
+    titulo: 'Parámetros y reglas financieras',
+    icono: 'tune',
+    hojas: [{ id: 'parametros', etiqueta: 'Parámetros del programa', icono: 'tune' }],
+  },
+]
+const HOJAS = PESTANAS.flatMap((p) => p.hojas.map((h) => h.id))
 
-function PanelRecurso({ recurso, cohortes, recarga, onFiltrar }) {
-  const filas = useApi(() => adminApi.listar(recurso.id), [recurso.id, recarga])
-  if (filas.cargando && !filas.data) return <Cargando texto="Preparando gráficas…" />
-  if (filas.error) return <ErrorApi error={filas.error} onReintentar={filas.recargar} />
-  const props = { filas: filas.data ?? [], cohortes, onFiltrar }
-  switch (recurso.id) {
-    case 'punto-equilibrio': return <PanelPuntoEquilibrio {...props} />
-    case 'presupuesto': return <PanelPresupuesto {...props} />
-    case 'pregrado': return <PanelPregrado {...props} />
-    case 'transferencias': return <PanelPorPeriodo {...props} config={TRANSFERENCIAS} />
-    case 'contrataciones': return <PanelPorPeriodo {...props} config={CONTRATACIONES} />
-    case 'parametros': return <PanelParametros filas={props.filas} />
-    default: return <p className="texto-suave">Esta hoja no tiene gráficas; consulte la vista «Datos».</p>
-  }
+const cargarHojas = async () => {
+  const respuestas = await Promise.all(HOJAS.map((id) => adminApi.listar(id)))
+  return { data: Object.fromEntries(HOJAS.map((id, i) => [id, respuestas[i].data ?? []])) }
 }
 
-// Presupuesto y finanzas (RF-ADM-03): resumen de ejecución y una pestaña por hoja financiera con
-// indicadores y gráficas dinámicas; la vista «Datos» muestra la tabla en solo lectura (se edita en
-// Gestión académica › Datos del programa).
+function Selector({ id, etiqueta, valor, onChange, vacio, opciones }) {
+  return (
+    <div className="flex items-center space-x-2">
+      <label className="text-xs text-slate-500 font-medium" htmlFor={id}>{etiqueta}</label>
+      <select id={id} value={valor} onChange={(e) => onChange(e.target.value)}
+        className="text-xs py-1.5 px-3 rounded-lg border-slate-300 bg-white text-slate-700 font-medium shadow-2xs">
+        <option value="">{vacio}</option>
+        {opciones.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
+      </select>
+    </div>
+  )
+}
+
 export default function PresupuestoDashboard() {
-  const [activo, setActivo] = useState(RESUMEN)
+  const [params] = useSearchParams()
+  const [activo, setActivo] = useState(PESTANAS.some((p) => p.id === params.get('pestana')) ? params.get('pestana') : PESTANAS[0].id)
+  const [hojaActiva, setHojaActiva] = useState({})
   const [vista, setVista] = useState('graficas')
   const [rango, setRango] = useState({ desde: '', hasta: '' })
+  const [rangoPeriodos, setRangoPeriodos] = useState({ desde: '', hasta: '' })
   const [filtro, setFiltro] = useState(null)
   const resumen = useApi(adminApi.resumenPresupuesto)
   const recursos = useApi(adminApi.listarRecursos)
   const cohortes = useApi(() => adminApi.listar('cohortes'))
+  const hojas = useApi(cargarHojas)
 
-  if ((resumen.cargando && !resumen.data) || (recursos.cargando && !recursos.data)) return <Cargando />
-  if (resumen.error) return <ErrorApi error={resumen.error} onReintentar={resumen.recargar} />
-  if (recursos.error) return <ErrorApi error={recursos.error} onReintentar={recursos.recargar} />
+  const apis = [resumen, recursos, cohortes, hojas]
+  if (apis.some((a) => a.cargando && !a.data)) return <Cargando texto="Cargando la información financiera del programa…" />
+  const conError = apis.find((a) => a.error)
+  if (conError) return <ErrorApi error={conError.error} onReintentar={() => apis.forEach((a) => a.recargar())} />
 
-  const lista = (recursos.data || []).filter((r) => r.categoria === 'financiero')
-  const recurso = lista.find((r) => r.id === activo)
-  const enResumen = activo === RESUMEN || !recurso
-  const puedeEditar = lista.some((r) => r.editable)
+  const porId = Object.fromEntries((recursos.data || []).map((r) => [r.id, r]))
+  const puedeEditar = HOJAS.some((id) => porId[id]?.editable)
+  const pestana = PESTANAS.find((p) => p.id === activo)
+  const hojaId = hojaActiva[pestana.id] ?? pestana.hojas[0].id
+  const filas = hojas.data
 
+  // Rango de promociones (pestañas 1 y 2).
   const todas = ordenarCohortes(cohortes.data ?? [])
   const iDesde = rango.desde ? todas.findIndex((c) => String(c.id_cohorte) === rango.desde) : 0
   const iHasta = rango.hasta ? todas.findIndex((c) => String(c.id_cohorte) === rango.hasta) : todas.length - 1
   const enRango = todas.slice(Math.max(0, iDesde), iHasta + 1)
-  const aplicaRango = enResumen || !POR_PERIODO.includes(recurso.id)
+
+  // Rango de semestres (pestaña 3: transferencias y contrataciones son por periodo).
+  const periodos = [...new Set([...filas.transferencias, ...filas.contrataciones].map((f) => f.periodo))].sort()
+  const enPeriodos = (f) => (!rangoPeriodos.desde || f.periodo >= rangoPeriodos.desde) && (!rangoPeriodos.hasta || f.periodo <= rangoPeriodos.hasta)
+  const periodosEnRango = periodos.filter((p) => enPeriodos({ periodo: p }))
 
   const cambiarPestana = (id) => {
     setActivo(id)
     setFiltro(null)
   }
-  // Un clic en una gráfica abre «Datos» filtrado; el resumen lleva a la hoja de presupuesto.
-  const filtrar = ({ recurso: destino, ...f }) => {
-    if (destino) setActivo(destino)
+  const cambiarHoja = (id) => {
+    setHojaActiva((h) => ({ ...h, [pestana.id]: id }))
+    setFiltro(null)
+  }
+  // Un clic en una gráfica abre «Datos» en la hoja de origen, filtrada.
+  const filtrar = ({ hoja, ...f }) => {
+    if (hoja) setHojaActiva((h) => ({ ...h, [pestana.id]: hoja }))
     setFiltro(f)
     setVista('datos')
   }
-  const selectorPromocion = (campo, etiqueta, opciones) => (
-    <label className="flex items-center gap-2 text-label-md text-on-surface-variant">
-      {etiqueta}
-      <select value={rango[campo]} onChange={(e) => setRango((r) => ({ ...r, [campo]: e.target.value }))}
-        className="rounded-lg px-2 py-1.5 text-body-md text-on-surface">
-        <option value="">{campo === 'desde' ? 'La primera' : 'La última'}</option>
-        {opciones.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>Promoción {c.nombre} ({c.periodo_inicio})</option>)}
-      </select>
-    </label>
-  )
+
+  const recurso = porId[hojaId]
 
   return (
-    <div className="flex flex-col gap-space-lg">
-      <header className="flex flex-col gap-space-sm md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="inline-flex items-center gap-1 text-label-sm font-semibold uppercase tracking-wider text-secondary">
-            <Icono nombre="account_balance_wallet" className="text-[16px]" /> Procesos administrativos
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-violet-600">
+            <Icono nombre="account_balance_wallet" className="text-[16px]" />
+            <span>PROCESOS ADMINISTRATIVOS</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-slate-500">PRESUPUESTO Y FINANZAS</span>
           </div>
-          <h1 className="m-0 mt-1 font-display text-headline-lg text-primary">Presupuesto y finanzas</h1>
-          <p className="m-0 max-w-3xl text-body-md text-on-surface-variant">
-            Ejecución presupuestal, punto de equilibrio, aporte del pregrado, transferencias y contrataciones del programa.
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Presupuesto y finanzas</h1>
+          <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">
+            Ejecución presupuestal, sostenibilidad de las promociones, gastos de personal y parámetros que gobiernan los cálculos.
+            Información confidencial de Coordinación.
           </p>
         </div>
         {puedeEditar && (
-          <Link to="/coordinacion/gestion?pestana=datos" className="btn btn-secundario no-underline">
-            <Icono nombre="edit" className="text-[18px]" /> Editar en Gestión académica
+          <Link
+            to="/coordinacion/gestion?pestana=datos"
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 hover:border-violet-400 hover:text-violet-700 rounded-lg shadow-sm text-xs font-semibold transition-all group no-underline"
+          >
+            <Icono nombre="edit_square" className="text-violet-500 group-hover:scale-110 transition-transform text-[16px]" />
+            <span>Editar en Gestión académica</span>
           </Link>
         )}
-      </header>
-
-      <section className="flex flex-wrap items-center gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm" aria-label="Rango de promociones">
-        <span className="inline-flex items-center gap-1 text-label-md font-semibold text-primary">
-          <Icono nombre="date_range" className="text-[18px] text-secondary" /> Rango de promociones
-        </span>
-        {selectorPromocion('desde', 'Desde', todas.slice(0, iHasta + 1))}
-        {selectorPromocion('hasta', 'Hasta', todas.slice(Math.max(0, iDesde)))}
-        <span className="text-body-sm text-on-surface-variant">
-          {aplicaRango ? `${enRango.length} de ${todas.length} promociones` : 'Esta hoja es por periodo y no se filtra por promoción'}
-        </span>
-      </section>
-
-      <div className="pestanas" role="tablist" aria-label="Secciones financieras">
-        <button type="button" role="tab" aria-selected={enResumen} className={enResumen ? 'activa' : ''} onClick={() => cambiarPestana(RESUMEN)}>
-          Resumen de ejecución
-        </button>
-        {lista.map((r) => (
-          <button key={r.id} type="button" role="tab" aria-selected={r.id === activo} className={r.id === activo ? 'activa' : ''}
-            onClick={() => cambiarPestana(r.id)}>
-            {r.titulo}
-          </button>
-        ))}
       </div>
 
-      {enResumen ? (
-        <PanelResumen resumen={resumen.data} cohortes={enRango} onFiltrar={filtrar} />
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-space-sm w-full">
-            <p className="m-0 text-body-sm text-on-surface-variant">{recurso.requisito} · Hoja «{recurso.hoja}»</p>
-            <div className="ml-auto shrink-0">
-              <Alternador etiqueta="Vista" opciones={VISTAS} valor={vista} onChange={setVista} />
-            </div>
+      <section className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs" aria-label="Filtro">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center space-x-2 text-violet-700 font-semibold text-xs bg-violet-50/80 px-2.5 py-1.5 rounded-lg border border-violet-200/70">
+            <Icono nombre="date_range" className="text-[16px]" />
+            <span>{{ periodos: 'Rango de semestres:', promociones: 'Rango de promociones:' }[pestana.filtro] ?? 'Parámetros:'}</span>
           </div>
-          {vista === 'graficas' ? (
-            <PanelRecurso key={recurso.id} recurso={recurso} cohortes={enRango} recarga={0} onFiltrar={filtrar} />
-          ) : (
-            <RecursoTabla
-              key={recurso.id}
-              recurso={recurso}
-              cohortes={cohortes.data ?? []}
-              filtro={filtro}
-              onQuitarFiltro={() => setFiltro(null)}
-              soloLectura
-            />
+          {pestana.filtro === 'promociones' && (
+            <>
+              <Selector id="desde" etiqueta="Desde" vacio="La primera" valor={rango.desde} onChange={(v) => setRango((r) => ({ ...r, desde: v }))}
+                opciones={todas.slice(0, iHasta + 1).map((c) => ({ valor: String(c.id_cohorte), etiqueta: `Promoción ${c.nombre} (${c.periodo_inicio})` }))} />
+              <Selector id="hasta" etiqueta="Hasta" vacio="La última" valor={rango.hasta} onChange={(v) => setRango((r) => ({ ...r, hasta: v }))}
+                opciones={todas.slice(Math.max(0, iDesde)).map((c) => ({ valor: String(c.id_cohorte), etiqueta: `Promoción ${c.nombre} (${c.periodo_inicio})` }))} />
+            </>
           )}
-        </>
-      )}
+          {pestana.filtro === 'periodos' && (
+            <>
+              <Selector id="desde-periodo" etiqueta="Desde" vacio="El primero" valor={rangoPeriodos.desde} onChange={(v) => setRangoPeriodos((r) => ({ ...r, desde: v }))}
+                opciones={periodos.filter((p) => !rangoPeriodos.hasta || p <= rangoPeriodos.hasta).map((p) => ({ valor: p, etiqueta: p }))} />
+              <Selector id="hasta-periodo" etiqueta="Hasta" vacio="El último" valor={rangoPeriodos.hasta} onChange={(v) => setRangoPeriodos((r) => ({ ...r, hasta: v }))}
+                opciones={periodos.filter((p) => !rangoPeriodos.desde || p >= rangoPeriodos.desde).map((p) => ({ valor: p, etiqueta: p }))} />
+            </>
+          )}
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+            {pestana.filtro === 'promociones' && `${enRango.length} de ${todas.length} promociones`}
+            {pestana.filtro === 'periodos' && `${periodosEnRango.length} de ${periodos.length} semestres`}
+            {!pestana.filtro && 'Valores vigentes del programa (sin filtro)'}
+          </span>
+        </div>
+      </section>
 
+      <section className="border-b border-slate-200" role="tablist" aria-label="Secciones financieras">
+        <div className="flex space-x-6 overflow-x-auto text-xs font-medium">
+          {PESTANAS.map((p) => {
+            const esActiva = p.id === activo
+            return (
+              <button key={p.id} type="button" role="tab" aria-selected={esActiva} onClick={() => cambiarPestana(p.id)}
+                className={`pb-3 flex items-center space-x-2 whitespace-nowrap transition-colors cursor-pointer ${
+                  esActiva ? 'text-violet-700 font-bold border-b-2 border-violet-600' : 'text-slate-500 hover:text-slate-800 border-b-2 border-transparent'
+                }`}>
+                <Icono nombre={p.icono} className={`text-[17px] ${esActiva ? 'text-violet-600' : 'text-slate-400'}`} />
+                <span>{p.titulo}</span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs w-full">
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          {vista === 'datos' && pestana.hojas.length > 1 && (
+            <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 space-x-1 shrink-0">
+              {pestana.hojas.map((h) => (
+                <button key={h.id} type="button" onClick={() => cambiarHoja(h.id)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    hojaId === h.id ? 'bg-white text-violet-700 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}>
+                  <Icono nombre={h.icono} className="text-[14px]" />
+                  <span>{h.etiqueta}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {recurso && (
+            <div className="flex items-center space-x-2 text-slate-600 font-mono shrink-0">
+              <span className="inline-block w-2 h-2 rounded-full bg-violet-600"></span>
+              <span className="font-semibold text-slate-700">{recurso.requisito}</span>
+              <span className="text-slate-400">·</span>
+              <span>{vista === 'datos' ? `Hoja «${recurso.hoja}»` : pestana.hojas.map((h) => `«${porId[h.id]?.hoja ?? h.etiqueta}»`).join(', ')}</span>
+            </div>
+          )}
+        </div>
+        <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-2xs ml-auto shrink-0">
+          {[{ valor: 'graficas', etiqueta: 'Gráficas', icono: 'bar_chart' }, { valor: 'datos', etiqueta: 'Datos', icono: 'table_view' }].map((v) => (
+            <button key={v.valor} type="button" onClick={() => setVista(v.valor)}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer flex items-center gap-1 ${
+                vista === v.valor ? 'bg-violet-600 text-white font-semibold shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}>
+              <Icono nombre={v.icono} className="text-[14px]" />
+              <span>{v.etiqueta}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {vista === 'graficas' ? (
+        <div>
+          {activo === 'ejecucion' && (
+            <PanelEjecucion resumen={resumen.data} filasPresupuesto={filas.presupuesto} cohortes={enRango} onFiltrar={filtrar} />
+          )}
+          {activo === 'sostenibilidad' && (
+            <PanelSostenibilidad equilibrio={filas['punto-equilibrio']} pregrado={filas.pregrado} resumen={resumen.data} cohortes={enRango} onFiltrar={filtrar} />
+          )}
+          {activo === 'operacion' && (
+            <PanelOperacion transferencias={filas.transferencias.filter(enPeriodos)} contrataciones={filas.contrataciones.filter(enPeriodos)}
+              totalProyectado={suma(filas['punto-equilibrio'].map((f) => f.ingresos_proyectados))} onFiltrar={filtrar} />
+          )}
+          {activo === 'parametros' && <PanelParametros filas={filas.parametros} />}
+        </div>
+      ) : recurso ? (
+        <RecursoTabla
+          key={recurso.id}
+          recurso={recurso}
+          cohortes={cohortes.data ?? []}
+          filtro={filtro}
+          onQuitarFiltro={() => setFiltro(null)}
+          soloLectura
+          filasExternas={filas[recurso.id]}
+        />
+      ) : null}
     </div>
   )
 }

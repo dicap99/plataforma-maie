@@ -4,6 +4,7 @@ import { SERIES } from '../../../components/charts/paleta'
 import { numero, pesos } from '../../../utils/formato'
 import TarjetaKpi, { Insignia } from '../panel/TarjetaKpi.jsx'
 import { FilaIndicadores, RejillaGraficas, SinDatos } from './comunes.jsx'
+import { smmlvVigente } from './estadisticas'
 
 const ROMANOS = ['I', 'II', 'III', 'IV']
 const DISTRIBUCION = [
@@ -18,7 +19,7 @@ export default function PanelParametros({ filas }) {
   if (!filas.length) return <SinDatos texto="No hay parámetros registrados." />
 
   const valor = (clave) => filas.find((p) => p.clave === clave)?.valor ?? null
-  const smmlv = filas.filter((p) => /^smmlv_\d{4}$/.test(p.clave)).sort((a, b) => (a.clave < b.clave ? 1 : -1))[0]
+  const smmlv = smmlvVigente(Object.fromEntries(filas.map((p) => [p.clave, p.valor])))
   const creditos = [1, 2, 3, 4].map((s) => ({ semestre: `Semestre ${ROMANOS[s - 1]}`, creditos: valor(`creditos_semestre_${s}`) }))
   const totalCreditos = creditos.reduce((s, c) => s + (c.creditos ?? 0), 0)
   const reparto = { fila: 'Saldo', ...Object.fromEntries(DISTRIBUCION.map((d) => [d.clave, valor(d.clave)])) }
@@ -28,8 +29,8 @@ export default function PanelParametros({ filas }) {
   return (
     <div className="flex flex-col gap-space-lg">
       <FilaIndicadores>
-        <TarjetaKpi etiqueta={smmlv ? `SMMLV ${smmlv.clave.slice(6)}` : 'SMMLV'} valor={smmlv ? pesos(smmlv.valor) : '—'} icono="payments" destacado>
-          <Insignia>Base del valor de matrícula</Insignia>
+        <TarjetaKpi etiqueta={smmlv ? `SMMLV ${smmlv.anio}` : 'SMMLV'} valor={smmlv ? pesos(smmlv.valor) : '—'} icono="payments" destacado>
+          <Insignia>Vigente · base del valor de matrícula</Insignia>
         </TarjetaKpi>
         <TarjetaKpi etiqueta="Créditos del plan" valor={numero(totalCreditos)} icono="school">
           <Insignia tono="neutro">Suma de los 4 semestres</Insignia>

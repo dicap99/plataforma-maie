@@ -10,6 +10,12 @@ export const suma = (valores) => valores.filter(esNumero).reduce((a, b) => a + b
 export const poblacionReferencia = (c) =>
   [c.egresados, c.aprobados_sem3, c.aprobados_sem2, c.aprobados_sem1, c.matriculados].find(esNumero) ?? null
 
+// SMMLV vigente: el del año más reciente entre los parámetros `smmlv_AAAA` ({ clave: valor }).
+export const smmlvVigente = (parametros) => {
+  const clave = Object.keys(parametros).filter((k) => /^smmlv_\d{4}$/.test(k)).sort().at(-1)
+  return clave ? { anio: clave.slice(6), valor: parametros[clave] } : null
+}
+
 export const ordenarCohortes = (cohortes) => [...cohortes].sort((a, b) => (a.periodo_inicio < b.periodo_inicio ? -1 : 1))
 
 // Etapas del recorrido de una promoción (curva de permanencia y embudo).

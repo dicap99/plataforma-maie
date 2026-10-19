@@ -14,6 +14,7 @@ import FranjaAviso from './panel/FranjaAviso.jsx'
 import LineasInvestigacion from './panel/LineasInvestigacion.jsx'
 import TarjetaKpi, { BarraProgreso, Insignia } from './panel/TarjetaKpi.jsx'
 import TarjetaLateral, { Renglon } from './panel/TarjetaLateral.jsx'
+import { smmlvVigente } from './academico/estadisticas'
 
 const DIA = 86_400_000
 // A partir de medio año sin actualizar, las cifras presupuestales dejan de servir
@@ -53,8 +54,8 @@ export default function EstadisticasDashboard() {
     : null
 
   // Los parámetros son pares clave/valor y el SMMLV se versiona por año.
-  const claveSmmlv = Object.keys(parametros).find((k) => k.startsWith('smmlv_'))
-  const smmlv = claveSmmlv ? parametros[claveSmmlv] : null
+  const vigente = smmlvVigente(parametros)
+  const smmlv = vigente?.valor ?? null
   const creditosPlan = Object.entries(parametros)
     .filter(([k]) => k.startsWith('creditos_semestre_'))
     .reduce((s, [, v]) => s + Number(v), 0)
@@ -100,7 +101,7 @@ export default function EstadisticasDashboard() {
           },
           {
             icono: 'payments',
-            etiqueta: `SMMLV base${claveSmmlv ? ` ${claveSmmlv.split('_')[1]}` : ''}`,
+            etiqueta: `SMMLV base${vigente ? ` ${vigente.anio}` : ''}`,
             valor: pesos(smmlv),
           },
         ]}
@@ -256,7 +257,7 @@ export default function EstadisticasDashboard() {
             <div className="mt-3 space-y-2 rounded-xl bg-surface-container-low p-space-sm">
               <Renglon etiqueta="Valor de matrícula:" valor={matriculaSmmlv ? `${numero(matriculaSmmlv)} SMMLV` : '—'} />
               <Renglon
-                etiqueta={`Equivalente${claveSmmlv ? ` (SMMLV ${claveSmmlv.split('_')[1]})` : ''}:`}
+                etiqueta={`Equivalente${vigente ? ` (SMMLV ${vigente.anio})` : ''}:`}
                 valor={smmlv && matriculaSmmlv ? pesos(smmlv * matriculaSmmlv) : '—'}
                 destacado
               />

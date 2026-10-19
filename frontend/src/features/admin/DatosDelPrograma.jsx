@@ -8,8 +8,10 @@ import CsvUploaderModal from './CsvUploaderModal.jsx'
 
 const GRUPOS = [
   { categoria: 'academico', titulo: 'Académicas' },
-  { categoria: 'financiero', titulo: 'Financieras' },
+  // En el orden de las pestañas de Presupuesto y finanzas.
+  { categoria: 'financiero', titulo: 'Financieras', orden: ['presupuesto', 'punto-equilibrio', 'pregrado', 'transferencias', 'contrataciones', 'parametros'] },
 ]
+const posicion = (orden, id) => (orden?.includes(id) ? orden.indexOf(id) : Infinity)
 
 // Datos del programa (RF-ADM-01 a RF-ADM-06), pestaña de Gestión académica: único lugar donde se
 // editan las hojas del libro «Estadísticas MaIE» y se importa o exporta el Excel. Información
@@ -47,7 +49,7 @@ export default function DatosDelPrograma() {
 
       <div className="flex flex-col gap-space-sm rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
         {GRUPOS.map((g) => {
-          const hojas = lista.filter((r) => r.categoria === g.categoria)
+          const hojas = lista.filter((r) => r.categoria === g.categoria).sort((a, b) => posicion(g.orden, a.id) - posicion(g.orden, b.id))
           if (!hojas.length) return null
           return (
             <div key={g.categoria} className="flex flex-wrap items-center gap-2">
