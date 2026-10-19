@@ -1,21 +1,5 @@
 import Icono from '../../../components/common/Icono.jsx'
-
-// Extrae o calcula el número romano de una cohorte para el avatar visual
-function obtenerRomano(nombre, indice) {
-  if (!nombre) return 'I'
-  const match = String(nombre).match(/\b([IVXLCDM]+)\b/i)
-  if (match) return match[1].toUpperCase()
-
-  const numMatch = String(nombre).match(/\b(\d+)\b/)
-  if (numMatch) {
-    const n = parseInt(numMatch[1], 10)
-    const romanos = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
-    if (romanos[n]) return romanos[n]
-  }
-
-  const romanos = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
-  return romanos[indice % romanos.length] || String(indice + 1)
-}
+import InsigniaPromocion from './InsigniaPromocion.jsx'
 
 // Determina si una promoción está actualmente en curso (sin egresados registrados aún)
 function esEnCurso(fila) {
@@ -111,7 +95,6 @@ export default function TablaPromociones({
             ) : (
               filas.map((fila, i) => {
                 const enProgreso = esEnCurso(fila)
-                const romano = obtenerRomano(fila.nombre, i)
                 const baseGraduacion = fila.egresados || fila.matriculados || 1
                 const pctGrad =
                   typeof fila.graduados === 'number' && fila.graduados > 0
@@ -124,29 +107,7 @@ export default function TablaPromociones({
                     className="hover:bg-slate-50/70 transition-colors"
                   >
                     <td className="py-3 px-4 font-semibold text-slate-900">
-                      <div className="flex items-center space-x-2.5">
-                        <span
-                          className={`w-6 h-6 rounded-md font-bold text-[10px] flex items-center justify-center border shrink-0 ${
-                            enProgreso
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                          }`}
-                        >
-                          {romano}
-                        </span>
-                        <div className="flex flex-col">
-                          <span className="text-slate-800 font-medium">
-                            {fila.nombre.startsWith('Sintética') || fila.nombre.startsWith('Cohorte') || fila.nombre.startsWith('Promoción')
-                              ? fila.nombre
-                              : `Promoción ${fila.nombre}`}
-                          </span>
-                          {enProgreso && (
-                            <span className="text-[9px] text-amber-600 font-semibold">
-                              En curso
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      <InsigniaPromocion nombre={fila.nombre} enProgreso={enProgreso} indice={i} />
                     </td>
                     <td className="py-3 px-3 text-center">
                       <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[11px]">

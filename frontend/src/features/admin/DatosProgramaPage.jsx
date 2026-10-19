@@ -5,100 +5,167 @@ import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
-import { ordenarCohortes, indicadoresPromociones, suma } from './academico/estadisticas'
-import { numero, porcentaje } from '../../utils/formato'
+import { ordenarCohortes } from './academico/estadisticas'
 import PanelPromociones from './academico/PanelPromociones.jsx'
-import PanelCursosDocentes from './academico/PanelCursosDocentes.jsx'
-import PanelDocentes from './academico/PanelDocentes.jsx'
-import PanelConteos, { BENEFICIOS, PASANTIAS, PRODUCCION } from './academico/PanelConteos.jsx'
-import PanelParametros from './academico/PanelParametros.jsx'
+import PanelCuerpoAcademico from './academico/PanelCuerpoAcademico.jsx'
+import PanelConteos, { BENEFICIOS } from './academico/PanelConteos.jsx'
+import PanelInvestigacionMovilidad from './academico/PanelInvestigacionMovilidad.jsx'
 
-// Hojas que no dependen de la promoción (el rango de promociones no las filtra).
-const SIN_PROMOCION = ['docentes', 'parametros']
+// Definición de las 4 Dimensiones Académicas Estratégicas para Información Académica
+const PESTANAS = [
+  {
+    id: 'cohortes',
+    titulo: 'Trayectoria y Eficiencia',
+    icono: 'groups',
+    subtitulo: 'Permanencia, retención, aprobación y graduación por cohorte',
+    recursos: ['cohortes'],
+  },
+  {
+    id: 'cuerpo-academico',
+    titulo: 'Cuerpo Académico y Oferta',
+    icono: 'badge',
+    subtitulo: 'Planta docente, filiación Udenar/externa, campos de formación y oferta semestral',
+    recursos: ['docentes', 'cohorte-semestres'],
+    subrecursos: [
+      { id: 'docentes', etiqueta: 'Directorio y Perfiles Docentes', icono: 'badge' },
+      { id: 'cohorte-semestres', etiqueta: 'Cursos y Carga por Semestre', icono: 'calendar_month' },
+    ],
+  },
+  {
+    id: 'beneficios',
+    titulo: 'Apoyos y Beneficios',
+    icono: 'loyalty',
+    subtitulo: 'Cobertura de becas institucionales, monitorías y asistencias',
+    recursos: ['beneficios'],
+  },
+  {
+    id: 'investigacion',
+    titulo: 'Investigación y Movilidad',
+    icono: 'science',
+    subtitulo: 'Producción científica (artículos, software, tesis) y pasantías de investigación',
+    recursos: ['produccion', 'pasantias'],
+    subrecursos: [
+      { id: 'produccion', etiqueta: 'Producción Científica', icono: 'auto_stories' },
+      { id: 'pasantias', etiqueta: 'Pasantías de Investigación', icono: 'flight_takeoff' },
+    ],
+  },
+]
 
-// Hojas que reflejan Gestión académica (sus filas vienen de /admin/academico/reflejo).
-const REFLEJADAS = ['cohortes', 'beneficios', 'cohorte-semestres']
-
-const ICONOS_TAB = {
-  cohortes: 'groups',
-  'cohorte-semestres': 'calendar_month',
-  docentes: 'badge',
-  beneficios: 'loyalty',
-  produccion: 'science',
-  pasantias: 'flight_takeoff',
-  parametros: 'tune',
-}
-
-// Panel de gráficas de una hoja: usa el reflejo o carga sus filas, y elige la visualización.
-function PanelRecurso({ recurso, cohortes, reflejo, onFiltrar }) {
-  const reflejada = REFLEJADAS.includes(recurso.id)
-  const filas = useApi(() => (reflejada ? Promise.resolve({ data: null }) : adminApi.listar(recurso.id)), [recurso.id])
-  if (!reflejada && filas.cargando && !filas.data) return <Cargando texto="Preparando gráficas…" />
-  if (filas.error) return <ErrorApi error={filas.error} onReintentar={filas.recargar} />
-  const datos = reflejada ? reflejo[recurso.id] ?? [] : filas.data ?? []
-  const comunes = { cohortes, onFiltrar }
-  switch (recurso.id) {
-    case 'cohortes': return <PanelPromociones {...comunes} />
-    case 'cohorte-semestres': return <PanelCursosDocentes filas={datos} {...comunes} />
-    case 'docentes': return <PanelDocentes filas={datos} onFiltrar={onFiltrar} />
-    case 'beneficios': return <PanelConteos filas={datos} {...comunes} config={BENEFICIOS} />
-    case 'produccion': return <PanelConteos filas={datos} {...comunes} config={PRODUCCION} />
-    case 'pasantias': return <PanelConteos filas={datos} {...comunes} config={PASANTIAS} />
-    case 'parametros': return <PanelParametros filas={datos} />
-    default: return <p className="texto-suave">Esta hoja no tiene gráficas; consulte la vista «Datos».</p>
-  }
-}
-
-// "Información académica": una pestaña por hoja académica de «Estadísticas MaIE» (RF-ADM-01 a RF-ADM-06).
-// Es un reflejo de Gestión académica y no se edita aquí: promociones, beneficios y cursos y docentes por
-// semestre combinan lo registrado en Gestión con el histórico de la hoja. Cada pestaña muestra indicadores y
-// gráficas, y la vista «Datos» la tabla en solo lectura. Las pestañas visibles dependen del rol.
 export default function DatosProgramaPage() {
   const recursos = useApi(adminApi.listarRecursos)
   const reflejo = useApi(adminApi.reflejoAcademico)
-  const cohortes = { data: reflejo.data?.cohortes }
+  const docentesApi = useApi(() => adminApi.listar('docentes'))
+  const produccionApi = useApi(() => adminApi.listar('produccion'))
+  const pasantiasApi = useApi(() => adminApi.listar('pasantias'))
+
   const [activo, setActivo] = useState('cohortes')
+  const [subActivo, setSubActivo] = useState({
+    'cuerpo-academico': 'docentes',
+    investigacion: 'produccion',
+  })
   const [vista, setVista] = useState('datos')
   const [rango, setRango] = useState({ desde: '', hasta: '' })
-  const [filtro, setFiltro] = useState(null) // { etiqueta, fn } desde un clic en una gráfica
+  const [filtro, setFiltro] = useState(null)
 
-  if ((recursos.cargando && !recursos.data) || (reflejo.cargando && !reflejo.data)) return <Cargando />
-  if (recursos.error) return <ErrorApi error={recursos.error} onReintentar={recursos.recargar} />
-  if (reflejo.error) return <ErrorApi error={reflejo.error} onReintentar={reflejo.recargar} />
+  const cargando =
+    (recursos.cargando && !recursos.data) ||
+    (reflejo.cargando && !reflejo.data) ||
+    (docentesApi.cargando && !docentesApi.data) ||
+    (produccionApi.cargando && !produccionApi.data) ||
+    (pasantiasApi.cargando && !pasantiasApi.data)
 
-  const lista = (recursos.data || []).filter((r) => r.categoria === 'academico')
-  if (lista.length === 0) return <p className="texto-suave">Su rol no tiene acceso a los datos del programa.</p>
-  const recurso = lista.find((r) => r.id === activo) ?? lista[0]
-  const puedeEditar = lista.some((r) => r.editable)
-  const reflejada = REFLEJADAS.includes(recurso.id)
+  if (cargando) return <Cargando texto="Cargando información académica del programa…" />
 
-  // Rango de promociones (desde–hasta) en orden cronológico.
-  const todas = ordenarCohortes(cohortes.data ?? [])
+  const error =
+    recursos.error ||
+    reflejo.error ||
+    docentesApi.error ||
+    produccionApi.error ||
+    pasantiasApi.error
+
+  if (error) {
+    return (
+      <ErrorApi
+        error={error}
+        onReintentar={() => {
+          recursos.recargar()
+          reflejo.recargar()
+          docentesApi.recargar()
+          produccionApi.recargar()
+          pasantiasApi.recargar()
+        }}
+      />
+    )
+  }
+
+  const listaRecursos = recursos.data || []
+  const puedeEditar = listaRecursos.some((r) => r.editable)
+
+  // Metadatos de cada recurso
+  const porId = Object.fromEntries(listaRecursos.map((r) => [r.id, r]))
+  const pestanaActual = PESTANAS.find((p) => p.id === activo) ?? PESTANAS[0]
+
+  // Recurso activo para la vista tabular (Datos)
+  const recursoActivoId =
+    pestanaActual.subrecursos?.length > 0
+      ? subActivo[pestanaActual.id] ?? pestanaActual.subrecursos[0].id
+      : pestanaActual.recursos[0]
+
+  const recursoActivo = porId[recursoActivoId] ?? listaRecursos[0]
+
+  // Rango de promociones
+  const cohortesReflejadas = reflejo.data?.cohortes ?? []
+  const todas = ordenarCohortes(cohortesReflejadas)
   const iDesde = rango.desde ? todas.findIndex((c) => String(c.id_cohorte) === rango.desde) : 0
   const iHasta = rango.hasta ? todas.findIndex((c) => String(c.id_cohorte) === rango.hasta) : todas.length - 1
   const enRango = todas.slice(Math.max(0, iDesde), iHasta + 1)
-  const aplicaRango = !SIN_PROMOCION.includes(recurso.id)
-
-  // Métricas superiores (indicadores globales del programa)
-  const indGlobal = indicadoresPromociones(enRango)
-  const egresadas = enRango.filter((c) => typeof c.egresados === 'number')
-  const totalEgresados = suma(egresadas.map((c) => c.egresados))
-  const totalGraduados = suma(egresadas.map((c) => c.graduados))
-  const cohortesActivas = enRango.filter((c) => typeof c.egresados !== 'number')
-  const nombresActivas = cohortesActivas.map((c) => c.nombre).join(' y ')
+  const aplicaRango = activo !== 'cuerpo-academico' || recursoActivoId === 'cohorte-semestres'
 
   const cambiarPestana = (id) => {
     setActivo(id)
     setFiltro(null)
   }
+
+  const cambiarSubrecurso = (subId) => {
+    setSubActivo((prev) => ({ ...prev, [activo]: subId }))
+    setFiltro(null)
+  }
+
   const filtrar = (f) => {
     setFiltro(f)
     setVista('datos')
   }
 
   // Conteo de registros para la barra secundaria
-  const filasHoja = reflejada ? (reflejo.data?.[recurso.id] ?? []) : (recurso.id === 'cohortes' ? enRango : [])
-  const conteoFilas = recurso.id === 'cohortes' ? enRango.length : (filasHoja.length || enRango.length)
+  const conteoFilas = (() => {
+    switch (recursoActivoId) {
+      case 'cohortes':
+        return enRango.length
+      case 'cohorte-semestres':
+        return (reflejo.data?.['cohorte-semestres'] ?? []).length
+      case 'docentes':
+        return (docentesApi.data ?? []).length
+      case 'beneficios':
+        return (reflejo.data?.beneficios ?? []).length
+      case 'produccion':
+        return (produccionApi.data ?? []).length
+      case 'pasantias':
+        return (pasantiasApi.data ?? []).length
+      default:
+        return 0
+    }
+  })()
+
+  // Determinar si el recurso activo en la tabla proviene de un reflejo
+  const filasExternas = (() => {
+    if (recursoActivoId === 'cohortes') return enRango
+    if (recursoActivoId === 'cohorte-semestres') return reflejo.data?.['cohorte-semestres']
+    if (recursoActivoId === 'beneficios') return reflejo.data?.beneficios
+    if (recursoActivoId === 'docentes') return docentesApi.data
+    if (recursoActivoId === 'produccion') return produccionApi.data
+    if (recursoActivoId === 'pasantias') return pasantiasApi.data
+    return undefined
+  })()
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,13 +176,12 @@ export default function DatosProgramaPage() {
             <Icono nombre="folder_special" className="text-[16px]" />
             <span>PROCESOS ADMINISTRATIVOS</span>
             <span className="text-slate-300">/</span>
-            <span className="text-slate-500">COHORTES Y EFICIENCIA</span>
+            <span className="text-slate-500">INFORMACIÓN ACADÉMICA</span>
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Información académica</h1>
           <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">
-            Promociones, cursos y docentes, beneficios, producción científica y pasantías del programa, tal como se
-            registran en Gestión académica. Cada hoja se resume en indicadores y gráficas; en «Datos» está el detalle
-            tabular para comités curriculares y acreditación.
+            Consolidado estratégico de cohortes, cuerpo docente, beneficios e investigación del programa.
+            Diseñado para procesos de autoevaluación continua, comités curriculares y acreditación institucional.
           </p>
         </div>
         {puedeEditar && (
@@ -130,67 +196,6 @@ export default function DatosProgramaPage() {
           </div>
         )}
       </div>
-
-      {/* Resumen de Métricas Clave (4 KPI Cards) */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Resumen de métricas">
-        <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0">
-            <Icono nombre="groups" className="text-[20px]" />
-          </div>
-          <div>
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Total Matriculados</span>
-            <div className="flex items-baseline space-x-1.5">
-              <span className="text-xl font-bold text-slate-800 tabular-numbers">{numero(indGlobal.matriculados)}</span>
-              <span className="text-[10px] text-emerald-600 font-semibold flex items-center">
-                <Icono nombre="north" className="text-[10px] mr-0.5" /> {enRango.length} promociones
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 font-bold shrink-0">
-            <Icono nombre="school" className="text-[20px]" />
-          </div>
-          <div>
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Total Graduados</span>
-            <div className="flex items-baseline space-x-1.5">
-              <span className="text-xl font-bold text-slate-800 tabular-numbers">{numero(totalGraduados)}</span>
-              <span className="text-[10px] text-slate-500 font-medium">de {totalEgresados} culminados</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-600 font-bold shrink-0">
-            <Icono nombre="pie_chart" className="text-[20px]" />
-          </div>
-          <div>
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Eficiencia Terminal</span>
-            <div className="flex items-baseline space-x-1.5">
-              <span className="text-xl font-bold text-slate-800 tabular-numbers">{porcentaje(indGlobal.tasaGraduacion)}</span>
-              <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1 rounded border border-emerald-200/50">
-                {indGlobal.tasaGraduacion >= 0.75 ? 'Sobresaliente' : indGlobal.tasaGraduacion >= 0.5 ? 'Aceptable' : 'En seguimiento'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 font-bold shrink-0">
-            <Icono nombre="schedule" className="text-[20px]" />
-          </div>
-          <div>
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Cohortes Activas</span>
-            <div className="flex items-baseline space-x-1.5">
-              <span className="text-xl font-bold text-slate-800 tabular-numbers">{numero(indGlobal.enCurso)}</span>
-              <span className="text-[10px] text-amber-700 font-medium truncate max-w-[140px]" title={nombresActivas}>
-                {nombresActivas ? `Sintética ${nombresActivas}` : 'En curso'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Barra de Filtro de Rango y Acciones */}
       <section className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs" aria-label="Filtro de promociones">
@@ -233,7 +238,7 @@ export default function DatosProgramaPage() {
               </select>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-              {aplicaRango ? `${enRango.length} de ${todas.length} promociones` : 'Esta hoja no se filtra por promoción'}
+              {aplicaRango ? `${enRango.length} de ${todas.length} promociones` : 'Mostrando consolidado general del programa'}
             </span>
           </div>
 
@@ -258,47 +263,75 @@ export default function DatosProgramaPage() {
         </div>
       </section>
 
-      {/* Pestañas de Navegación por Hojas */}
-      <section className="border-b border-slate-200" role="tablist" aria-label="Hojas de datos">
+      {/* Pestañas de Navegación por las 4 Dimensiones Estratégicas */}
+      <section className="border-b border-slate-200" role="tablist" aria-label="Dimensiones de información académica">
         <div className="flex space-x-6 overflow-x-auto text-xs font-medium">
-          {lista.map((r) => {
-            const esActiva = r.id === recurso.id
-            const icono = ICONOS_TAB[r.id]
+          {PESTANAS.map((p) => {
+            const esActiva = p.id === activo
             return (
               <button
-                key={r.id}
+                key={p.id}
                 type="button"
                 role="tab"
                 aria-selected={esActiva}
-                onClick={() => cambiarPestana(r.id)}
+                onClick={() => cambiarPestana(p.id)}
                 className={`pb-3 flex items-center space-x-2 whitespace-nowrap transition-colors cursor-pointer ${
                   esActiva
                     ? 'text-violet-700 font-bold border-b-2 border-violet-600'
                     : 'text-slate-500 hover:text-slate-800 border-b-2 border-transparent'
                 }`}
               >
-                {icono && <Icono nombre={icono} className={`text-[16px] ${esActiva ? 'text-violet-600' : 'text-slate-400'}`} />}
-                <span>{r.titulo}</span>
+                <Icono nombre={p.icono} className={`text-[17px] ${esActiva ? 'text-violet-600' : 'text-slate-400'}`} />
+                <span>{p.titulo}</span>
               </button>
             )
           })}
         </div>
       </section>
 
-      {/* Barra de Controles Secundarios (Requisito + Alternador de Vista) */}
-      <div className="flex flex-wrap items-center justify-between gap-4 text-xs">
-        <div className="flex items-center space-x-2 text-slate-600 font-mono">
-          <span className="inline-block w-2 h-2 rounded-full bg-violet-600"></span>
-          <span className="font-semibold text-slate-700">{recurso.requisito}</span>
-          <span className="text-slate-400">·</span>
-          <span>Hoja «{recurso.hoja}»</span>
-          <span className="text-slate-400">·</span>
-          <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-sans font-bold">
-            {conteoFilas} registro(s)
-          </span>
+      {/* Barra de Controles Secundarios: Selector de Subrecurso (en vista Datos) + Metadatos + Alternador Gráficas/Datos */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs w-full">
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          {/* Sub-selector de hojas cuando la dimensión tiene múltiples recursos en vista Datos */}
+          {vista === 'datos' && pestanaActual.subrecursos?.length > 0 && (
+            <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 space-x-1 shrink-0">
+              {pestanaActual.subrecursos.map((sub) => {
+                const esSubActivo = recursoActivoId === sub.id
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => cambiarSubrecurso(sub.id)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 cursor-pointer ${
+                      esSubActivo
+                        ? 'bg-white text-violet-700 font-bold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icono nombre={sub.icono} className="text-[14px]" />
+                    <span>{sub.etiqueta}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {recursoActivo && (
+            <div className="flex items-center space-x-2 text-slate-600 font-mono shrink-0">
+              <span className="inline-block w-2 h-2 rounded-full bg-violet-600"></span>
+              <span className="font-semibold text-slate-700">{recursoActivo.requisito}</span>
+              <span className="text-slate-400">·</span>
+              <span>Hoja «{recursoActivo.hoja}»</span>
+              <span className="text-slate-400">·</span>
+              <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-sans font-bold">
+                {conteoFilas} registro(s)
+              </span>
+            </div>
+          )}
         </div>
 
-        <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-2xs">
+        {/* Alternador Gráficas / Datos SIEMPRE anclado a la derecha */}
+        <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-2xs ml-auto shrink-0">
           <button
             type="button"
             onClick={() => setVista('graficas')}
@@ -326,24 +359,55 @@ export default function DatosProgramaPage() {
         </div>
       </div>
 
-      {/* Contenido: Gráficas o Tabla de Datos */}
+      {/* Contenido: Gráficas o Tablas de Datos */}
       {vista === 'graficas' ? (
-        <PanelRecurso
-          key={recurso.id}
-          recurso={recurso}
-          cohortes={aplicaRango ? enRango : todas}
-          reflejo={reflejo.data}
-          onFiltrar={filtrar}
-        />
+        <div>
+          {activo === 'cohortes' && (
+            <PanelPromociones cohortes={enRango} onFiltrar={filtrar} />
+          )}
+
+          {activo === 'cuerpo-academico' && (
+            <PanelCuerpoAcademico
+              filasDocentes={docentesApi.data ?? []}
+              filasCursos={reflejo.data?.['cohorte-semestres'] ?? []}
+              cohortes={enRango}
+              onFiltrar={(f) => {
+                cambiarSubrecurso(f.esSemestre ? 'cohorte-semestres' : 'docentes')
+                filtrar(f)
+              }}
+            />
+          )}
+
+          {activo === 'beneficios' && (
+            <PanelConteos
+              filas={reflejo.data?.beneficios ?? []}
+              cohortes={enRango}
+              config={BENEFICIOS}
+              onFiltrar={filtrar}
+            />
+          )}
+
+          {activo === 'investigacion' && (
+            <PanelInvestigacionMovilidad
+              filasProduccion={produccionApi.data ?? []}
+              filasPasantias={pasantiasApi.data ?? []}
+              cohortes={enRango}
+              onFiltrar={(f) => {
+                cambiarSubrecurso(f.esPasantia ? 'pasantias' : 'produccion')
+                filtrar(f)
+              }}
+            />
+          )}
+        </div>
       ) : (
         <RecursoTabla
-          key={recurso.id}
-          recurso={recurso}
-          cohortes={cohortes.data ?? []}
+          key={`${recursoActivo.id}-${recursoActivoId}`}
+          recurso={recursoActivo}
+          cohortes={cohortesReflejadas}
           filtro={filtro}
           onQuitarFiltro={() => setFiltro(null)}
           soloLectura
-          filasExternas={reflejada ? (recurso.id === 'cohortes' ? enRango : reflejo.data[recurso.id]) : undefined}
+          filasExternas={filasExternas}
         />
       )}
 
@@ -360,4 +424,3 @@ export default function DatosProgramaPage() {
     </div>
   )
 }
-

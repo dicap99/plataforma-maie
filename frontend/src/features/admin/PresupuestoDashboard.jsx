@@ -10,11 +10,12 @@ import { ordenarCohortes } from './academico/estadisticas'
 import {
   CONTRATACIONES, PanelPorPeriodo, PanelPregrado, PanelPresupuesto, PanelPuntoEquilibrio, PanelResumen, TRANSFERENCIAS,
 } from './finanzas/PanelesFinanzas.jsx'
+import PanelParametros from './academico/PanelParametros.jsx'
 
 const VISTAS = [{ valor: 'graficas', etiqueta: 'Gráficas' }, { valor: 'datos', etiqueta: 'Datos' }]
 const RESUMEN = 'resumen'
-// Hojas por periodo (no se filtran por promoción).
-const POR_PERIODO = ['transferencias', 'contrataciones']
+// Hojas por periodo o sin promoción (no se filtran por promoción).
+const POR_PERIODO = ['transferencias', 'contrataciones', 'parametros']
 
 function PanelRecurso({ recurso, cohortes, recarga, onFiltrar }) {
   const filas = useApi(() => adminApi.listar(recurso.id), [recurso.id, recarga])
@@ -27,6 +28,7 @@ function PanelRecurso({ recurso, cohortes, recarga, onFiltrar }) {
     case 'pregrado': return <PanelPregrado {...props} />
     case 'transferencias': return <PanelPorPeriodo {...props} config={TRANSFERENCIAS} />
     case 'contrataciones': return <PanelPorPeriodo {...props} config={CONTRATACIONES} />
+    case 'parametros': return <PanelParametros filas={props.filas} />
     default: return <p className="texto-suave">Esta hoja no tiene gráficas; consulte la vista «Datos».</p>
   }
 }
@@ -125,9 +127,11 @@ export default function PresupuestoDashboard() {
         <PanelResumen resumen={resumen.data} cohortes={enRango} onFiltrar={filtrar} />
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-space-sm">
+          <div className="flex flex-wrap items-center justify-between gap-space-sm w-full">
             <p className="m-0 text-body-sm text-on-surface-variant">{recurso.requisito} · Hoja «{recurso.hoja}»</p>
-            <Alternador etiqueta="Vista" opciones={VISTAS} valor={vista} onChange={setVista} />
+            <div className="ml-auto shrink-0">
+              <Alternador etiqueta="Vista" opciones={VISTAS} valor={vista} onChange={setVista} />
+            </div>
           </div>
           {vista === 'graficas' ? (
             <PanelRecurso key={recurso.id} recurso={recurso} cohortes={enRango} recarga={0} onFiltrar={filtrar} />

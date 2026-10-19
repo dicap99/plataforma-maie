@@ -250,7 +250,7 @@ const RECURSOS = [
     hoja: 'Parámetros',
     requisito: 'RF-ADM-05',
     tabla: 'parametros_programa',
-    categoria: 'academico',
+    categoria: 'financiero',
     llave: ['clave'],
     ordenarPor: 't.clave',
     rolesLectura: SOLO_COORD,
