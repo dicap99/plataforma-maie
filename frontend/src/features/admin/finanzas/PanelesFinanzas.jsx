@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import ChartCard from '../../../components/charts/ChartCard.jsx'
 import GraficoBarras from '../../../components/charts/GraficoBarras.jsx'
 import GraficoDona from '../../../components/charts/GraficoDona.jsx'
@@ -36,35 +35,6 @@ const ultimosCortes = (resumen, cohortes) => {
     .map((f) => ({ ...f, promocion: f.cohorte }))
 }
 
-// Distribución del saldo entre los cuatro destinos para una promoción elegida (o la suma de todas).
-// Las promociones sin saldo positivo (p. ej. en sobregiro) no tienen distribución.
-function DistribucionSaldo({ filas, onFiltrar }) {
-  const conSaldo = filas.filter((f) => DISTRIBUCION.some((d) => (f[d.clave] ?? 0) > 0))
-  const [id, setId] = useState('')
-  const elegidas = id ? conSaldo.filter((f) => String(f.id_cohorte) === id) : conSaldo
-  const datos = DISTRIBUCION.map((d, i) => ({ nombre: d.nombre, valor: suma(elegidas.map((f) => f[d.clave])), color: SERIES[i + 2] }))
-  const nombre = conSaldo.find((f) => String(f.id_cohorte) === id)?.promocion
-  return (
-    <ChartCard titulo="Distribución del saldo por promoción"
-      subtitulo={`${nombre ? `Promoción ${nombre}` : 'Promociones con saldo'}: ${pesos(suma(datos.map((d) => d.valor)))} · registrada en el corte o calculada con los porcentajes de Parámetros`}
-      acciones={(
-        <select aria-label="Promoción" value={id} onChange={(e) => setId(e.target.value)} className="rounded-lg px-2 py-1 text-label-sm">
-          <option value="">Todas las promociones</option>
-          {conSaldo.map((f) => <option key={f.id_cohorte} value={f.id_cohorte}>Promoción {f.promocion}</option>)}
-        </select>
-      )}
-      tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, ...DISTRIBUCION.map((d) => ({ clave: d.clave, titulo: d.nombre, formato: pesos }))])}
-      pie={nombre && (
-        <button type="button" className="btn-enlace" onClick={() => onFiltrar(porPromocion('presupuesto')(elegidas[0]))}>
-          Ver los cortes de la promoción {nombre} en «Datos»
-        </button>
-      )}>
-      {conSaldo.length ? <GraficoDona datos={datos} formato={pesos} pastel />
-        : <SinDatos texto="Ninguna promoción tiene saldo para distribuir." />}
-    </ChartCard>
-  )
-}
-
 // 1. Ejecución presupuestal y saldos (RF-ADM-03): último corte de cada promoción.
 export function PanelEjecucion({ resumen, parametros = [], cohortes, onFiltrar }) {
   const filas = ultimosCortes(resumen, cohortes)
@@ -94,7 +64,12 @@ export function PanelEjecucion({ resumen, parametros = [], cohortes, onFiltrar }
       </RejillaGraficas>
 
       <RejillaGraficas>
-        <DistribucionSaldo filas={filas} onFiltrar={onFiltrar} />
+        <ChartCard titulo="Distribución del saldo por promoción"
+          subtitulo="Valor que corresponde a cada destino; registrada en el corte o calculada con los porcentajes de Parámetros · clic para ver los cortes"
+          tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, ...DISTRIBUCION.map((d) => ({ clave: d.clave, titulo: d.nombre, formato: pesos }))])}>
+          <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
+            series={DISTRIBUCION.map((d, i) => ({ ...d, nombre: reparto[d.clave] === null ? d.nombre : `${d.nombre} (${numero(reparto[d.clave])} %)`, color: SERIES[i + 2] }))} />
+        </ChartCard>
         <ChartCard titulo="Distribución porcentual del saldo"
           subtitulo={sumaReparto === 100 ? 'Porcentaje del saldo que se transfiere a cada destino (suma 100 %)' : `Los porcentajes de Parámetros suman ${numero(sumaReparto)} %, no 100 %`}
           tabla={tablaDe(DISTRIBUCION.map((d) => ({ nombre: d.nombre, valor: reparto[d.clave] })), [{ clave: 'nombre', titulo: 'Destino' }, { clave: 'valor', titulo: '%', formato: numero }])}>
