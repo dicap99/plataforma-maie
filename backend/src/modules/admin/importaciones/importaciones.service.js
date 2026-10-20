@@ -1,5 +1,6 @@
 // RF-ADM-01/02 — Importación masiva desde Excel/CSV.
 // Formatos: libro histórico "Estadísticas MaIE", plantilla oficial (.xlsx) o CSV de un recurso.
+// RF-ADM-03 — Informe PDF de gastos de la Oficina de Presupuesto (PSP-GEF-FR-03): actualiza el corte de la promoción.
 // Todo se guarda en UNA transacción: si alguna fila tiene errores no se guarda nada.
 const path = require('path');
 const ExcelJS = require('exceljs');
@@ -10,6 +11,7 @@ const { RECURSOS, porId } = require('../recursos/recursos.definicion');
 const repositorios = require('../recursos/recursos.repository');
 const { leerEstadisticas } = require('./lectorEstadisticas');
 const { esPlantilla, leerPlantilla, leerCsv } = require('./lectorPlantilla');
+const { leerGastosPdf } = require('./lectorGastosPdf');
 
 // Recursos que se pueden importar (la tabla de parámetros se alimenta aparte).
 const IMPORTABLES = RECURSOS.filter((r) => r.id !== 'parametros');
@@ -122,10 +124,87 @@ const guardar = async (lectura, simular) => {
   }
 };
 
+// Informe de gastos (PDF) → corte de «Presupuesto» de la promoción, como lo registra Coordinación en el libro:
+// INGRESOS = apropiación definitiva, GASTOS = comprometido y SALDO CERTIFICADO = Por_CDP.
+// Un informe por mes: si la promoción ya tiene un corte en ese mes se actualiza (conserva su fecha);
+// si no, se crea con el último día del mes. La distribución del saldo se deja vacía para que se
+// calcule con los porcentajes de Parámetros sobre el saldo nuevo.
+const DISTRIBUCION = ['transferencia_central', 'transferencia_viis', 'fondo_investigaciones', 'unidad_academica'];
+const CAMBIOS = [
+  { campo: 'ingresos', etiqueta: 'Ingresos (apropiación definitiva)' },
+  { campo: 'gastos_comprometidos', etiqueta: 'Gastos (comprometido)' },
+  { campo: 'saldo_certificado', etiqueta: 'Saldo certificado (Por_CDP)' },
+];
+
+const importarGastosPdf = async (file, simular) => {
+  const informe = await leerGastosPdf(file.buffer);
+  const recurso = porId.presupuesto;
+  const mm = String(informe.mes).padStart(2, '0');
+  const periodo = `${informe.nombreMes} de ${informe.anio}`;
+
+  const ejecutar = async (cliente) => {
+    const { rows: [cohorte] } = await cliente.query(
+      'SELECT id_cohorte, nombre FROM cohortes WHERE UPPER(nombre) = $1', [informe.promocion],
+    );
+    if (!cohorte) {
+      throw ApiError.badRequest(`La promoción ${informe.promocion} del informe no existe en «Promociones y Estudiantes»`);
+    }
+    const { rows: cortes } = await cliente.query(
+      'SELECT * FROM presupuesto_cohorte WHERE id_cohorte = $1 ORDER BY fecha_corte DESC', [cohorte.id_cohorte],
+    );
+    const anterior = cortes.find((c) => c.fecha_corte.startsWith(`${informe.anio}-${mm}`)) ?? null;
+    const ultimoDia = new Date(Date.UTC(informe.anio, informe.mes, 0)).getUTCDate();
+    const fechaCorte = anterior?.fecha_corte ?? `${informe.anio}-${mm}-${ultimoDia}`;
+
+    const { valores, errores } = validarFila(recurso.campos, {
+      id_cohorte: cohorte.id_cohorte,
+      fecha_corte: fechaCorte,
+      ingresos: informe.totales.definitiva,
+      gastos_comprometidos: informe.totales.comprometido,
+      saldo_certificado: informe.totales.por_cdp,
+      ...Object.fromEntries(DISTRIBUCION.map((c) => [c, null])),
+      observaciones: anterior?.observaciones || `Informe ${informe.codigo} de ${periodo} (${file.originalname})`,
+    });
+    if (errores.length) throw ApiError.badRequest('El informe tiene valores inválidos', { errores });
+
+    const advertencias = [];
+    const masReciente = cortes.find((c) => c.fecha_corte > fechaCorte);
+    if (masReciente) {
+      advertencias.push({
+        hoja: 'Presupuesto',
+        fila: cohorte.nombre,
+        mensaje: `La promoción tiene un corte más reciente (${masReciente.fecha_corte}); los tableros seguirán mostrando ese.`,
+      });
+    }
+
+    const r = simular ? { insertado: !anterior } : await repositorios.presupuesto.upsert(valores, cliente);
+    return {
+      formato: 'gastos-pdf',
+      simulacion: simular,
+      resumen: [{ hoja: 'Presupuesto', filas: 1, insertados: r.insertado ? 1 : 0, actualizados: r.insertado ? 0 : 1 }],
+      parametros: [],
+      advertencias,
+      hojasFaltantes: [],
+      informe: {
+        codigo: informe.codigo,
+        promocion: cohorte.nombre,
+        periodo,
+        impresion: informe.impresion,
+        fecha_corte: fechaCorte,
+        areas: informe.areas,
+        cambios: CAMBIOS.map(({ campo, etiqueta }) => ({ campo, etiqueta, anterior: anterior?.[campo] ?? null, nuevo: valores[campo] })),
+      },
+    };
+  };
+
+  return simular ? ejecutar(db.pool) : db.withTransaction(ejecutar);
+};
+
 module.exports = {
   // POST /admin/importaciones — multipart "archivo"; ?simular=true valida sin guardar; ?recurso= para CSV.
   async importar({ file, query }) {
-    if (!file) throw ApiError.badRequest('Adjunte un archivo .xlsx o .csv en el campo "archivo"');
+    if (!file) throw ApiError.badRequest('Adjunte un archivo .xlsx, .csv o .pdf en el campo "archivo"');
+    if (path.extname(file.originalname).toLowerCase() === '.pdf') return importarGastosPdf(file, query.simular === 'true');
     const lectura = await leerArchivo(file, query);
     const totalFilas = Object.values(lectura.datos).reduce((s, f) => s + f.length, 0);
     if (totalFilas === 0) {

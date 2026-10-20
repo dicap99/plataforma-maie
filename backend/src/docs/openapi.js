@@ -270,9 +270,12 @@ const construir = () => {
       },
       '/admin/importaciones': {
         post: {
-          tags: ['Módulo 1 · General'], summary: 'Importar Excel o CSV',
+          tags: ['Módulo 1 · General'], summary: 'Importar Excel, CSV o informe PDF de gastos',
           description:
-            'Acepta el libro histórico «Estadísticas MaIE», la plantilla oficial (.xlsx) o un CSV de una hoja. ' +
+            'Acepta el libro histórico «Estadísticas MaIE», la plantilla oficial (.xlsx), un CSV de una hoja o el informe PDF ' +
+            '«Presupuesto de Gastos - Recursos Administrados» (PSP-GEF-FR-03) de una promoción. El PDF actualiza el corte del mes en ' +
+            '«Presupuesto»: ingresos = apropiación definitiva, gastos = comprometido, saldo certificado = Por_CDP; `informe.cambios` ' +
+            'compara los valores anteriores con los nuevos. ' +
             'Todo o nada: si alguna fila tiene errores no se guarda nada y se devuelven en `error.details.errores` (hoja, fila, mensaje). ' +
             roles(['coordinador']),
           parameters: [
@@ -348,7 +351,7 @@ const construir = () => {
         ResultadoImportacion: {
           type: 'object',
           properties: {
-            formato: { type: 'string', enum: ['estadisticas', 'plantilla', 'csv'] },
+            formato: { type: 'string', enum: ['estadisticas', 'plantilla', 'csv', 'gastos-pdf'] },
             simulacion: { type: 'boolean' },
             resumen: {
               type: 'array',
@@ -357,6 +360,7 @@ const construir = () => {
             parametros: { type: 'array', items: { type: 'string' } },
             advertencias: { type: 'array', items: { type: 'object' } },
             hojasFaltantes: { type: 'array', items: { type: 'string' } },
+            informe: { type: 'object', description: 'Solo PDF: promoción, periodo, fecha_corte, áreas del informe y cambios (anterior → nuevo)' },
           },
         },
         ...esquemasRecursos,

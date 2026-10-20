@@ -2,15 +2,18 @@ import { useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { descargarPlantilla, importarArchivo } from '../../api/adminApi'
 import Modal from '../../components/common/Modal.jsx'
+import { fecha, pesos } from '../../utils/formato'
 
 const FORMATOS = {
   estadisticas: 'Libro histórico «Estadísticas MaIE»',
   plantilla: 'Plantilla oficial de importación',
   csv: 'CSV de una hoja',
+  'gastos-pdf': 'Informe de gastos de la Oficina de Presupuesto (PSP-GEF-FR-03)',
 }
 
 // Importación masiva CSV/Excel (RF-ADM-01, RF-ADM-02) en dos pasos:
 // 1) validar (simulación, no guarda nada)  2) importar (todo o nada).
+// El PDF de gastos de una promoción actualiza su corte en «Presupuesto» y muestra los valores anterior → nuevo.
 export default function CsvUploaderModal({ recursos, onClose, onImportado }) {
   const [archivo, setArchivo] = useState(null)
   const [recursoCsv, setRecursoCsv] = useState('')
@@ -24,6 +27,7 @@ export default function CsvUploaderModal({ recursos, onClose, onImportado }) {
     accept: {
       'text/csv': ['.csv'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/pdf': ['.pdf'],
     },
     onDrop: (aceptados) => {
       setArchivo(aceptados[0] ?? null)
@@ -50,7 +54,8 @@ export default function CsvUploaderModal({ recursos, onClose, onImportado }) {
   return (
     <Modal titulo="Importar datos" onClose={onClose} ancho={640}>
       <p className="texto-suave">
-        Suba el libro «Estadísticas MaIE» tal como lo maneja Coordinación, la plantilla oficial o un CSV de una sola hoja.
+        Suba el libro «Estadísticas MaIE» tal como lo maneja Coordinación, la plantilla oficial, un CSV de una sola hoja
+        o el informe PDF de gastos de una promoción (Oficina de Presupuesto, PSP-GEF-FR-03).
         Primero se valida y luego se confirma la importación; si hay errores no se guarda nada.
       </p>
       <p>
@@ -59,7 +64,7 @@ export default function CsvUploaderModal({ recursos, onClose, onImportado }) {
 
       <div {...getRootProps({ className: `zona-arrastre${isDragActive ? ' activa' : ''}` })}>
         <input {...getInputProps()} />
-        {archivo ? <strong>{archivo.name}</strong> : <span>Arrastre un archivo .xlsx o .csv, o haga clic para seleccionarlo</span>}
+        {archivo ? <strong>{archivo.name}</strong> : <span>Arrastre un archivo .xlsx, .csv o .pdf, o haga clic para seleccionarlo</span>}
       </div>
 
       {esCsv && (
@@ -83,7 +88,26 @@ export default function CsvUploaderModal({ recursos, onClose, onImportado }) {
                 : 'Importación completada.'
               : resultado.error.message}
           </p>
-          {datos?.resumen?.length > 0 && (
+          {datos?.informe && (
+            <div className="tabla-scroll">
+              <p className="texto-suave">
+                Promoción <strong>{datos.informe.promocion}</strong> · informe de {datos.informe.periodo} · corte {fecha(datos.informe.fecha_corte)}
+              </p>
+              <table className="tabla-compacta">
+                <thead><tr><th>Presupuesto</th><th className="num">Actual</th><th className="num">Según el informe</th></tr></thead>
+                <tbody>
+                  {datos.informe.cambios.map((c) => (
+                    <tr key={c.campo}>
+                      <td>{c.etiqueta}</td>
+                      <td className="num">{c.anterior === null ? '—' : pesos(c.anterior)}</td>
+                      <td className="num">{c.anterior !== null && Math.abs(c.anterior - c.nuevo) < 0.005 ? pesos(c.nuevo) : <strong>{pesos(c.nuevo)}</strong>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {datos?.resumen?.length > 0 && !datos.informe && (
             <div className="tabla-scroll">
               <table className="tabla-compacta">
                 <thead><tr><th>Hoja</th><th className="num">Filas</th><th className="num">Nuevas</th><th className="num">Actualizadas</th></tr></thead>
