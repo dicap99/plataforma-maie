@@ -1,6 +1,5 @@
 import ChartCard from '../../../components/charts/ChartCard.jsx'
 import GraficoBarras from '../../../components/charts/GraficoBarras.jsx'
-import GraficoDona from '../../../components/charts/GraficoDona.jsx'
 import GraficoLineas from '../../../components/charts/GraficoLineas.jsx'
 import { SERIES } from '../../../components/charts/paleta'
 import { fecha, numero, pesos, pesosCompactos, porcentaje } from '../../../utils/formato'
@@ -40,51 +39,23 @@ export function PanelEjecucion({ resumen, parametros = [], cohortes, onFiltrar }
   const filas = ultimosCortes(resumen, cohortes)
   if (!filas.length) return <SinDatos texto="No hay cortes de presupuesto para estas promociones." />
 
-  const sobregiro = filas.filter((f) => (f.pct_ejecucion ?? 0) > 1)
-  const certificadas = filas.filter((f) => f.diferencia_certificado !== null)
-  const descuadres = certificadas.filter((f) => Math.abs(f.diferencia_certificado) >= 1)
   const filtrar = (f) => onFiltrar(porPromocion('presupuesto')(f))
   const valorParametro = (clave) => parametros.find((p) => p.clave === clave)?.valor ?? null
-  const reparto = { ...Object.fromEntries(DISTRIBUCION.map((d) => [d.clave, valorParametro(PCT_DISTRIBUCION[d.clave])])) }
-  const sumaReparto = suma(DISTRIBUCION.map((d) => reparto[d.clave]))
+  const reparto = Object.fromEntries(DISTRIBUCION.map((d) => [d.clave, valorParametro(PCT_DISTRIBUCION[d.clave])]))
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <RejillaGraficas>
-        <ChartCard titulo="Ingresos y gastos por promoción" subtitulo={`Último corte (${fecha(resumen.fecha_corte)}) · clic para ver los cortes`}
-          tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'fecha_corte', titulo: 'Corte', formato: fecha }, { clave: 'ingresos', titulo: 'Ingresos', formato: pesos }, { clave: 'gastos_comprometidos', titulo: 'Gastos', formato: pesos }])}>
-          <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
-            series={[{ clave: 'ingresos', nombre: 'Ingresos', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }]} />
-        </ChartCard>
-        <ChartCard titulo="Ejecución por promoción" subtitulo={`Gastos comprometidos sobre ingresos; más de 100 % es sobregiro${sobregiro.length ? ` (${sobregiro.map((f) => f.promocion).join(', ')})` : ''}`}
-          tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'pct_ejecucion', titulo: 'Ejecución', formato: porcentaje }])}>
-          <GraficoBarras datos={filas} ejeX="promocion" horizontal anchoEtiquetas={110} formato={porcentaje} onSeleccionar={filtrar}
-            series={[{ clave: 'pct_ejecucion', nombre: 'Ejecución', color: SERIES[6] }]} />
-        </ChartCard>
-      </RejillaGraficas>
-
-      <RejillaGraficas>
-        <ChartCard titulo="Distribución del saldo por promoción"
-          subtitulo="Valor que corresponde a cada destino; registrada en el corte o calculada con los porcentajes de Parámetros · clic para ver los cortes"
-          tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, ...DISTRIBUCION.map((d) => ({ clave: d.clave, titulo: d.nombre, formato: pesos }))])}>
-          <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
-            series={DISTRIBUCION.map((d, i) => ({ ...d, nombre: reparto[d.clave] === null ? d.nombre : `${d.nombre} (${numero(reparto[d.clave])} %)`, color: SERIES[i + 2] }))} />
-        </ChartCard>
-        <ChartCard titulo="Distribución porcentual del saldo"
-          subtitulo={sumaReparto === 100 ? 'Porcentaje del saldo que se transfiere a cada destino (suma 100 %)' : `Los porcentajes de Parámetros suman ${numero(sumaReparto)} %, no 100 %`}
-          tabla={tablaDe(DISTRIBUCION.map((d) => ({ nombre: d.nombre, valor: reparto[d.clave] })), [{ clave: 'nombre', titulo: 'Destino' }, { clave: 'valor', titulo: '%', formato: numero }])}>
-          <GraficoDona datos={DISTRIBUCION.map((d, i) => ({ nombre: d.nombre, valor: reparto[d.clave] ?? 0, color: SERIES[i + 2] }))}
-            formato={(v) => `${numero(v)} %`} pastel />
-        </ChartCard>
-      </RejillaGraficas>
-
-      <ChartCard titulo="Saldo comprometido frente al certificado"
-        subtitulo={certificadas.length
-          ? (descuadres.length ? `Diferencia con la Oficina de Presupuesto en ${descuadres.map((f) => f.promocion).join(', ')}` : 'Los saldos coinciden con el certificado')
-          : 'Sin saldos certificados registrados'}
-        tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'saldo_comprometido', titulo: 'Comprometido', formato: pesos }, { clave: 'saldo_certificado', titulo: 'Certificado', formato: pesos }, { clave: 'diferencia_certificado', titulo: 'Diferencia', formato: pesos }])}>
+      <ChartCard titulo="Ingresos y gastos por promoción" subtitulo={`Último corte (${fecha(resumen.fecha_corte)}) · clic para ver los cortes`}
+        tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'fecha_corte', titulo: 'Corte', formato: fecha }, { clave: 'ingresos', titulo: 'Ingresos', formato: pesos }, { clave: 'gastos_comprometidos', titulo: 'Gastos', formato: pesos }])}>
         <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
-          series={[{ clave: 'saldo_comprometido', nombre: 'Saldo comprometido', color: SERIES[2] }, { clave: 'saldo_certificado', nombre: 'Saldo certificado', color: SERIES[3] }]} />
+          series={[{ clave: 'ingresos', nombre: 'Ingresos', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }]} />
+      </ChartCard>
+
+      <ChartCard titulo="Distribución del saldo por promoción"
+        subtitulo="Valor que corresponde a cada destino; registrada en el corte o calculada con los porcentajes de Parámetros · clic para ver los cortes"
+        tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, ...DISTRIBUCION.map((d) => ({ clave: d.clave, titulo: d.nombre, formato: pesos }))])}>
+        <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
+          series={DISTRIBUCION.map((d, i) => ({ ...d, nombre: reparto[d.clave] === null ? d.nombre : `${d.nombre} (${numero(reparto[d.clave])} %)`, color: SERIES[i + 2] }))} />
       </ChartCard>
     </div>
   )
