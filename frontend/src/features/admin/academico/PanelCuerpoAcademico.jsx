@@ -179,7 +179,7 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
 
       {hayCreditos && (
         <ChartCard
-          titulo="Créditos por semestre"
+          titulo="Créditos promedio por semestre"
           subtitulo={`${numero(suma(creditos.map((c) => c.creditos)))} créditos según Parámetros del programa (fila «Número de créditos» de la hoja «Cursos y Docentes»)`}
           tabla={{
             columnas: [
