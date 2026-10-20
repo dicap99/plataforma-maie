@@ -16,6 +16,14 @@ router.post(
 );
 router.get('/me', authenticate, controller.me);
 router.put(
+  '/me',
+  authenticate,
+  body('identificacion').optional().isString().trim().isLength({ min: 1, max: 20 }).withMessage('Identificación de 1 a 20 caracteres'),
+  body('email').optional().isEmail().withMessage('Email inválido'),
+  validate,
+  controller.actualizarCuenta,
+);
+router.put(
   '/password',
   authenticate,
   body('actual').notEmpty().withMessage('Contraseña actual requerida'),

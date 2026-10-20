@@ -8,6 +8,7 @@ import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import { ETIQUETA_ROL } from '../../routes/navigation'
 import SelectorCampos from './SelectorCampos.jsx'
+import CursosDocente from './CursosDocente.jsx'
 
 const ROLES = ['coordinador', 'docente', 'estudiante']
 const BECAS = [
@@ -22,6 +23,23 @@ const VACIO = {
 const separarCampos = (texto) => String(texto ?? '').split(/\n|,|\s-\s|\+/).map((c) => c.replace(/^[-•\s]+/, '').trim()).filter(Boolean)
 const etiquetaBeca = (b) => BECAS.find((x) => x.valor === b)?.etiqueta ?? '—'
 
+// Coordinación registra los cursos en los que participa un docente (igual que él en «Mi perfil»).
+function CursosDeDocente({ usuario, onClose }) {
+  const perfil = useApi(() => adminApi.perfilDocente(usuario.id_docente), [usuario.id_docente])
+  const [cursos, setCursos] = useState(null)
+  return (
+    <Modal titulo={`Cursos de ${usuario.nombres} ${usuario.apellidos}`} onClose={onClose} ancho={900}>
+      <ErrorApi error={perfil.error} onReintentar={perfil.recargar} />
+      {perfil.data ? (
+        <CursosDocente idDocente={usuario.id_docente} cursos={cursos ?? perfil.data.cursos} onCambio={(p) => setCursos(p.cursos)} />
+      ) : !perfil.error && <Cargando />}
+      <div className="modal-acciones">
+        <button type="button" className="btn btn-secundario" onClick={onClose}>Cerrar</button>
+      </div>
+    </Modal>
+  )
+}
+
 // Usuarios y roles (RNF-SEG-01), pestaña de Gestión académica. Lo propio de cada rol se registra aquí:
 // el estudiante con su promoción y beca, y el docente con su afiliación y campos de formación (perfil
 // de la hoja «Docentes», RF-ADM-06). Información académica refleja estos datos.
@@ -32,6 +50,7 @@ export default function UsuariosPage({ embebido = false }) {
   const cohortes = useApi(() => adminApi.listar('cohortes'))
   const campos = useApi(usuariosApi.camposFormacion)
   const [editando, setEditando] = useState(null) // null | VACIO | usuario
+  const [cursosDe, setCursosDe] = useState(null) // usuario docente cuyos cursos se editan
   const [rol, setRol] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [errorAccion, setErrorAccion] = useState(null)
@@ -102,9 +121,12 @@ export default function UsuariosPage({ embebido = false }) {
                   <td>{u.email}</td>
                   <td>{ETIQUETA_ROL[u.rol] ?? u.rol}</td>
                   <td>{detalleRol(u)}</td>
-                  <td>{u.activo ? 'Activo' : 'Inactivo'}</td>
+                  <td>{u.activo ? 'Activo' : 'Inactivo'}{u.debe_cambiar_password ? ' · credenciales temporales' : ''}</td>
                   <td className="acciones">
                     <button type="button" className="btn-enlace" onClick={() => editar(u)}>Editar</button>
+                    {u.rol === 'docente' && u.id_docente && (
+                      <button type="button" className="btn-enlace" onClick={() => setCursosDe(u)}>Cursos</button>
+                    )}
                     {u.id_usuario !== sesion.id && (
                       <button type="button" className="btn-enlace peligro" onClick={() => eliminar(u)}>Eliminar</button>
                     )}
@@ -116,6 +138,7 @@ export default function UsuariosPage({ embebido = false }) {
           </table>
         </div>
       )}
+      {cursosDe && <CursosDeDocente usuario={cursosDe} onClose={() => { setCursosDe(null); docentes.recargar() }} />}
       {editando && (
         <FormularioUsuario
           inicial={editando}

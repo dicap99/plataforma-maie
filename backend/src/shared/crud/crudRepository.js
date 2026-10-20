@@ -6,14 +6,15 @@ const db = require('../../config/db');
 const id = (nombre) => `"${nombre.replace(/"/g, '""')}"`;
 
 const crudRepository = (recurso) => {
-  const { tabla, llave, campos, conflicto = llave, ordenarPor, unirCohorte } = recurso;
+  const { tabla, llave, campos, conflicto = llave, ordenarPor, unirCohorte, calculados = [] } = recurso;
   const columnas = campos.map((c) => c.name);
   const noLlave = columnas.filter((c) => !llave.includes(c));
   const whereLlave = llave.map((k, i) => `t.${id(k)} = $${i + 1}`).join(' AND ');
 
+  const extra = calculados.map((c) => `, ${c.sql} AS ${id(c.name)}`).join('');
   const select = unirCohorte
-    ? `SELECT t.*, c.nombre AS cohorte FROM ${id(tabla)} t JOIN cohortes c ON c.id_cohorte = t.id_cohorte`
-    : `SELECT t.* FROM ${id(tabla)} t`;
+    ? `SELECT t.*, c.nombre AS cohorte${extra} FROM ${id(tabla)} t JOIN cohortes c ON c.id_cohorte = t.id_cohorte`
+    : `SELECT t.*${extra} FROM ${id(tabla)} t`;
 
   // Recarga el registro con el mismo formato que list() (p. ej. con el nombre de la promoción).
   const recargar = async (fila, cliente) => {

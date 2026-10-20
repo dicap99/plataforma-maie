@@ -138,6 +138,7 @@ const Usuario = {
     apellidos: { type: 'string' },
     email: { type: 'string', format: 'email' },
     rol: { type: 'string', enum: TODOS },
+    debe_cambiar_password: { type: 'boolean', description: 'Cuenta con credenciales temporales' },
     activo: { type: 'boolean' },
     id_docente: { type: 'string', format: 'uuid', nullable: true }, docente_vinculado: { type: 'string', nullable: true },
     afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'], nullable: true }, campo_formacion: { type: 'string', nullable: true },
@@ -229,6 +230,12 @@ const construir = () => {
       },
       '/auth/me': {
         get: { tags: ['Autenticación'], summary: 'Usuario de la sesión actual', responses: { 200: exito(ref('Usuario')), ...errores(401) } },
+        put: {
+          tags: ['Autenticación'], summary: 'Actualizar identificación y correo de la propia cuenta',
+          description: 'El correo es el que se usa para iniciar sesión. Las cuentas temporales (`debe_cambiar_password`) los traen provisionales.',
+          requestBody: cuerpo({ type: 'object', properties: { identificacion: { type: 'string', maxLength: 20 }, email: { type: 'string', format: 'email' } } }),
+          responses: { 200: exito(ref('Usuario')), ...errores(400, 401, 409) },
+        },
       },
       '/auth/password': {
         put: {
@@ -319,18 +326,63 @@ const construir = () => {
       },
       ...rutasRecursos,
       '/admin/docentes/me/perfil': {
-        get: { tags: ['Módulo 1 · Docentes'], summary: 'Perfil del docente autenticado (RF-ADM-06)', description: roles(['docente']), responses: { 200: exito(ref('Docentes')), ...errores(401, 403, 404) } },
+        get: {
+          tags: ['Módulo 1 · Docentes'], summary: 'Perfil del docente autenticado (RF-ADM-06)',
+          description: `Incluye su cuenta (identificación, correo, debe_cambiar_password), los cursos en los que participa y los componentes que apoya (calculados de los cursos). ${roles(['docente'])}`,
+          responses: { 200: exito(ref('PerfilDocente')), ...errores(401, 403, 404) },
+        },
         put: {
           tags: ['Módulo 1 · Docentes'], summary: 'Actualizar el perfil propio',
-          description: `Nombre y afiliación los administra Coordinación. ${roles(['docente'])}`,
+          description: `Solo cambia los campos enviados. Nombre y afiliación los administra Coordinación; cursos y componentes salen de /me/cursos. ${roles(['docente'])}`,
           requestBody: cuerpo({
             type: 'object',
             properties: Object.fromEntries(
-              ['formacion_profesional', 'campo_formacion', 'componentes', 'cursos_participa', 'enlace_perfil', 'titulacion_maxima', 'linea_investigacion']
+              ['formacion_profesional', 'campo_formacion', 'enlace_perfil', 'titulacion_maxima', 'linea_investigacion']
                 .map((c) => [c, { type: 'string', nullable: true }]),
             ),
           }),
-          responses: { 200: exito(ref('Docentes')), ...errores(400, 401, 403, 404) },
+          responses: { 200: exito(ref('PerfilDocente')), ...errores(400, 401, 403, 404) },
+        },
+      },
+      '/admin/docentes/me/cursos': {
+        post: {
+          tags: ['Módulo 1 · Docentes'], summary: 'Registrar un curso en el que participa el docente',
+          description: `Crea la oferta (promoción, periodo, curso) si no existe y cuenta de inmediato en «Cursos y docentes por semestre». El periodo debe ser uno de los cuatro semestres de la promoción. ${roles(['docente'])}`,
+          requestBody: cuerpo(ref('Participacion')),
+          responses: { 201: exito(ref('PerfilDocente')), ...errores(400, 401, 403, 404) },
+        },
+      },
+      '/admin/docentes/me/cursos/{idCurso}': {
+        delete: {
+          tags: ['Módulo 1 · Docentes'], summary: 'Quitar un curso del docente',
+          description: `Si la oferta queda sin docentes, estudiantes ni notas, se elimina. ${roles(['docente'])}`,
+          parameters: [{ name: 'idCurso', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { 200: exito(ref('PerfilDocente')), ...errores(401, 403, 404) },
+        },
+      },
+      '/admin/docentes/{id}/perfil': {
+        get: {
+          tags: ['Módulo 1 · Docentes'], summary: 'Perfil y cursos de un docente', description: roles(['coordinador']),
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { 200: exito(ref('PerfilDocente')), ...errores(401, 403, 404) },
+        },
+      },
+      '/admin/docentes/{id}/cursos': {
+        post: {
+          tags: ['Módulo 1 · Docentes'], summary: 'Registrar un curso por un docente', description: roles(['coordinador']),
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: cuerpo(ref('Participacion')),
+          responses: { 201: exito(ref('PerfilDocente')), ...errores(400, 401, 403, 404) },
+        },
+      },
+      '/admin/docentes/{id}/cursos/{idCurso}': {
+        delete: {
+          tags: ['Módulo 1 · Docentes'], summary: 'Quitar un curso de un docente', description: roles(['coordinador']),
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'idCurso', in: 'path', required: true, schema: { type: 'integer' } },
+          ],
+          responses: { 200: exito(ref('PerfilDocente')), ...errores(401, 403, 404) },
         },
       },
       ...ra.paths,
@@ -348,6 +400,22 @@ const construir = () => {
         },
         Usuario,
         UsuarioEntrada,
+        Participacion: {
+          type: 'object', required: ['id_cohorte', 'periodo', 'id_clase'],
+          properties: { id_cohorte: { type: 'integer' }, periodo: { type: 'string', pattern: '^\d{4}-[AB]$' }, id_clase: { type: 'integer' } },
+        },
+        PerfilDocente: {
+          type: 'object',
+          properties: {
+            id_docente: { type: 'string', format: 'uuid' }, nombre_completo: { type: 'string' }, afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'] },
+            identificacion: { type: 'string' }, email: { type: 'string' }, debe_cambiar_password: { type: 'boolean' },
+            cursos: {
+              type: 'array',
+              items: { type: 'object', properties: { id_curso: { type: 'integer' }, cohorte: { type: 'string' }, periodo: { type: 'string' }, semestre: { type: 'integer' }, clase: { type: 'string' }, componente: { type: 'string' } } },
+            },
+            componentes: { type: 'array', items: { type: 'string' } },
+          },
+        },
         ResultadoImportacion: {
           type: 'object',
           properties: {

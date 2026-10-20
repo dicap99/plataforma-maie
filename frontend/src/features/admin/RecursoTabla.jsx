@@ -191,6 +191,12 @@ export default function RecursoTabla({
         </header>
       )}
 
+      {recurso.nota && (
+        <p className="mb-3 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">info</span>
+          {recurso.nota}
+        </p>
+      )}
       <ErrorApi error={error} onReintentar={recargar} />
       <ErrorApi error={errorAccion} />
 

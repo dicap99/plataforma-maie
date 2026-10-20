@@ -23,6 +23,7 @@ CREATE TABLE usuarios (
     password_hash VARCHAR(255) NOT NULL,
     rol tipo_rol NOT NULL,
     activo BOOLEAN DEFAULT TRUE,
+    debe_cambiar_password BOOLEAN NOT NULL DEFAULT FALSE, -- credenciales temporales por cambiar
     creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -182,8 +183,8 @@ CREATE TABLE docentes_perfil (
     formacion_profesional TEXT,
     campo_formacion VARCHAR(200),
     afiliacion tipo_afiliacion NOT NULL,
-    componentes TEXT,          -- componentes de formación que apoya
-    cursos_participa TEXT,     -- cursos en los que participa
+    componentes TEXT,          -- obsoleto: los componentes salen de los cursos asignados (curso_docentes)
+    cursos_participa TEXT,     -- obsoleto: texto histórico del libro; los cursos salen de curso_docentes
     enlace_perfil VARCHAR(255),
     titulacion_maxima VARCHAR(100),
     linea_investigacion VARCHAR(150),
@@ -243,10 +244,11 @@ CREATE TABLE cursos (
     CONSTRAINT unq_oferta UNIQUE (id_clase, id_cohorte, periodo, grupo)
 );
 
--- Una oferta puede tener varios docentes (p. ej. cursos compartidos con invitados externos)
+-- Una oferta puede tener varios docentes (p. ej. cursos compartidos con invitados externos).
+-- Referencia el perfil docente, que puede existir sin cuenta; el acceso se resuelve con docentes_perfil.id_usuario.
 CREATE TABLE curso_docentes (
     id_curso INT REFERENCES cursos(id_curso) ON DELETE CASCADE,
-    id_docente UUID REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    id_docente UUID REFERENCES docentes_perfil(id_docente) ON DELETE CASCADE,
     PRIMARY KEY (id_curso, id_docente)
 );
 

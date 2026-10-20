@@ -13,7 +13,8 @@ const FILTROS = `
   AND ($6::int IS NULL OR r.id_ra = $6)
   AND ($7::uuid IS NULL OR u.id_usuario = $7)
   AND ($8::int IS NULL OR c.id_clase = $8)
-  AND ($9::uuid IS NULL OR EXISTS (SELECT 1 FROM curso_docentes cd WHERE cd.id_curso = c.id_curso AND cd.id_docente = $9))`;
+  AND ($9::uuid IS NULL OR EXISTS (SELECT 1 FROM curso_docentes cd JOIN docentes_perfil d ON d.id_docente = cd.id_docente
+                                    WHERE cd.id_curso = c.id_curso AND d.id_usuario = $9))`;
 
 const parametros = (f) => [f.cohorte, f.periodo, f.modulo, f.catalogo, f.curso, f.ra, f.estudiante, f.clase, f.docente]
   .map((v) => (v === undefined ? null : v));

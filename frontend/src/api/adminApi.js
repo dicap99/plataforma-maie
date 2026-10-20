@@ -14,6 +14,10 @@ export const resumenPresupuesto = () => client.get('/admin/presupuesto/resumen')
 
 export const perfilDocentePropio = () => client.get('/admin/docentes/me/perfil')
 export const actualizarPerfilDocentePropio = (datos) => client.put('/admin/docentes/me/perfil', datos)
+// Cursos en los que participa el docente: { id_cohorte, periodo, id_clase }. Sin idDocente = el propio.
+export const agregarCursoDocente = (datos, idDocente) => client.post(`/admin/docentes/${idDocente ?? 'me'}/cursos`, datos)
+export const quitarCursoDocente = (idCurso, idDocente) => client.delete(`/admin/docentes/${idDocente ?? 'me'}/cursos/${idCurso}`)
+export const perfilDocente = (idDocente) => client.get(`/admin/docentes/${idDocente}/perfil`)
 
 // opciones: { simular, recurso } — recurso solo aplica a CSV
 export const importarArchivo = (archivo, opciones = {}) => {

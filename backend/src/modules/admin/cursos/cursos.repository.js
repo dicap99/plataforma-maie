@@ -27,10 +27,11 @@ const SELECT_OFERTA = `
          k.semestre, m.nombre AS modulo,
          COALESCE((SELECT p.abierto FROM periodos_calificacion_ra p WHERE p.periodo = c.periodo), FALSE)
            AS calificacion_abierta,
-         COALESCE((SELECT json_agg(json_build_object('id_usuario', u.id_usuario,
-                                                     'nombre', u.nombres || ' ' || u.apellidos)
-                                   ORDER BY u.apellidos, u.nombres)
-                   FROM curso_docentes cd JOIN usuarios u ON u.id_usuario = cd.id_docente
+         COALESCE((SELECT json_agg(json_build_object('id_docente', d.id_docente, 'id_usuario', d.id_usuario,
+                                                     'nombre', COALESCE(u.nombres || ' ' || u.apellidos, d.nombre_completo))
+                                   ORDER BY d.nombre_completo)
+                   FROM curso_docentes cd JOIN docentes_perfil d ON d.id_docente = cd.id_docente
+                   LEFT JOIN usuarios u ON u.id_usuario = d.id_usuario
                    WHERE cd.id_curso = c.id_curso), '[]') AS docentes,
          COALESCE((SELECT json_agg(r.codigo ORDER BY r.id_ra)
                    FROM catalogo_ra cr JOIN resultados_aprendizaje r USING (id_ra)
@@ -53,7 +54,8 @@ const list = async ({ cohorte = null, periodo = null, catalogo = null, clase = n
        AND ($3::int IS NULL OR c.id_catalogo = $3)
        AND ($4::int IS NULL OR c.id_clase = $4)
        AND ($5::uuid IS NULL OR EXISTS (SELECT 1 FROM curso_docentes cd
-                                         WHERE cd.id_curso = c.id_curso AND cd.id_docente = $5))
+                                         JOIN docentes_perfil d ON d.id_docente = cd.id_docente
+                                         WHERE cd.id_curso = c.id_curso AND d.id_usuario = $5))
      ORDER BY c.periodo DESC, h.periodo_inicio DESC, k.orden, cl.nombre, c.grupo`,
     [cohorte, periodo, catalogo, clase, docente],
   )).rows;
@@ -92,11 +94,13 @@ const remove = async (id) => (await db.query('DELETE FROM cursos WHERE id_curso 
 const contarNotas = async (id) =>
   (await db.query('SELECT COUNT(*)::int AS n FROM evaluaciones_ra_estudiante WHERE id_curso = $1', [id])).rows[0].n;
 
+// `docentes`: ids de usuario (rol docente); se guardan sus perfiles docentes.
 const setDocentes = async (cliente, id, docentes) => {
   await cliente.query('DELETE FROM curso_docentes WHERE id_curso = $1', [id]);
   if (docentes.length) {
     await cliente.query(
-      'INSERT INTO curso_docentes (id_curso, id_docente) SELECT $1, unnest($2::uuid[])',
+      `INSERT INTO curso_docentes (id_curso, id_docente)
+       SELECT $1, d.id_docente FROM docentes_perfil d WHERE d.id_usuario = ANY($2::uuid[])`,
       [id, docentes],
     );
   }
@@ -129,8 +133,11 @@ const matricularCohorte = async (id) =>
   )).rowCount;
 
 const esDocenteDe = async (idCurso, idUsuario) =>
-  (await db.query('SELECT 1 FROM curso_docentes WHERE id_curso = $1 AND id_docente = $2', [idCurso, idUsuario]))
-    .rowCount > 0;
+  (await db.query(
+    `SELECT 1 FROM curso_docentes cd JOIN docentes_perfil d ON d.id_docente = cd.id_docente
+     WHERE cd.id_curso = $1 AND d.id_usuario = $2`,
+    [idCurso, idUsuario],
+  )).rowCount > 0;
 
 // Datos de la clase para validar la oferta (existe, activa, curso del plan).
 const clase = async (idClase) =>
@@ -144,6 +151,14 @@ const noSonDelRol = async (ids, rol) =>
     `SELECT x.id FROM unnest($1::uuid[]) AS x(id)
      WHERE NOT EXISTS (SELECT 1 FROM usuarios u WHERE u.id_usuario = x.id AND u.rol = $2)`,
     [ids, rol],
+  )).rows.map((r) => r.id);
+
+// Ids de usuario de la lista sin perfil docente (curso_docentes guarda el perfil).
+const sinPerfilDocente = async (ids) =>
+  (await db.query(
+    `SELECT x.id FROM unnest($1::uuid[]) AS x(id)
+     WHERE NOT EXISTS (SELECT 1 FROM docentes_perfil d WHERE d.id_usuario = x.id)`,
+    [ids],
   )).rows.map((r) => r.id);
 
 // Ids de la lista que no pertenecen a la promoción de la oferta.
@@ -172,5 +187,6 @@ module.exports = {
   clase,
   existe,
   noSonDelRol,
+  sinPerfilDocente,
   fueraDeCohorte,
 };

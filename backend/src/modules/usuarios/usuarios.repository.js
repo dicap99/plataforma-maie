@@ -7,7 +7,7 @@ const db = require('../../config/db');
 const SEPARADOR_CAMPOS = ', ';
 
 const SELECT = `
-  SELECT u.id_usuario, u.identificacion, u.nombres, u.apellidos, u.email, u.rol, u.activo, u.creado_en,
+  SELECT u.id_usuario, u.identificacion, u.nombres, u.apellidos, u.email, u.rol, u.activo, u.debe_cambiar_password, u.creado_en,
          d.id_docente, d.nombre_completo AS docente_vinculado, d.afiliacion, d.campo_formacion,
          he.id_cohorte, h.nombre AS cohorte, he.beca, he.estado AS estado_promocion
   FROM usuarios u

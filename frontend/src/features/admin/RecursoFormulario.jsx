@@ -3,10 +3,12 @@ import Modal from '../../components/common/Modal.jsx'
 
 // Formulario de alta/edición generado a partir de los campos del recurso (metadatos del API).
 // En edición la llave no se modifica (identifica el registro en la URL).
+// Las columnas calculadas (p. ej. cursos del docente) se muestran en la tabla pero no se editan.
 export default function RecursoFormulario({ recurso, fila, cohortes, onGuardar, onClose }) {
   const editando = Boolean(fila)
+  const campos = recurso.campos.filter((c) => !c.calculado)
   const [valores, setValores] = useState(() =>
-    Object.fromEntries(recurso.campos.map((c) => [c.name, fila?.[c.name] ?? ''])),
+    Object.fromEntries(campos.map((c) => [c.name, fila?.[c.name] ?? ''])),
   )
   const [errores, setErrores] = useState([])
   const [guardando, setGuardando] = useState(false)
@@ -69,7 +71,7 @@ export default function RecursoFormulario({ recurso, fila, cohortes, onGuardar, 
     <Modal titulo={`${editando ? 'Editar' : 'Agregar'} · ${recurso.titulo}`} onClose={onClose} ancho={560}>
       <form onSubmit={enviar}>
         <div className="form-grid">
-          {recurso.campos.map((campo) => (
+          {campos.map((campo) => (
             <div key={campo.name} className={`campo${campo.multilinea ? ' campo-ancho' : ''}`}>
               <label htmlFor={`campo-${campo.name}`}>
                 {campo.label}{campo.required && ' *'}

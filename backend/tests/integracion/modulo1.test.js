@@ -155,6 +155,54 @@ describe('Usuarios, RBAC y perfil docente', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ linea_investigacion: 'Control', afiliacion: 'UDENAR' }); // afiliación no editable
     expect((await coord.get('/admin/docentes/me/perfil')).status).toBe(403);
+    // Un PUT parcial no borra los demás campos.
+    await docente.put('/admin/docentes/me/perfil', { enlace_perfil: 'https://orcid.org/0000' });
+    expect((await docente.get('/admin/docentes/me/perfil')).body.data)
+      .toMatchObject({ linea_investigacion: 'Control', enlace_perfil: 'https://orcid.org/0000' });
+  });
+
+  it('los cursos del docente alimentan «Cursos y docentes por semestre» (semestre real de la promoción)', async () => {
+    const cohorte = (await coord.post('/admin/cohortes', {
+      nombre: 'PD', periodo_inicio: '2030-A', periodo_fin: '2031-B', inscritos: 5, matriculados: 5, graduados: 0,
+    })).body.data;
+    const { rows: [robotica] } = await db.query("SELECT id_clase FROM clases WHERE codigo = 'CE2-01'");
+    const curso = { id_cohorte: cohorte.id_cohorte, periodo: '2030-B', id_clase: robotica.id_clase };
+
+    const res = await docente.post('/admin/docentes/me/cursos', curso);
+    expect(res.status).toBe(201);
+    expect(res.body.data.cursos).toEqual([expect.objectContaining({ clase: 'Robótica', semestre: 2, componente: 'Electivo' })]);
+    expect(res.body.data.componentes).toEqual(['Electivo']);
+    expect((await docente.post('/admin/docentes/me/cursos', { ...curso, periodo: '2032-A' })).status).toBe(400);
+
+    const semestres = (await coord.get('/admin/academico/reflejo')).body.data['cohorte-semestres'];
+    expect(semestres.find((s) => s.id_cohorte === cohorte.id_cohorte))
+      .toMatchObject({ semestre: 2, n_cursos: 1, docentes_udenar: 1, docentes_externos: 0, origen: 'gestion' });
+    const directorio = (await coord.get('/admin/docentes')).body.data.find((d) => d.nombre_completo === 'DOCENTE PRUEBA');
+    expect(directorio).toMatchObject({ cursos_asignados: 'Robótica', componentes_apoya: 'Electivo' });
+
+    // La tabla no se edita a mano; Coordinación registra cursos por el docente.
+    expect((await coord.post('/admin/cohorte-semestres', { id_cohorte: cohorte.id_cohorte, semestre: 1, n_cursos: 1, docentes_udenar: 0, docentes_externos: 0 })).status).toBe(403);
+    const { id_docente: idDocente, cursos } = res.body.data;
+    expect((await docente.post(`/admin/docentes/${idDocente}/cursos`, curso)).status).toBe(403);
+    const otro = await coord.post(`/admin/docentes/${idDocente}/cursos`, { ...curso, periodo: '2031-A' });
+    expect(otro.body.data.cursos).toHaveLength(2);
+
+    // Al quitar al único docente, la oferta deja de existir.
+    const quitar = await docente.delete(`/admin/docentes/me/cursos/${cursos[0].id_curso}`);
+    expect(quitar.body.data.cursos.map((c) => c.periodo)).toEqual(['2031-A']);
+    expect((await db.query('SELECT 1 FROM cursos WHERE id_curso = $1', [cursos[0].id_curso])).rowCount).toBe(0);
+    await coord.delete(`/admin/cohortes/${cohorte.id_cohorte}`);
+  });
+
+  it('el usuario actualiza su identificación y correo; cambiar la contraseña quita la marca temporal', async () => {
+    await db.query("UPDATE usuarios SET debe_cambiar_password = TRUE WHERE email = 'docente@udenar.edu.co'");
+    expect((await docente.get('/auth/me')).body.data.debe_cambiar_password).toBe(true);
+    const cuenta = await docente.put('/auth/me', { identificacion: '111-A', email: 'docente.prueba@udenar.edu.co' });
+    expect(cuenta.body.data).toMatchObject({ identificacion: '111-A', email: 'docente.prueba@udenar.edu.co' });
+    expect((await docente.put('/auth/me', { email: 'no-es-correo' })).status).toBe(400);
+    await docente.put('/auth/password', { actual: 'ClaveDocente1', nueva: 'ClaveDocente2' });
+    expect((await docente.get('/auth/me')).body.data.debe_cambiar_password).toBe(false);
+    expect(await login({ email: 'docente.prueba@udenar.edu.co', password: 'ClaveDocente2' })).toBeTruthy();
   });
 
   it('solo Coordinación gestiona usuarios', async () => {

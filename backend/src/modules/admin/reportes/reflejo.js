@@ -1,6 +1,6 @@
 // Reflejo de Gestión académica en las hojas del Módulo 1 (Información académica y Panel general).
-// Híbrido: si una promoción tiene registros en Gestión (estudiantes con su promoción y beca, clases
-// ofertadas con sus docentes), sus cifras se calculan desde ahí; si no, se conservan las de la hoja
+// Híbrido: si una promoción tiene registros en Gestión (estudiantes con su promoción y beca; en cursos y
+// docentes, cada semestre con clases ofertadas), sus cifras se calculan desde ahí; si no, se conservan las de la hoja
 // (registro histórico importado del Excel). Cada fila indica su `origen`: 'gestion' o 'registro'.
 const db = require('../../../config/db');
 
@@ -20,18 +20,26 @@ const estudiantesPorCohorte = async () =>
     FROM cohorte_estudiantes
     GROUP BY id_cohorte`)).rows;
 
-// Clases ofertadas por promoción y semestre del plan, con sus docentes según la afiliación del perfil.
+// Semestre de la promoción en que cae un periodo: 1 en su periodo de inicio, 2 en el siguiente…
+// (p. ej. 2022-A es el semestre III de una promoción que empezó en 2021-A). No es el semestre del plan:
+// un curso puede dictarse en otro semestre que el previsto.
+const SEMESTRE_REAL = `((SUBSTRING(c.periodo FROM 1 FOR 4)::int - SUBSTRING(h.periodo_inicio FROM 1 FOR 4)::int) * 2
+  + (CASE WHEN RIGHT(c.periodo, 1) = 'B' THEN 1 ELSE 0 END)
+  - (CASE WHEN RIGHT(h.periodo_inicio, 1) = 'B' THEN 1 ELSE 0 END) + 1)`;
+
+// Clases ofertadas por promoción y semestre, con sus docentes según la afiliación del perfil.
 const ofertasPorCohorte = async () =>
   (await db.query(`
-    SELECT c.id_cohorte, k.semestre,
+    SELECT c.id_cohorte, ${SEMESTRE_REAL} AS semestre,
            COUNT(DISTINCT c.id_curso)::int AS n_cursos,
            COUNT(DISTINCT cd.id_docente) FILTER (WHERE d.afiliacion = 'UDENAR')::int AS docentes_udenar,
            COUNT(DISTINCT cd.id_docente) FILTER (WHERE d.afiliacion = 'EXTERNO')::int AS docentes_externos
     FROM cursos c
-    JOIN cursos_catalogo k ON k.id_catalogo = c.id_catalogo
+    JOIN cohortes h ON h.id_cohorte = c.id_cohorte
     LEFT JOIN curso_docentes cd ON cd.id_curso = c.id_curso
-    LEFT JOIN docentes_perfil d ON d.id_usuario = cd.id_docente
-    GROUP BY c.id_cohorte, k.semestre`)).rows;
+    LEFT JOIN docentes_perfil d ON d.id_docente = cd.id_docente
+    WHERE ${SEMESTRE_REAL} BETWEEN 1 AND 4
+    GROUP BY c.id_cohorte, semestre`)).rows;
 
 // --- Combinación (funciones puras) -------------------------------------------------------
 // Promociones: inscritos, matriculados, egresados y graduados desde los estudiantes registrados.
@@ -73,12 +81,14 @@ const combinarBeneficios = (hoja, estudiantes, cohortes) => {
   return filas;
 };
 
-// Cursos y docentes por semestre: si la promoción tiene clases ofertadas, sus semestres salen de ellas.
+// Cursos y docentes por semestre: cada semestre con clases ofertadas sale de ellas; los demás
+// semestres de la promoción conservan la hoja (p. ej. mientras se completan los históricos).
 const combinarSemestres = (hoja, ofertas, cohortes) => {
-  const conOfertas = new Set(ofertas.map((o) => o.id_cohorte));
+  const clave = (f) => `${f.id_cohorte}|${f.semestre}`;
+  const conOfertas = new Set(ofertas.map(clave));
   const nombre = new Map(cohortes.map((c) => [c.id_cohorte, c.nombre]));
   return [
-    ...hoja.filter((s) => !conOfertas.has(s.id_cohorte)).map((s) => ({ ...s, origen: 'registro' })),
+    ...hoja.filter((s) => !conOfertas.has(clave(s))).map((s) => ({ ...s, origen: 'registro' })),
     ...ofertas.filter((o) => nombre.has(o.id_cohorte)).map((o) => ({ ...o, cohorte: nombre.get(o.id_cohorte), origen: 'gestion' })),
   ].sort((a, b) => a.id_cohorte - b.id_cohorte || a.semestre - b.semestre);
 };
@@ -94,4 +104,4 @@ const aplicar = async (datos) => {
   };
 };
 
-module.exports = { aplicar, combinarCohortes, combinarBeneficios, combinarSemestres, RECURSOS_REFLEJADOS: ['cohortes', 'beneficios', 'cohorte-semestres'] };
+module.exports = { SEMESTRE_REAL, aplicar, combinarCohortes, combinarBeneficios, combinarSemestres, RECURSOS_REFLEJADOS: ['cohortes', 'beneficios', 'cohorte-semestres'] };

@@ -5,6 +5,8 @@
 // - campos: columnas editables, en el orden de la plantilla; la llave serial/uuid no se incluye
 // - conflicto: restricción única usada al importar (por defecto, la llave)
 // - rolesLectura / rolesEscritura: RBAC. Toda información financiera es solo de Coordinación (RNF-SEG-01).
+// - nota: aviso que el frontend muestra sobre la tabla
+// - calculados: columnas de solo lectura que se derivan de otras tablas ({ name, label, sql } con alias t).
 const { ROLES } = require('../../../utils/roles');
 
 const { COORDINADOR, DOCENTE } = ROLES;
@@ -70,7 +72,11 @@ const RECURSOS = [
     unirCohorte: true,
     ordenarPor: `${ORDEN_COHORTE}, t.semestre`,
     rolesLectura: ACADEMICO,
-    rolesEscritura: SOLO_COORD,
+    // Nadie la edita: se calcula de los cursos asignados a los docentes (reflejo.js); las filas
+    // guardadas son el histórico del libro para promociones sin cursos registrados.
+    rolesEscritura: [],
+    nota: 'Se calcula sola con los cursos que registran los docentes (Mi perfil) o Coordinación por ellos. '
+      + 'Los semestres sin cursos registrados muestran el histórico del libro «Estadísticas MaIE».',
     campos: [
       cohorte,
       { name: 'semestre', label: 'Semestre', type: 'semestre', required: true },
@@ -96,9 +102,25 @@ const RECURSOS = [
       { name: 'formacion_profesional', label: 'Formación profesional', type: 'texto', multilinea: true },
       { name: 'campo_formacion', label: 'Campo de formación', type: 'texto' },
       { name: 'afiliacion', label: 'Afiliación', type: 'enum', options: ['UDENAR', 'EXTERNO'], required: true },
-      { name: 'componentes', label: 'Componentes de formación que apoya', type: 'texto', multilinea: true },
-      { name: 'cursos_participa', label: 'Cursos en los que participa', type: 'texto', multilinea: true },
       { name: 'enlace_perfil', label: 'Enlace a perfil', type: 'texto' },
+    ],
+    // Cursos y componentes salen de las asignaciones del docente (curso_docentes).
+    calculados: [
+      {
+        name: 'cursos_asignados',
+        label: 'Cursos en los que participa',
+        sql: `(SELECT string_agg(DISTINCT cl.nombre, ', ' ORDER BY cl.nombre)
+               FROM curso_docentes cd JOIN cursos o ON o.id_curso = cd.id_curso JOIN clases cl ON cl.id_clase = o.id_clase
+               WHERE cd.id_docente = t.id_docente)`,
+      },
+      {
+        name: 'componentes_apoya',
+        label: 'Componentes de formación que apoya',
+        sql: `(SELECT string_agg(DISTINCT m.nombre, ', ' ORDER BY m.nombre)
+               FROM curso_docentes cd JOIN cursos o ON o.id_curso = cd.id_curso
+               JOIN cursos_catalogo k ON k.id_catalogo = o.id_catalogo JOIN modulos_curriculares m ON m.id_modulo = k.id_modulo
+               WHERE cd.id_docente = t.id_docente)`,
+      },
     ],
   },
   {
@@ -274,8 +296,9 @@ const metadatos = (rol) =>
     requisito: r.requisito,
     llave: r.llave,
     editable: r.rolesEscritura.includes(rol),
-    campos: r.campos,
+    campos: [...r.campos, ...(r.calculados ?? []).map(({ name, label }) => ({ name, label, type: 'texto', calculado: true }))],
     categoria: r.categoria,
+    nota: r.nota,
   }));
 
 module.exports = { RECURSOS, porId, metadatos };

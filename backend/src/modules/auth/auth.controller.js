@@ -18,4 +18,9 @@ const cambiarPassword = asyncHandler(async (req, res) => {
   success(res, await service.cambiarPassword(requestContext(req)));
 });
 
-module.exports = { login, me, cambiarPassword };
+// PUT /api/v1/auth/me
+const actualizarCuenta = asyncHandler(async (req, res) => {
+  success(res, await service.actualizarCuenta(requestContext(req)));
+});
+
+module.exports = { login, me, cambiarPassword, actualizarCuenta };

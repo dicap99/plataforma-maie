@@ -12,6 +12,10 @@ const unicos = (lista = []) => [...new Set(lista)];
 const validarRol = async (ids, rol, etiqueta) => {
   const invalidos = await repository.noSonDelRol(ids, rol);
   if (invalidos.length) throw ApiError.badRequest(`Hay usuarios que no tienen rol ${etiqueta}`, { ids: invalidos });
+  if (rol === ROLES.DOCENTE) {
+    const sinPerfil = await repository.sinPerfilDocente(ids);
+    if (sinPerfil.length) throw ApiError.badRequest('Hay docentes sin perfil docente vinculado', { ids: sinPerfil });
+  }
 };
 
 const detalle = async (id) => ({ ...(await repository.get(id)), estudiantes: await repository.estudiantes(id) });

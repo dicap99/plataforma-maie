@@ -27,11 +27,12 @@ describe('Reflejo de Gestión académica en Información académica', () => {
     expect(filas[1]).toMatchObject({ id_cohorte: 2, cohorte: 'II', becas_sintraunicol: 1, asistentes_investigacion: 0, origen: 'gestion' });
   });
 
-  it('los semestres de una promoción con clases ofertadas salen de las ofertas', () => {
+  it('cada semestre con clases ofertadas sale de las ofertas; los demás conservan la hoja', () => {
     const filas = combinarSemestres(
       [
         { id_cohorte: 1, semestre: 1, n_cursos: 3, docentes_udenar: 2, docentes_externos: 1 },
         { id_cohorte: 2, semestre: 1, n_cursos: 5, docentes_udenar: 5, docentes_externos: 0 },
+        { id_cohorte: 2, semestre: 2, n_cursos: 4, docentes_udenar: 2, docentes_externos: 2 },
       ],
       [{ id_cohorte: 2, semestre: 1, n_cursos: 3, docentes_udenar: 1, docentes_externos: 2 }],
       hojaCohortes,
@@ -39,6 +40,7 @@ describe('Reflejo de Gestión académica en Información académica', () => {
     expect(filas).toEqual([
       expect.objectContaining({ id_cohorte: 1, n_cursos: 3, origen: 'registro' }),
       expect.objectContaining({ id_cohorte: 2, n_cursos: 3, docentes_externos: 2, cohorte: 'II', origen: 'gestion' }),
+      expect.objectContaining({ id_cohorte: 2, semestre: 2, n_cursos: 4, origen: 'registro' }),
     ]);
   });
 });

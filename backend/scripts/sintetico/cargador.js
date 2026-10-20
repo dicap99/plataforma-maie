@@ -9,6 +9,7 @@ const { DOMINIO, PREFIJO_COHORTE } = require('./generador');
 const PASSWORD_POR_DEFECTO = 'MaIE-Sintetico-2026';
 
 const mapa = (filas, clave, valor) => new Map(filas.map((f) => [f[clave], f[valor]]));
+const m1Perfiles = (datos) => datos.modulo1?.perfiles ?? [];
 
 const limpiar = async (cliente) => {
   const correo = `%@${DOMINIO}`;
@@ -84,9 +85,23 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
     );
     cursos.set(c.clave, rows[0].id_curso);
   }
+  // curso_docentes guarda el perfil docente: cada docente sintético tiene uno (el de modulo1 lo completa).
+  const perfil = new Map((m1Perfiles(datos)).map((p) => [p.email, p]));
+  await cliente.query(
+    `INSERT INTO docentes_perfil (id_usuario, nombre_completo, afiliacion)
+     SELECT u.id_usuario, x.nombre, x.afiliacion::tipo_afiliacion
+     FROM unnest($1::varchar[], $2::varchar[], $3::text[]) AS x(email, nombre, afiliacion)
+     JOIN usuarios u ON u.email = x.email
+     ON CONFLICT (nombre_completo) DO NOTHING`,
+    [datos.docentes.map((d) => d.email),
+      datos.docentes.map((d) => perfil.get(d.email)?.nombre_completo ?? `${d.nombres} ${d.apellidos}`),
+      datos.docentes.map((d) => perfil.get(d.email)?.afiliacion ?? 'UDENAR')],
+  );
   const docentesCurso = datos.cursos.flatMap((c) => c.docentes.map((d) => [cursos.get(c.clave), usuarios.get(d)]));
   await cliente.query(
-    'INSERT INTO curso_docentes (id_curso, id_docente) SELECT * FROM unnest($1::int[], $2::uuid[])',
+    `INSERT INTO curso_docentes (id_curso, id_docente)
+     SELECT x.curso, d.id_docente FROM unnest($1::int[], $2::uuid[]) AS x(curso, usuario)
+     JOIN docentes_perfil d ON d.id_usuario = x.usuario`,
     [docentesCurso.map((x) => x[0]), docentesCurso.map((x) => x[1])],
   );
   await cliente.query(
@@ -121,7 +136,8 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
     await cliente.query(
       `INSERT INTO docentes_perfil (id_usuario, nombre_completo, formacion_profesional, campo_formacion, afiliacion)
        SELECT a, b, c, d, e::tipo_afiliacion FROM unnest($1::uuid[], $2::varchar[], $3::text[], $4::varchar[], $5::text[]) AS x(a, b, c, d, e)
-       ON CONFLICT (nombre_completo) DO NOTHING`,
+       ON CONFLICT (nombre_completo) DO UPDATE SET formacion_profesional = EXCLUDED.formacion_profesional,
+         campo_formacion = EXCLUDED.campo_formacion, afiliacion = EXCLUDED.afiliacion`,
       [m1.perfiles.map((p) => usuarios.get(p.email)), ...['nombre_completo', 'formacion_profesional', 'campo_formacion', 'afiliacion']
         .map((k) => m1.perfiles.map((p) => p[k]))],
     );

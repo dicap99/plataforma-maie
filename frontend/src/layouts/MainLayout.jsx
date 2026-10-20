@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import * as authApi from '../api/authApi'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ETIQUETA_ROL, MENU_POR_ROL } from '../routes/navigation'
 import { periodoAcademico } from '../utils/periodo'
@@ -24,6 +25,17 @@ export default function MainLayout() {
 
   // Al cambiar de ruta el menú móvil se cierra solo.
   useEffect(() => setMenuAbierto(false), [pathname])
+
+  // Cuentas con credenciales temporales: aviso hasta que el usuario cambie su contraseña.
+  // «Mi perfil» emite `maie:cuenta-actualizada` al guardar para volver a consultar.
+  const [temporal, setTemporal] = useState(false)
+  useEffect(() => {
+    if (!usuario) return undefined
+    const consultar = () => authApi.me().then(({ data }) => setTemporal(Boolean(data.debe_cambiar_password))).catch(() => {})
+    consultar()
+    window.addEventListener('maie:cuenta-actualizada', consultar)
+    return () => window.removeEventListener('maie:cuenta-actualizada', consultar)
+  }, [usuario])
 
   const claseEnlace = ({ isActive }) =>
     `flex items-center gap-space-sm px-space-sm py-2 rounded-xl transition-colors ${
@@ -161,6 +173,15 @@ export default function MainLayout() {
         </header>
 
         <main className="min-h-screen w-full bg-background px-space-md py-space-lg pt-[calc(4rem+1rem)] md:px-space-lg md:pt-[calc(4rem+1.5rem)]">
+          {temporal && (
+            <div role="alert" className="mb-space-md flex flex-wrap items-center gap-space-sm rounded-xl border border-amber-300 bg-amber-50 px-space-md py-space-sm text-body-sm text-amber-900">
+              <Icono nombre="key" className="text-[20px]" />
+              <span>Su cuenta tiene una identificación, un correo y una contraseña temporales. Cámbielos para seguir usando la plataforma con sus datos.</span>
+              {usuario?.rol === 'docente' && pathname !== '/docente/perfil' && (
+                <Link to="/docente/perfil" className="font-semibold underline">Ir a Mi perfil</Link>
+              )}
+            </div>
+          )}
           <Outlet />
         </main>
       </div>
