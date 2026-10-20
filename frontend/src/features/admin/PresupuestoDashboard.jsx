@@ -225,7 +225,7 @@ export default function PresupuestoDashboard() {
       {vista === 'graficas' ? (
         <div>
           {activo === 'ejecucion' && (
-            <PanelEjecucion resumen={resumen.data} filasPresupuesto={filas.presupuesto} parametros={filas.parametros} cohortes={enRango} onFiltrar={filtrar} />
+            <PanelEjecucion resumen={resumen.data} parametros={filas.parametros} cohortes={enRango} onFiltrar={filtrar} />
           )}
           {activo === 'sostenibilidad' && (
             <PanelSostenibilidad equilibrio={filas['punto-equilibrio']} pregrado={filas.pregrado} resumen={resumen.data} cohortes={enRango} onFiltrar={filtrar} />
