@@ -65,24 +65,18 @@ export function PanelEjecucion({ resumen, parametros = [], cohortes, onFiltrar }
 export function PanelSostenibilidad({ equilibrio, pregrado, resumen, cohortes, onFiltrar }) {
   const recaudado = new Map(ultimosCortes(resumen, cohortes).map((f) => [f.id_cohorte, f.ingresos]))
   const filasPregrado = porCohorte(pregrado, cohortes)
-  const aporte = new Map()
-  for (const f of filasPregrado) aporte.set(f.id_cohorte, (aporte.get(f.id_cohorte) ?? 0) + (f.ingreso ?? 0))
   const datos = porCohorte(equilibrio, cohortes).map((f) => {
-    const ingresosPregrado = aporte.get(f.id_cohorte) ?? null
     const ingresos = recaudado.get(f.id_cohorte) ?? null
     return {
       ...f,
       matriculados: cohortes.find((c) => c.id_cohorte === f.id_cohorte)?.matriculados ?? null,
       ingresos,
       pct_recaudo: razon(ingresos, f.ingresos_proyectados),
-      ingreso_pregrado: ingresosPregrado,
-      pct_aporte: razon(ingresosPregrado, f.ingresos_proyectados),
     }
   })
   if (!datos.length && !filasPregrado.length) return <SinDatos />
 
   const conRecaudo = datos.filter((f) => f.ingresos !== null)
-  const conPregrado = datos.filter((f) => f.ingreso_pregrado !== null)
   const periodos = [...new Set(filasPregrado.map((f) => f.periodo))].sort().map((p) => {
     const del = filasPregrado.filter((f) => f.periodo === p)
     return { periodo: p, estudiantes: suma(del.map((f) => f.estudiantes)), inscripciones: suma(del.map((f) => f.inscripciones)), ingreso: suma(del.map((f) => f.ingreso)) }
@@ -124,14 +118,6 @@ export function PanelSostenibilidad({ equilibrio, pregrado, resumen, cohortes, o
           ) : <SinDatos texto="No hay estudiantes de pregrado registrados." />}
         </ChartCard>
       </RejillaGraficas>
-
-      <ChartCard titulo="Ingresos proyectados y aporte del pregrado" subtitulo="Inscripciones de pregrado en cursos de la maestría; la tabla muestra el % de la viabilidad"
-        tabla={tablaDe(datos, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'ingresos_proyectados', titulo: 'Proyectados', formato: pesos }, { clave: 'ingreso_pregrado', titulo: 'Aporte del pregrado', formato: pesos }, { clave: 'pct_aporte', titulo: '% de la viabilidad', formato: porcentaje }])}>
-        {conPregrado.length ? (
-          <GraficoBarras datos={datos} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={(f) => onFiltrar(porPromocion('pregrado')(f))}
-            series={[{ clave: 'ingresos_proyectados', nombre: 'Ingresos proyectados', color: SERIES[2] }, { clave: 'ingreso_pregrado', nombre: 'Aporte del pregrado', color: SERIES[4] }]} />
-        ) : <SinDatos texto="No hay ingresos de pregrado para estas promociones." />}
-      </ChartCard>
     </div>
   )
 }
