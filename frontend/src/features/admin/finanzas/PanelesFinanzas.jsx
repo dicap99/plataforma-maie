@@ -166,12 +166,15 @@ export function PanelSostenibilidad({ equilibrio, pregrado, resumen, cohortes, o
               series={[{ clave: 'ingresos_proyectados', nombre: 'Ingresos proyectados', color: SERIES[2] }, { clave: 'ingresos', nombre: 'Ingresos recaudados', color: SERIES[0] }]} />
           ) : <SinDatos texto="No hay cortes de presupuesto para comparar con la proyección." />}
         </ChartCard>
-        <ChartCard titulo="Ingresos proyectados y aporte del pregrado" subtitulo="Inscripciones de pregrado en cursos de la maestría; la tabla muestra el % de la viabilidad"
-          tabla={tablaDe(datos, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'ingresos_proyectados', titulo: 'Proyectados', formato: pesos }, { clave: 'ingreso_pregrado', titulo: 'Aporte del pregrado', formato: pesos }, { clave: 'pct_aporte', titulo: '% de la viabilidad', formato: porcentaje }])}>
-          {conPregrado.length ? (
-            <GraficoBarras datos={datos} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={(f) => onFiltrar(porPromocion('pregrado')(f))}
-              series={[{ clave: 'ingresos_proyectados', nombre: 'Ingresos proyectados', color: SERIES[2] }, { clave: 'ingreso_pregrado', nombre: 'Aporte del pregrado', color: SERIES[4] }]} />
-          ) : <SinDatos texto="No hay ingresos de pregrado para estas promociones." />}
+      </RejillaGraficas>
+
+      <RejillaGraficas>
+        <ChartCard titulo="Ingresos aportados por pregrado por periodo" subtitulo="Aporte financiero directo del pregrado a la operación del posgrado"
+          tabla={tablaDe(periodos, [{ clave: 'periodo', titulo: 'Periodo' }, { clave: 'ingreso', titulo: 'Ingreso', formato: pesos }])}>
+          {periodos.length ? (
+            <GraficoLineas datos={periodos} ejeX="periodo" formato={pesos} formatoEje={ejePesos}
+              series={[{ clave: 'ingreso', nombre: 'Ingreso del pregrado', color: SERIES[4] }]} />
+          ) : <SinDatos texto="No hay ingresos de pregrado registrados." />}
         </ChartCard>
         <ChartCard titulo="Matrículas de pregrado por periodo" subtitulo="Estudiantes e inscripciones; la tabla incluye el ingreso"
           tabla={tablaDe(periodos, [{ clave: 'periodo', titulo: 'Periodo' }, { clave: 'estudiantes', titulo: 'Estudiantes', formato: numero }, { clave: 'inscripciones', titulo: 'Inscripciones', formato: numero }, { clave: 'ingreso', titulo: 'Ingreso', formato: pesos }])}>
@@ -181,6 +184,14 @@ export function PanelSostenibilidad({ equilibrio, pregrado, resumen, cohortes, o
           ) : <SinDatos texto="No hay estudiantes de pregrado registrados." />}
         </ChartCard>
       </RejillaGraficas>
+
+      <ChartCard titulo="Ingresos proyectados y aporte del pregrado" subtitulo="Inscripciones de pregrado en cursos de la maestría; la tabla muestra el % de la viabilidad"
+        tabla={tablaDe(datos, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'ingresos_proyectados', titulo: 'Proyectados', formato: pesos }, { clave: 'ingreso_pregrado', titulo: 'Aporte del pregrado', formato: pesos }, { clave: 'pct_aporte', titulo: '% de la viabilidad', formato: porcentaje }])}>
+        {conPregrado.length ? (
+          <GraficoBarras datos={datos} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={(f) => onFiltrar(porPromocion('pregrado')(f))}
+            series={[{ clave: 'ingresos_proyectados', nombre: 'Ingresos proyectados', color: SERIES[2] }, { clave: 'ingreso_pregrado', nombre: 'Aporte del pregrado', color: SERIES[4] }]} />
+        ) : <SinDatos texto="No hay ingresos de pregrado para estas promociones." />}
+      </ChartCard>
     </div>
   )
 }
@@ -207,6 +218,19 @@ export function PanelOperacion({ transferencias, contrataciones, totalProyectado
 
   return (
     <div className="flex flex-col gap-space-lg">
+      <RejillaGraficas>
+        <ChartCard titulo="Gasto operativo por periodo" subtitulo="Transferencias a la Vicerrectoría Académica y contratos OPS · clic para ver las transferencias"
+          tabla={tablaDe(datos, [{ clave: 'periodo', titulo: 'Periodo' }, { clave: 'valor_transferencias', titulo: 'Transferencias', formato: pesos }, { clave: 'valor_ops', titulo: 'Contratos OPS', formato: pesos }])}>
+          <GraficoBarras datos={datos} ejeX="periodo" apilado formato={pesos} formatoEje={ejePesos} onSeleccionar={(f) => onFiltrar(porPeriodoEn('transferencias')(f))}
+            series={[{ clave: 'valor_transferencias', nombre: 'Transferencias ViceAcad', color: SERIES[0] }, { clave: 'valor_ops', nombre: 'Contratos OPS', color: SERIES[1] }]} />
+        </ChartCard>
+        <ChartCard titulo="Personal vinculado por periodo" subtitulo="Docentes pagados por transferencia a la Vicerrectoría Académica y contratos OPS"
+          tabla={tablaDe(datos, [{ clave: 'periodo', titulo: 'Periodo' }, { clave: 'n_docentes', titulo: 'Docentes ViceAcad', formato: numero }, { clave: 'n_ops', titulo: 'Contratos OPS', formato: numero }])}>
+          <GraficoBarras datos={datos} ejeX="periodo" formato={numero} onSeleccionar={(f) => onFiltrar(porPeriodoEn('contrataciones')(f))}
+            series={[{ clave: 'n_docentes', nombre: 'Docentes ViceAcad', color: SERIES[0] }, { clave: 'n_ops', nombre: 'Contratos OPS', color: SERIES[1] }]} />
+        </ChartCard>
+      </RejillaGraficas>
+
       <RejillaGraficas>
         <ChartCard titulo="Transferencias a la Vicerrectoría Académica" subtitulo="Valor transferido por periodo; la tabla incluye los docentes"
           tabla={tablaDe(datos, [{ clave: 'periodo', titulo: 'Periodo' }, { clave: 'n_docentes', titulo: 'Docentes', formato: numero }, { clave: 'valor_transferencias', titulo: 'Valor', formato: pesos }])}>
