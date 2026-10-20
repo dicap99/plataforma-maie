@@ -15,6 +15,7 @@ const ROMANOS = ['I', 'II', 'III', 'IV']
 // `parametros`: filas de Parámetros del programa (solo Coordinación); de ellas salen los créditos por semestre.
 export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos = [], cohortes = [], parametros = [], onFiltrar }) {
   const [idCohorte, setIdCohorte] = useState('')
+  const [idCreditos, setIdCreditos] = useState('')
 
   if (!filasDocentes.length && !filasCursos.length) {
     return <SinDatos texto="No hay datos de docentes u oferta registrados en este rango." />
@@ -62,6 +63,16 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
     creditos: parametros.find((p) => p.clave === `creditos_semestre_${s}`)?.valor ?? null,
   }))
   const hayCreditos = creditos.some((c) => c.creditos !== null)
+
+  // Créditos de una promoción con la regla de la fila «Número de créditos» del libro, aplicada a sus cursos:
+  // 4 créditos por curso en los semestres I a III y, en el IV, la mitad de 4 y la mitad de 8 (6 en promedio).
+  // Por defecto, la promoción más reciente con los cuatro semestres registrados.
+  const completas = promociones.filter((c) => datosCursos.some((f) => f.id_cohorte === c.id_cohorte && f.semestre === 4))
+  const promocionCreditos = promociones.find((c) => String(c.id_cohorte) === idCreditos) ?? completas.at(-1) ?? promociones.at(-1)
+  const creditosPromocion = [1, 2, 3, 4].map((s) => {
+    const cursos = datosCursos.find((f) => f.id_cohorte === promocionCreditos?.id_cohorte && f.semestre === s)?.n_cursos ?? null
+    return { semestre: `Semestre ${ROMANOS[s - 1]}`, cursos, creditos: cursos === null ? null : cursos * (s === 4 ? 6 : 4) }
+  })
 
 
   return (
@@ -177,22 +188,52 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
         </ChartCard>
       </RejillaGraficas>
 
-      {hayCreditos && (
-        <ChartCard
-          titulo="Créditos promedio por semestre"
-          subtitulo={`${numero(suma(creditos.map((c) => c.creditos)))} créditos según Parámetros del programa (fila «Número de créditos» de la hoja «Cursos y Docentes»)`}
-          tabla={{
-            columnas: [
-              { clave: 'semestre', titulo: 'Semestre' },
-              { clave: 'creditos', titulo: 'Créditos', formato: numero },
-            ],
-            filas: creditos,
-          }}
-          altura="h-56"
-        >
-          <GraficoBarras datos={creditos} ejeX="semestre" series={[{ clave: 'creditos', nombre: 'Créditos', color: SERIES[6] }]} formato={numero} />
-        </ChartCard>
-      )}
+      <RejillaGraficas>
+        {promocionCreditos && (
+          <ChartCard
+            titulo="Créditos por promoción"
+            subtitulo={`Promoción ${promocionCreditos.nombre}: ${numero(suma(creditosPromocion.map((c) => c.creditos)))} créditos · 4 por curso en los semestres I a III y 6 en el IV, como en el libro`}
+            acciones={(
+              <select
+                aria-label="Promoción"
+                value={promocionCreditos.id_cohorte}
+                onChange={(e) => setIdCreditos(e.target.value)}
+                className="rounded-lg px-2 py-1 text-label-sm border border-slate-300 bg-white"
+              >
+                {promociones.map((c) => (
+                  <option key={c.id_cohorte} value={c.id_cohorte}>Promoción {c.nombre}</option>
+                ))}
+              </select>
+            )}
+            tabla={{
+              columnas: [
+                { clave: 'semestre', titulo: 'Semestre' },
+                { clave: 'cursos', titulo: 'Cursos', formato: numero },
+                { clave: 'creditos', titulo: 'Créditos', formato: numero },
+              ],
+              filas: creditosPromocion,
+            }}
+          >
+            <GraficoBarras datos={creditosPromocion} ejeX="semestre" series={[{ clave: 'creditos', nombre: 'Créditos', color: SERIES[4] }]} formato={numero} />
+          </ChartCard>
+        )}
+
+        {hayCreditos && (
+          <ChartCard
+            titulo="Créditos promedio por semestre"
+            subtitulo={`${numero(suma(creditos.map((c) => c.creditos)))} créditos según Parámetros del programa (fila «Número de créditos» de la hoja «Cursos y Docentes»)`}
+            tabla={{
+              columnas: [
+                { clave: 'semestre', titulo: 'Semestre' },
+                { clave: 'creditos', titulo: 'Créditos', formato: numero },
+              ],
+              filas: creditos,
+            }}
+          >
+            <GraficoBarras datos={creditos} ejeX="semestre" series={[{ clave: 'creditos', nombre: 'Créditos', color: SERIES[6] }]} formato={numero} />
+          </ChartCard>
+        )}
+      </RejillaGraficas>
     </div>
   )
 }
