@@ -16,9 +16,16 @@ const BECAS = [
   { valor: 'hora_catedra', etiqueta: 'Beca hora cátedra' },
   { valor: 'sintraunicol', etiqueta: 'Beca SINTRAUNICOL' },
 ]
+// Beneficios que se suman a la beca en un semestre (backend/src/utils/beneficios.js).
+const AYUDAS = [
+  { valor: 'asistente_investigacion', etiqueta: 'Asistente de investigación' },
+  { valor: 'ayudante_docencia', etiqueta: 'Ayudante de docencia' },
+]
+const SEMESTRES = [1, 2, 3, 4]
+const ROMANOS = ['I', 'II', 'III', 'IV']
 const VACIO = {
   identificacion: '', nombres: '', apellidos: '', email: '', rol: 'docente', activo: true, password: '',
-  id_docente: '', afiliacion: '', campos_formacion: [], id_cohorte: '', beca: '',
+  id_docente: '', afiliacion: '', campos_formacion: [], id_cohorte: '', beca: '', beneficios: [],
 }
 const separarCampos = (texto) => String(texto ?? '').split(/\n|,|\s-\s|\+/).map((c) => c.replace(/^[-•\s]+/, '').trim()).filter(Boolean)
 const etiquetaBeca = (b) => BECAS.find((x) => x.valor === b)?.etiqueta ?? '—'
@@ -41,7 +48,7 @@ function CursosDeDocente({ usuario, onClose }) {
 }
 
 // Usuarios y roles (RNF-SEG-01), pestaña de Gestión académica. Lo propio de cada rol se registra aquí:
-// el estudiante con su promoción y beca, y el docente con su afiliación y campos de formación (perfil
+// el estudiante con su promoción y sus beneficios por semestre, y el docente con su afiliación y campos de formación (perfil
 // de la hoja «Docentes», RF-ADM-06). Información académica refleja estos datos.
 export default function UsuariosPage({ embebido = false }) {
   const { usuario: sesion } = useAuth()
@@ -66,14 +73,19 @@ export default function UsuariosPage({ embebido = false }) {
   }
   const editar = (u) => setEditando({
     ...u, password: '', id_docente: u.id_docente ?? '', afiliacion: u.afiliacion ?? '', campos_formacion: separarCampos(u.campo_formacion),
-    id_cohorte: u.id_cohorte ? String(u.id_cohorte) : '', beca: u.beca ?? '',
+    id_cohorte: u.id_cohorte ? String(u.id_cohorte) : '', beca: u.beca ?? '', beneficios: u.beneficios ?? [],
   })
 
   const q = busqueda.trim().toLowerCase()
   const visibles = (usuarios.data ?? []).filter((u) => (!rol || u.rol === rol)
     && (!q || `${u.nombres} ${u.apellidos} ${u.email} ${u.identificacion}`.toLowerCase().includes(q)))
   const detalleRol = (u) => {
-    if (u.rol === 'estudiante') return u.cohorte ? `Promoción ${u.cohorte}${u.beca ? ` · ${etiquetaBeca(u.beca)}` : ''}` : 'Sin promoción'
+    if (u.rol === 'estudiante') {
+      if (!u.cohorte) return 'Sin promoción'
+      const semestres = new Set((u.beneficios ?? []).map((b) => b.semestre)).size
+      return [`Promoción ${u.cohorte}`, u.beca && etiquetaBeca(u.beca), semestres && `beneficios en ${semestres} semestre(s)`]
+        .filter(Boolean).join(' · ')
+    }
     if (u.rol === 'docente') {
       if (!u.id_docente) return 'Sin perfil docente'
       return [u.afiliacion === 'EXTERNO' ? 'Externo' : 'UDENAR', separarCampos(u.campo_formacion).join(', ')].filter(Boolean).join(' · ')
@@ -157,10 +169,49 @@ export default function UsuariosPage({ embebido = false }) {
   )
 }
 
+// Beneficios del estudiante en cada semestre de su promoción: una beca (o ninguna) más asistencias y ayudantías.
+function BeneficiosPorSemestre({ beneficios, onChange, deshabilitado }) {
+  const tiene = (s, tipo) => beneficios.some((b) => b.semestre === s && b.tipo === tipo)
+  const sinSemestre = (s, tipos) => beneficios.filter((b) => b.semestre !== s || !tipos.includes(b.tipo))
+  const cambiarBeca = (s, tipo) => onChange([...sinSemestre(s, BECAS.map((b) => b.valor)), ...(tipo ? [{ semestre: s, tipo }] : [])])
+  const alternar = (s, tipo) => onChange(tiene(s, tipo) ? sinSemestre(s, [tipo]) : [...beneficios, { semestre: s, tipo }])
+  return (
+    <div className="tabla-scroll">
+      <table className="tabla-compacta">
+        <thead>
+          <tr><th>Semestre</th><th>Beca</th>{AYUDAS.map((a) => <th key={a.valor}>{a.etiqueta}</th>)}</tr>
+        </thead>
+        <tbody>
+          {SEMESTRES.map((s) => (
+            <tr key={s}>
+              <td className="nowrap">Semestre {ROMANOS[s - 1]}</td>
+              <td>
+                <select aria-label={`Beca del semestre ${ROMANOS[s - 1]}`} disabled={deshabilitado}
+                  value={BECAS.find((b) => tiene(s, b.valor))?.valor ?? ''} onChange={(e) => cambiarBeca(s, e.target.value)}>
+                  <option value="">Sin beca</option>
+                  {BECAS.map((b) => <option key={b.valor} value={b.valor}>{b.etiqueta}</option>)}
+                </select>
+              </td>
+              {AYUDAS.map((a) => (
+                <td key={a.valor} className="text-center">
+                  <input type="checkbox" aria-label={`${a.etiqueta}, semestre ${ROMANOS[s - 1]}`} disabled={deshabilitado}
+                    checked={tiene(s, a.valor)} onChange={() => alternar(s, a.valor)} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGuardado }) {
   const nuevo = !inicial.id_usuario
   const [v, setV] = useState(inicial)
-  const [becado, setBecado] = useState(Boolean(inicial.beca))
+  // Los beneficios solo se envían si se editaron: así se conserva la beca registrada sin semestres.
+  const [beneficiosEditados, setBeneficiosEditados] = useState(false)
+  const becaSinSemestres = inicial.beca && !(inicial.beneficios ?? []).length
   const [errores, setErrores] = useState([])
   const [guardando, setGuardando] = useState(false)
   const campo = (nombre) => ({ id: `u-${nombre}`, value: v[nombre] ?? '', onChange: (e) => setV({ ...v, [nombre]: e.target.value }) })
@@ -182,7 +233,10 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
       rol: v.rol, activo: v.activo, password: v.password || undefined,
       id_docente: esDocente ? v.id_docente || null : null,
       ...(esDocente ? { afiliacion: v.afiliacion || null, campos_formacion: v.campos_formacion } : {}),
-      ...(esEstudiante ? { id_cohorte: v.id_cohorte ? Number(v.id_cohorte) : null, beca: becado ? v.beca || null : null } : {}),
+      ...(esEstudiante ? {
+        id_cohorte: v.id_cohorte ? Number(v.id_cohorte) : null,
+        ...(beneficiosEditados && v.id_cohorte ? { beneficios: v.beneficios } : { beca: v.id_cohorte ? v.beca || null : null }),
+      } : {}),
     }
     try {
       await (nuevo ? usuariosApi.crearUsuario(datos) : usuariosApi.actualizarUsuario(inicial.id_usuario, datos))
@@ -222,18 +276,19 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
                   {cohortes.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>Promoción {c.nombre} ({c.periodo_inicio})</option>)}
                 </select>
               </div>
-              <label className="campo-check">
-                <input type="checkbox" checked={becado} disabled={!v.id_cohorte}
-                  onChange={(e) => { setBecado(e.target.checked); if (e.target.checked && !v.beca) setV({ ...v, beca: '100' }) }} />
-                Becado
-              </label>
-              {becado && v.id_cohorte && (
-                <div className="campo">
-                  <label htmlFor="u-beca">Tipo de beca</label>
-                  <select {...campo('beca')}>{BECAS.map((b) => <option key={b.valor} value={b.valor}>{b.etiqueta}</option>)}</select>
-                </div>
+              <span className="font-semibold">Beneficios por semestre de la promoción</span>
+              <BeneficiosPorSemestre
+                beneficios={v.beneficios ?? []}
+                deshabilitado={!v.id_cohorte}
+                onChange={(lista) => { setV({ ...v, beneficios: lista }); setBeneficiosEditados(true) }}
+              />
+              {becaSinSemestres && !beneficiosEditados && (
+                <p className="texto-suave">
+                  Tiene registrada la {etiquetaBeca(inicial.beca).toLowerCase()} para la promoción, sin semestres. Márquela en
+                  los semestres en que la recibió.
+                </p>
               )}
-              {!v.id_cohorte && <p className="texto-suave">Asigne la promoción para registrar la beca.</p>}
+              {!v.id_cohorte && <p className="texto-suave">Asigne la promoción para registrar becas y beneficios.</p>}
             </fieldset>
           )}
 

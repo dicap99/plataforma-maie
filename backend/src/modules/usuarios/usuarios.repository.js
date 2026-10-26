@@ -1,6 +1,6 @@
 // Acceso a datos (PostgreSQL) — RNF-SEG-01 — Gestión de usuarios y roles (RBAC)
 // Tablas: usuarios, docentes_perfil (perfil del docente: afiliación y campos de formación),
-// cohorte_estudiantes (promoción y beca del estudiante)
+// cohorte_estudiantes (promoción y beca del estudiante), estudiante_beneficios (beneficios por semestre)
 const db = require('../../config/db');
 
 // Separador con el que se guardan varios campos de formación en docentes_perfil.campo_formacion.
@@ -9,7 +9,10 @@ const SEPARADOR_CAMPOS = ', ';
 const SELECT = `
   SELECT u.id_usuario, u.identificacion, u.nombres, u.apellidos, u.email, u.rol, u.activo, u.debe_cambiar_password, u.creado_en,
          d.id_docente, d.nombre_completo AS docente_vinculado, d.afiliacion, d.campo_formacion,
-         he.id_cohorte, h.nombre AS cohorte, he.beca, he.estado AS estado_promocion
+         he.id_cohorte, h.nombre AS cohorte, he.beca, he.estado AS estado_promocion,
+         COALESCE((SELECT json_agg(json_build_object('semestre', b.semestre, 'tipo', b.tipo) ORDER BY b.semestre, b.tipo)
+                   FROM estudiante_beneficios b
+                   WHERE b.id_cohorte = he.id_cohorte AND b.id_estudiante = u.id_usuario), '[]') AS beneficios
   FROM usuarios u
   LEFT JOIN docentes_perfil d ON d.id_usuario = u.id_usuario
   LEFT JOIN LATERAL (SELECT x.* FROM cohorte_estudiantes x JOIN cohortes c USING (id_cohorte)
@@ -54,6 +57,18 @@ const asignarPromocion = async (cliente, idUsuario, idCohorte, beca) => {
     `INSERT INTO cohorte_estudiantes (id_cohorte, id_estudiante, beca) VALUES ($1, $2, $3)
      ON CONFLICT (id_cohorte, id_estudiante) DO UPDATE SET beca = EXCLUDED.beca`,
     [idCohorte, idUsuario, beca ?? null],
+  );
+};
+
+// Beneficios del estudiante en cada semestre de su promoción: quedan exactamente los indicados.
+const reemplazarBeneficios = async (cliente, idUsuario, idCohorte, beneficios) => {
+  await cliente.query('DELETE FROM estudiante_beneficios WHERE id_estudiante = $1', [idUsuario]);
+  if (!beneficios.length) return;
+  await cliente.query(
+    `INSERT INTO estudiante_beneficios (id_cohorte, id_estudiante, semestre, tipo)
+     SELECT $1, $2, x.semestre, x.tipo FROM unnest($3::smallint[], $4::varchar[]) AS x(semestre, tipo)
+     ON CONFLICT DO NOTHING`,
+    [idCohorte, idUsuario, beneficios.map((b) => b.semestre), beneficios.map((b) => b.tipo)],
   );
 };
 
@@ -106,6 +121,7 @@ module.exports = {
   update,
   vincularDocente,
   asignarPromocion,
+  reemplazarBeneficios,
   quitarPromocion,
   existeCohorte,
   perfilDe,

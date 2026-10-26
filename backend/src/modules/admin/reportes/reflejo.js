@@ -1,10 +1,18 @@
 // Reflejo de Gestión académica en las hojas del Módulo 1 (Información académica y Panel general).
+// La «Producción científica» de una promoción con productos registrados (hoja «Productos de investigación»)
+// también se calcula: un conteo por tipo y la lista de citas.
 // Híbrido: si una promoción tiene registros en Gestión (estudiantes con su promoción y beca; en cursos y
 // docentes, cada semestre con clases ofertadas), sus cifras se calculan desde ahí; si no, se conservan las de la hoja
 // (registro histórico importado del Excel). Cada fila indica su `origen`: 'gestion' o 'registro'.
 const db = require('../../../config/db');
+const { TIPOS_BENEFICIO } = require('../../../utils/beneficios');
+const { TIPOS_PRODUCTO } = require('../recursos/recursos.definicion');
 
-const BECAS = { 100: 'becas_100', hora_catedra: 'becas_hora_catedra', sintraunicol: 'becas_sintraunicol' };
+// Columna de «Producción científica» de cada tipo de producto.
+const COLUMNA_PRODUCTO = { Artículo: 'articulos', Ponencia: 'ponencias', Software: 'software', Prototipo: 'prototipos', Tesis: 'tesis' };
+
+const BECAS = Object.fromEntries(TIPOS_BENEFICIO.filter((t) => t.beca).map((t) => [t.valor, t.columna]));
+const AYUDAS = TIPOS_BENEFICIO.filter((t) => !t.beca).map((t) => t.columna);
 
 // --- Consultas ---------------------------------------------------------------------
 const estudiantesPorCohorte = async () =>
@@ -13,11 +21,26 @@ const estudiantesPorCohorte = async () =>
            COUNT(*)::int AS inscritos,
            COUNT(*) FILTER (WHERE estado <> 'inscrito')::int AS matriculados,
            COUNT(*) FILTER (WHERE estado IN ('egresado', 'graduado'))::int AS egresados,
-           COUNT(*) FILTER (WHERE estado = 'graduado')::int AS graduados,
-           COUNT(*) FILTER (WHERE beca = '100')::int AS becas_100,
-           COUNT(*) FILTER (WHERE beca = 'hora_catedra')::int AS becas_hora_catedra,
-           COUNT(*) FILTER (WHERE beca = 'sintraunicol')::int AS becas_sintraunicol
+           COUNT(*) FILTER (WHERE estado = 'graduado')::int AS graduados
     FROM cohorte_estudiantes
+    GROUP BY id_cohorte`)).rows;
+
+// Estudiantes con cada beneficio en algún semestre. Quien no tiene semestres registrados cuenta con la
+// beca de su promoción (cohorte_estudiantes.beca). `por_semestre`: la promoción ya registra beneficios
+// por semestre, así que asistentes y ayudantes también salen de ahí y no de la hoja.
+const beneficiosPorCohorte = async () =>
+  (await db.query(`
+    WITH b AS (
+      SELECT id_cohorte, id_estudiante, tipo FROM estudiante_beneficios
+      UNION
+      SELECT he.id_cohorte, he.id_estudiante, he.beca FROM cohorte_estudiantes he
+      WHERE he.beca IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM estudiante_beneficios x WHERE x.id_cohorte = he.id_cohorte AND x.id_estudiante = he.id_estudiante)
+    )
+    SELECT id_cohorte,
+           ${TIPOS_BENEFICIO.map((t) => `COUNT(DISTINCT id_estudiante) FILTER (WHERE tipo = '${t.valor}')::int AS ${t.columna}`).join(', ')},
+           EXISTS (SELECT 1 FROM estudiante_beneficios x WHERE x.id_cohorte = b.id_cohorte) AS por_semestre
+    FROM b
     GROUP BY id_cohorte`)).rows;
 
 // Semestre de la promoción en que cae un periodo: 1 en su periodo de inicio, 2 en el siguiente…
@@ -60,23 +83,47 @@ const combinarCohortes = (hoja, estudiantes) => {
   });
 };
 
-// Beneficios: becas por tipo desde los estudiantes; asistentes y ayudantes, de la hoja.
+// Beneficios: becas por tipo desde los estudiantes; asistentes y ayudantes, de la hoja, salvo que la
+// promoción registre beneficios por semestre (`por_semestre`). `reflejados`: columnas calculadas de la fila.
 const combinarBeneficios = (hoja, estudiantes, cohortes) => {
   const est = new Map(estudiantes.map((e) => [e.id_cohorte, e]));
   const nombre = new Map(cohortes.map((c) => [c.id_cohorte, c.nombre]));
+  const calculadas = (e) => [...Object.values(BECAS), ...(e.por_semestre ? AYUDAS : [])];
+  const desde = (e) => Object.fromEntries(calculadas(e).map((k) => [k, e[k] ?? 0]));
   const filas = hoja.map((b) => {
     const e = est.get(b.id_cohorte);
     if (!e) return { ...b, origen: 'registro' };
-    return { ...b, ...Object.fromEntries(Object.values(BECAS).map((k) => [k, e[k]])), origen: 'gestion' };
+    return { ...b, ...desde(e), origen: 'gestion', reflejados: calculadas(e) };
   });
-  // Promociones con estudiantes registrados pero sin fila en la hoja.
+  // Promociones con estudiantes registrados pero sin fila en la hoja (`sin_registro`: al editarla se crea).
   for (const e of estudiantes) {
     if (filas.some((b) => b.id_cohorte === e.id_cohorte) || !nombre.has(e.id_cohorte)) continue;
     filas.push({
       id_cohorte: e.id_cohorte, cohorte: nombre.get(e.id_cohorte),
-      ...Object.fromEntries(Object.values(BECAS).map((k) => [k, e[k]])),
-      asistentes_investigacion: 0, ayudantes_docencia: 0, origen: 'gestion',
+      asistentes_investigacion: 0, ayudantes_docencia: 0, ...desde(e),
+      origen: 'gestion', sin_registro: true, reflejados: calculadas(e),
     });
+  }
+  return filas;
+};
+
+// Producción científica: las promociones con productos registrados cuentan sus productos por tipo y
+// listan las citas en «detalles»; las demás conservan la hoja.
+const combinarProduccion = (hoja, productos, cohortes) => {
+  const columnas = TIPOS_PRODUCTO.map((t) => COLUMNA_PRODUCTO[t]);
+  const porCohorte = new Map();
+  for (const p of productos) porCohorte.set(p.id_cohorte, [...(porCohorte.get(p.id_cohorte) ?? []), p]);
+  const calcular = (lista) => ({
+    ...Object.fromEntries(columnas.map((c) => [c, 0])),
+    ...Object.fromEntries(TIPOS_PRODUCTO.map((t) => [COLUMNA_PRODUCTO[t], lista.filter((p) => p.tipo === t).length])),
+    detalles: lista.map((p) => `• ${p.tipo}: ${p.cita}${p.anio ? ` (${p.anio})` : ''}`).join('\n'),
+    origen: 'gestion',
+  });
+  const nombre = new Map(cohortes.map((c) => [c.id_cohorte, c.nombre]));
+  const filas = hoja.map((f) => (porCohorte.has(f.id_cohorte) ? { ...f, ...calcular(porCohorte.get(f.id_cohorte)) } : { ...f, origen: 'registro' }));
+  for (const [id, lista] of porCohorte) {
+    if (filas.some((f) => f.id_cohorte === id) || !nombre.has(id)) continue;
+    filas.push({ id_cohorte: id, cohorte: nombre.get(id), ...calcular(lista), sin_registro: true });
   }
   return filas;
 };
@@ -95,13 +142,22 @@ const combinarSemestres = (hoja, ofertas, cohortes) => {
 
 // Aplica el reflejo a las hojas ya cargadas: { cohortes, beneficios, 'cohorte-semestres', … }.
 const aplicar = async (datos) => {
-  const [estudiantes, ofertas] = await Promise.all([estudiantesPorCohorte(), ofertasPorCohorte()]);
+  const [conteos, beneficios, ofertas, productos] = await Promise.all([
+    estudiantesPorCohorte(), beneficiosPorCohorte(), ofertasPorCohorte(),
+    db.query('SELECT id_cohorte, tipo, cita, anio FROM productos_investigacion ORDER BY tipo, anio, cita').then((r) => r.rows),
+  ]);
+  const porCohorte = new Map(beneficios.map((b) => [b.id_cohorte, b]));
+  const estudiantes = conteos.map((e) => ({ ...e, ...porCohorte.get(e.id_cohorte) }));
   return {
     ...datos,
     cohortes: combinarCohortes(datos.cohortes, estudiantes),
     beneficios: combinarBeneficios(datos.beneficios, estudiantes, datos.cohortes),
     'cohorte-semestres': combinarSemestres(datos['cohorte-semestres'], ofertas, datos.cohortes),
+    produccion: combinarProduccion(datos.produccion, productos, datos.cohortes),
   };
 };
 
-module.exports = { SEMESTRE_REAL, aplicar, combinarCohortes, combinarBeneficios, combinarSemestres, RECURSOS_REFLEJADOS: ['cohortes', 'beneficios', 'cohorte-semestres'] };
+module.exports = {
+  SEMESTRE_REAL, aplicar, combinarCohortes, combinarBeneficios, combinarSemestres, combinarProduccion,
+  RECURSOS_REFLEJADOS: ['cohortes', 'beneficios', 'cohorte-semestres', 'produccion'],
+};

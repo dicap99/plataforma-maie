@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
+import CsvUploaderModal from './CsvUploaderModal.jsx'
 import { ordenarCohortes } from './academico/estadisticas'
 import PanelPromociones from './academico/PanelPromociones.jsx'
 import PanelCuerpoAcademico from './academico/PanelCuerpoAcademico.jsx'
@@ -43,8 +43,9 @@ const PESTANAS = [
     titulo: 'Investigación y Movilidad',
     icono: 'science',
     subtitulo: 'Producción científica (artículos, software, tesis) y pasantías de investigación',
-    recursos: ['produccion', 'pasantias'],
+    recursos: ['productos', 'produccion', 'pasantias'],
     subrecursos: [
+      { id: 'productos', etiqueta: 'Productos', icono: 'article' },
       { id: 'produccion', etiqueta: 'Producción Científica', icono: 'auto_stories' },
       { id: 'pasantias', etiqueta: 'Pasantías de Investigación', icono: 'flight_takeoff' },
     ],
@@ -55,7 +56,8 @@ export default function DatosProgramaPage() {
   const recursos = useApi(adminApi.listarRecursos)
   const reflejo = useApi(adminApi.reflejoAcademico)
   const docentesApi = useApi(() => adminApi.listar('docentes'))
-  const produccionApi = useApi(() => adminApi.listar('produccion'))
+  // La «Producción científica» viene del reflejo: se calcula con los productos registrados.
+  const productosApi = useApi(() => adminApi.listar('productos'))
   const pasantiasApi = useApi(() => adminApi.listar('pasantias'))
   // Solo Coordinación lee los parámetros; si no hay acceso, la gráfica de créditos no se muestra.
   const parametrosApi = useApi(() => adminApi.listar('parametros'))
@@ -63,17 +65,18 @@ export default function DatosProgramaPage() {
   const [activo, setActivo] = useState('cohortes')
   const [subActivo, setSubActivo] = useState({
     'cuerpo-academico': 'docentes',
-    investigacion: 'produccion',
+    investigacion: 'productos',
   })
   const [vista, setVista] = useState('datos')
   const [rango, setRango] = useState({ desde: '', hasta: '' })
   const [filtro, setFiltro] = useState(null)
+  const [importando, setImportando] = useState(false)
 
   const cargando =
     (recursos.cargando && !recursos.data) ||
     (reflejo.cargando && !reflejo.data) ||
     (docentesApi.cargando && !docentesApi.data) ||
-    (produccionApi.cargando && !produccionApi.data) ||
+    (productosApi.cargando && !productosApi.data) ||
     (pasantiasApi.cargando && !pasantiasApi.data)
 
   if (cargando) return <Cargando texto="Cargando información académica del programa…" />
@@ -82,23 +85,19 @@ export default function DatosProgramaPage() {
     recursos.error ||
     reflejo.error ||
     docentesApi.error ||
-    produccionApi.error ||
+    productosApi.error ||
     pasantiasApi.error
 
-  if (error) {
-    return (
-      <ErrorApi
-        error={error}
-        onReintentar={() => {
-          recursos.recargar()
-          reflejo.recargar()
-          docentesApi.recargar()
-          produccionApi.recargar()
-          pasantiasApi.recargar()
-        }}
-      />
-    )
+  // Tras editar o importar se recargan las hojas: las gráficas se actualizan al momento.
+  const recargarTodo = () => {
+    recursos.recargar()
+    reflejo.recargar()
+    docentesApi.recargar()
+    productosApi.recargar()
+    pasantiasApi.recargar()
   }
+
+  if (error) return <ErrorApi error={error} onReintentar={recargarTodo} />
 
   const listaRecursos = recursos.data || []
   const puedeEditar = listaRecursos.some((r) => r.editable)
@@ -149,8 +148,10 @@ export default function DatosProgramaPage() {
         return (docentesApi.data ?? []).length
       case 'beneficios':
         return (reflejo.data?.beneficios ?? []).length
+      case 'productos':
+        return (productosApi.data ?? []).length
       case 'produccion':
-        return (produccionApi.data ?? []).length
+        return (reflejo.data?.produccion ?? []).length
       case 'pasantias':
         return (pasantiasApi.data ?? []).length
       default:
@@ -164,7 +165,8 @@ export default function DatosProgramaPage() {
     if (recursoActivoId === 'cohorte-semestres') return reflejo.data?.['cohorte-semestres']
     if (recursoActivoId === 'beneficios') return reflejo.data?.beneficios
     if (recursoActivoId === 'docentes') return docentesApi.data
-    if (recursoActivoId === 'produccion') return produccionApi.data
+    if (recursoActivoId === 'productos') return productosApi.data
+    if (recursoActivoId === 'produccion') return reflejo.data?.produccion
     if (recursoActivoId === 'pasantias') return pasantiasApi.data
     return undefined
   })()
@@ -187,15 +189,14 @@ export default function DatosProgramaPage() {
           </p>
         </div>
         {puedeEditar && (
-          <div className="flex items-center space-x-3">
-            <Link
-              to="/coordinacion/gestion?pestana=datos"
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 hover:border-violet-400 hover:text-violet-700 rounded-lg shadow-sm text-xs font-semibold transition-all group no-underline"
-            >
-              <Icono nombre="edit_square" className="text-violet-500 group-hover:scale-110 transition-transform text-[16px]" />
-              <span>Editar en Gestión académica</span>
-            </Link>
-          </div>
+          <button
+            type="button"
+            onClick={() => setImportando(true)}
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 hover:border-violet-400 hover:text-violet-700 rounded-lg shadow-sm text-xs font-semibold transition-all group cursor-pointer"
+          >
+            <Icono nombre="upload_file" className="text-violet-500 group-hover:scale-110 transition-transform text-[16px]" />
+            <span>Importar Excel</span>
+          </button>
         )}
       </div>
 
@@ -392,7 +393,7 @@ export default function DatosProgramaPage() {
 
           {activo === 'investigacion' && (
             <PanelInvestigacionMovilidad
-              filasProduccion={produccionApi.data ?? []}
+              filasProduccion={reflejo.data?.produccion ?? []}
               filasPasantias={pasantiasApi.data ?? []}
               cohortes={enRango}
               onFiltrar={(f) => {
@@ -409,8 +410,16 @@ export default function DatosProgramaPage() {
           cohortes={cohortesReflejadas}
           filtro={filtro}
           onQuitarFiltro={() => setFiltro(null)}
-          soloLectura
+          onCambio={recargarTodo}
           filasExternas={filasExternas}
+        />
+      )}
+
+      {importando && (
+        <CsvUploaderModal
+          recursos={listaRecursos.filter((r) => r.id !== 'parametros')}
+          onClose={() => setImportando(false)}
+          onImportado={recargarTodo}
         />
       )}
 

@@ -3,6 +3,7 @@
 // la validación y la importación), así la documentación no se desfasa al agregar una hoja.
 const { RECURSOS } = require('../modules/admin/recursos/recursos.definicion');
 const { TODOS } = require('../utils/roles');
+const { VALORES_BENEFICIO } = require('../utils/beneficios');
 const moduloRA = require('./openapi.ra');
 
 const PERIODO = { type: 'string', pattern: '^\\d{4}-[AB]$', example: '2024-A' };
@@ -24,6 +25,7 @@ const ESQUEMA_TIPO = {
 const LLAVES_GENERADAS = {
   id_cohorte: { type: 'integer', readOnly: true },
   id_presupuesto: { type: 'integer', readOnly: true },
+  id_producto: { type: 'integer', readOnly: true },
   id_docente: { type: 'string', format: 'uuid', readOnly: true },
 };
 
@@ -144,6 +146,16 @@ const Usuario = {
     afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'], nullable: true }, campo_formacion: { type: 'string', nullable: true },
     id_cohorte: { type: 'integer', nullable: true }, cohorte: { type: 'string', nullable: true },
     beca: { type: 'string', enum: ['100', 'hora_catedra', 'sintraunicol'], nullable: true },
+    beneficios: { type: 'array', items: { $ref: '#/components/schemas/BeneficioSemestre' } },
+  },
+};
+
+const BeneficioSemestre = {
+  type: 'object',
+  required: ['semestre', 'tipo'],
+  properties: {
+    semestre: { type: 'integer', minimum: 1, maximum: 4, description: 'Semestre de la promoción' },
+    tipo: { type: 'string', enum: VALORES_BENEFICIO, description: 'Una sola beca por semestre; asistencias y ayudantías se suman' },
   },
 };
 
@@ -163,6 +175,10 @@ const UsuarioEntrada = {
     campos_formacion: { type: 'array', items: { type: 'string', maxLength: 100 }, description: 'Docente: campos de formación' },
     id_cohorte: { type: 'integer', nullable: true, description: 'Estudiante: promoción (null la quita)' },
     beca: { type: 'string', enum: ['100', 'hora_catedra', 'sintraunicol'], nullable: true, description: 'Estudiante: tipo de beca (requiere promoción)' },
+    beneficios: {
+      type: 'array', items: { $ref: '#/components/schemas/BeneficioSemestre' },
+      description: 'Estudiante: beneficios por semestre (reemplazan los anteriores; la beca se deduce de ellos)',
+    },
   },
 };
 
@@ -283,6 +299,9 @@ const construir = () => {
             '«Presupuesto de Gastos - Recursos Administrados» (PSP-GEF-FR-03) de una promoción. El PDF actualiza el corte del mes en ' +
             '«Presupuesto»: ingresos = apropiación definitiva, gastos = comprometido, saldo certificado = Por_CDP; `informe.cambios` ' +
             'compara los valores anteriores con los nuevos. ' +
+            'La hoja «Asignación docente» de la plantilla (promoción, semestre de la promoción, docente, componente, curso) crea ' +
+            'o reutiliza la oferta de la clase en ese semestre y le asigna el docente; «Beneficios por estudiante» (promoción, ' +
+            'identificación, semestre, beneficio) reemplaza los beneficios por semestre de cada estudiante que aparece. ' +
             'Todo o nada: si alguna fila tiene errores no se guarda nada y se devuelven en `error.details.errores` (hoja, fila, mensaje). ' +
             roles(['coordinador']),
           parameters: [
@@ -400,6 +419,7 @@ const construir = () => {
         },
         Usuario,
         UsuarioEntrada,
+        BeneficioSemestre,
         Participacion: {
           type: 'object', required: ['id_cohorte', 'periodo', 'id_clase'],
           properties: { id_cohorte: { type: 'integer' }, periodo: { type: 'string', pattern: '^\d{4}-[AB]$' }, id_clase: { type: 'integer' } },

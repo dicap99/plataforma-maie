@@ -4,6 +4,7 @@ const authenticate = require('../../middlewares/authenticate');
 const authorize = require('../../middlewares/authorize');
 const validate = require('../../middlewares/validate');
 const { ROLES, TODOS } = require('../../utils/roles');
+const { VALORES_BENEFICIO } = require('../../utils/beneficios');
 const controller = require('./usuarios.controller');
 
 const { COORDINADOR } = ROLES;
@@ -25,6 +26,9 @@ const reglas = (passwordObligatoria) => [
   body('campos_formacion.*').isString().trim().notEmpty().isLength({ max: 100 }).withMessage('Campo de formación inválido (máx. 100)'),
   body('id_cohorte').optional({ values: 'null' }).isInt({ min: 1 }).withMessage('Promoción inválida').toInt(),
   body('beca').optional({ values: 'null' }).isIn(['100', 'hora_catedra', 'sintraunicol']).withMessage('Tipo de beca inválido'),
+  body('beneficios').optional({ values: 'null' }).isArray({ max: 20 }).withMessage('beneficios debe ser una lista'),
+  body('beneficios.*.semestre').isInt({ min: 1, max: 4 }).withMessage('Semestre del beneficio inválido (1 a 4)').toInt(),
+  body('beneficios.*.tipo').isIn(VALORES_BENEFICIO).withMessage(`Tipo de beneficio debe ser uno de: ${VALORES_BENEFICIO.join(', ')}`),
   validate,
 ];
 const idValido = [param('id').isUUID().withMessage('Identificador inválido'), validate];

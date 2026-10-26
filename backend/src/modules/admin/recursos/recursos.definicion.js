@@ -6,6 +6,8 @@
 // - conflicto: restricción única usada al importar (por defecto, la llave)
 // - rolesLectura / rolesEscritura: RBAC. Toda información financiera es solo de Coordinación (RNF-SEG-01).
 // - nota: aviso que el frontend muestra sobre la tabla
+// - reflejados: columnas que, en las promociones con registros en Gestión académica, se calculan desde ahí
+//   (reportes/reflejo.js) y por eso no se editan en esas filas
 // - calculados: columnas de solo lectura que se derivan de otras tablas ({ name, label, sql } con alias t).
 const { ROLES } = require('../../../utils/roles');
 
@@ -14,6 +16,8 @@ const SOLO_COORD = [COORDINADOR];
 const ACADEMICO = [COORDINADOR, DOCENTE];
 
 const cohorte = { name: 'id_cohorte', label: 'Promoción', type: 'cohorte', required: true };
+// Tipos de producto en el orden de las columnas de «Producción científica» (reflejo.js).
+const TIPOS_PRODUCTO = ['Artículo', 'Ponencia', 'Software', 'Prototipo', 'Tesis'];
 const ORDEN_COHORTE = 'c.periodo_inicio, c.nombre';
 
 const RECURSOS = [
@@ -27,6 +31,7 @@ const RECURSOS = [
     llave: ['id_cohorte'],
     conflicto: ['nombre'],
     ordenarPor: 't.periodo_inicio, t.nombre',
+    reflejados: ['inscritos', 'matriculados', 'egresados', 'graduados'],
     rolesLectura: ACADEMICO,
     rolesEscritura: SOLO_COORD,
     campos: [
@@ -215,6 +220,7 @@ const RECURSOS = [
     llave: ['id_cohorte'],
     unirCohorte: true,
     ordenarPor: ORDEN_COHORTE,
+    reflejados: ['becas_100', 'becas_hora_catedra', 'becas_sintraunicol'],
     rolesLectura: ACADEMICO,
     rolesEscritura: SOLO_COORD,
     campos: [
@@ -238,6 +244,7 @@ const RECURSOS = [
     ordenarPor: ORDEN_COHORTE,
     rolesLectura: ACADEMICO,
     rolesEscritura: SOLO_COORD,
+    reflejados: ['articulos', 'ponencias', 'software', 'prototipos', 'tesis', 'detalles'],
     campos: [
       cohorte,
       { name: 'articulos', label: 'Artículos', type: 'entero', required: true },
@@ -246,6 +253,30 @@ const RECURSOS = [
       { name: 'prototipos', label: 'Prototipos', type: 'entero', required: true },
       { name: 'tesis', label: 'Tesis', type: 'entero', required: true },
       { name: 'detalles', label: 'Detalles (lista de productos)', type: 'texto', multilinea: true },
+    ],
+  },
+  {
+    // Un registro por producto (reunión de avances del 20-oct-2026); reflejo.js deriva de aquí los conteos
+    // de «Producción científica» de cada promoción con productos registrados.
+    id: 'productos',
+    titulo: 'Productos de investigación',
+    hoja: 'Productos de investigación',
+    requisito: 'RF-ADM-04',
+    tabla: 'productos_investigacion',
+    categoria: 'academico',
+    llave: ['id_producto'],
+    conflicto: ['id_cohorte', 'tipo', 'cita'],
+    unirCohorte: true,
+    ordenarPor: `${ORDEN_COHORTE}, t.tipo, t.anio, t.cita`,
+    rolesLectura: ACADEMICO,
+    rolesEscritura: SOLO_COORD,
+    campos: [
+      cohorte,
+      { name: 'tipo', label: 'Tipo de producto', type: 'enum', options: TIPOS_PRODUCTO, required: true },
+      { name: 'cita', label: 'Cita bibliográfica', type: 'texto', multilinea: true, mostrarEnTabla: true, required: true },
+      { name: 'anio', label: 'Año', type: 'entero' },
+      { name: 'estudiantes', label: 'Estudiantes participantes', type: 'texto' },
+      { name: 'enlace', label: 'Enlace (DOI o URL)', type: 'texto' },
     ],
   },
   {
@@ -298,7 +329,8 @@ const metadatos = (rol) =>
     editable: r.rolesEscritura.includes(rol),
     campos: [...r.campos, ...(r.calculados ?? []).map(({ name, label }) => ({ name, label, type: 'texto', calculado: true }))],
     categoria: r.categoria,
+    reflejados: r.reflejados ?? [],
     nota: r.nota,
   }));
 
-module.exports = { RECURSOS, porId, metadatos };
+module.exports = { RECURSOS, porId, metadatos, TIPOS_PRODUCTO };

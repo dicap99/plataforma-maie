@@ -14,7 +14,14 @@ const FORMATOS = {
 // Importación masiva CSV/Excel (RF-ADM-01, RF-ADM-02) en dos pasos:
 // 1) validar (simulación, no guarda nada)  2) importar (todo o nada).
 // El PDF de gastos de una promoción actualiza su corte en «Presupuesto» y muestra los valores anterior → nuevo.
-export default function CsvUploaderModal({ recursos, onClose, onImportado }) {
+// `soloPdf`: solo el informe de gastos (botón «Cargar informe de corte» de Presupuesto y finanzas).
+const TIPOS = {
+  'text/csv': ['.csv'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'application/pdf': ['.pdf'],
+}
+
+export default function CsvUploaderModal({ recursos = [], soloPdf = false, onClose, onImportado }) {
   const [archivo, setArchivo] = useState(null)
   const [recursoCsv, setRecursoCsv] = useState('')
   const [resultado, setResultado] = useState(null) // { ok, simulacion, data | error }
@@ -24,11 +31,7 @@ export default function CsvUploaderModal({ recursos, onClose, onImportado }) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     multiple: false,
-    accept: {
-      'text/csv': ['.csv'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/pdf': ['.pdf'],
-    },
+    accept: soloPdf ? { 'application/pdf': TIPOS['application/pdf'] } : TIPOS,
     onDrop: (aceptados) => {
       setArchivo(aceptados[0] ?? null)
       setResultado(null)
@@ -52,19 +55,31 @@ export default function CsvUploaderModal({ recursos, onClose, onImportado }) {
   const listoParaImportar = resultado?.ok && resultado.simulacion
 
   return (
-    <Modal titulo="Importar datos" onClose={onClose} ancho={640}>
-      <p className="texto-suave">
-        Suba el libro «Estadísticas MaIE» tal como lo maneja Coordinación, la plantilla oficial, un CSV de una sola hoja
-        o el informe PDF de gastos de una promoción (Oficina de Presupuesto, PSP-GEF-FR-03).
-        Primero se valida y luego se confirma la importación; si hay errores no se guarda nada.
-      </p>
-      <p>
-        <button type="button" className="btn-enlace" onClick={() => descargarPlantilla(false)}>Descargar plantilla vacía</button>
-      </p>
+    <Modal titulo={soloPdf ? 'Cargar informe de corte' : 'Importar datos'} onClose={onClose} ancho={640}>
+      {soloPdf ? (
+        <p className="texto-suave">
+          Suba el informe PDF de gastos de una promoción generado por la Oficina de Presupuesto (PSP-GEF-FR-03). Se
+          actualizan los ingresos, gastos y saldo certificado del corte de ese mes; primero se muestran los valores
+          actuales frente a los del informe y luego se confirma.
+        </p>
+      ) : (
+        <>
+          <p className="texto-suave">
+            Suba el libro «Estadísticas MaIE» tal como lo maneja Coordinación, la plantilla oficial, un CSV de una sola hoja
+            o el informe PDF de gastos de una promoción (Oficina de Presupuesto, PSP-GEF-FR-03).
+            Primero se valida y luego se confirma la importación; si hay errores no se guarda nada.
+          </p>
+          <p>
+            <button type="button" className="btn-enlace" onClick={() => descargarPlantilla(false)}>Descargar plantilla vacía</button>
+          </p>
+        </>
+      )}
 
       <div {...getRootProps({ className: `zona-arrastre${isDragActive ? ' activa' : ''}` })}>
         <input {...getInputProps()} />
-        {archivo ? <strong>{archivo.name}</strong> : <span>Arrastre un archivo .xlsx, .csv o .pdf, o haga clic para seleccionarlo</span>}
+        {archivo
+          ? <strong>{archivo.name}</strong>
+          : <span>Arrastre {soloPdf ? 'el informe .pdf' : 'un archivo .xlsx, .csv o .pdf'}, o haga clic para seleccionarlo</span>}
       </div>
 
       {esCsv && (

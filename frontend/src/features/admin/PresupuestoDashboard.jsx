@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
+import CsvUploaderModal from './CsvUploaderModal.jsx'
 import { ordenarCohortes, suma } from './academico/estadisticas'
 import { PanelEjecucion, PanelOperacion, PanelSostenibilidad } from './finanzas/PanelesFinanzas.jsx'
 
-// Presupuesto y finanzas (RF-ADM-03): 3 pestañas por propósito. La vista «Datos» muestra las hojas
-// de cada pestaña en solo lectura; se editan en Gestión académica › Datos del programa.
+// Presupuesto y finanzas (RF-ADM-03): 3 pestañas por propósito. La vista «Datos» edita las hojas de cada
+// pestaña y «Cargar informe de corte» actualiza el presupuesto de una promoción con el PDF de la universidad.
 const PESTANAS = [
   {
     id: 'ejecucion',
@@ -68,6 +69,7 @@ export default function PresupuestoDashboard() {
   const [rango, setRango] = useState({ desde: '', hasta: '' })
   const [rangoPeriodos, setRangoPeriodos] = useState({ desde: '', hasta: '' })
   const [filtro, setFiltro] = useState(null)
+  const [cargandoPdf, setCargandoPdf] = useState(false)
   const resumen = useApi(adminApi.resumenPresupuesto)
   const recursos = useApi(adminApi.listarRecursos)
   const cohortes = useApi(() => adminApi.listar('cohortes'))
@@ -79,7 +81,6 @@ export default function PresupuestoDashboard() {
   if (conError) return <ErrorApi error={conError.error} onReintentar={() => apis.forEach((a) => a.recargar())} />
 
   const porId = Object.fromEntries((recursos.data || []).map((r) => [r.id, r]))
-  const puedeEditar = HOJAS.some((id) => porId[id]?.editable)
   const pestana = PESTANAS.find((p) => p.id === activo)
   const hojaId = hojaActiva[pestana.id] ?? pestana.hojas[0].id
   const filas = hojas.data
@@ -111,6 +112,11 @@ export default function PresupuestoDashboard() {
   }
 
   const recurso = porId[hojaId]
+  // Tras editar o cargar un informe se recalculan las gráficas.
+  const recargar = () => {
+    resumen.recargar()
+    hojas.recargar()
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -128,14 +134,15 @@ export default function PresupuestoDashboard() {
             Información confidencial de Coordinación.
           </p>
         </div>
-        {puedeEditar && (
-          <Link
-            to="/coordinacion/gestion?pestana=datos"
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 hover:border-violet-400 hover:text-violet-700 rounded-lg shadow-sm text-xs font-semibold transition-all group no-underline"
+        {porId.presupuesto?.editable && (
+          <button
+            type="button"
+            onClick={() => setCargandoPdf(true)}
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 hover:border-violet-400 hover:text-violet-700 rounded-lg shadow-sm text-xs font-semibold transition-all group cursor-pointer"
           >
-            <Icono nombre="edit_square" className="text-violet-500 group-hover:scale-110 transition-transform text-[16px]" />
-            <span>Editar en Gestión académica</span>
-          </Link>
+            <Icono nombre="picture_as_pdf" className="text-violet-500 group-hover:scale-110 transition-transform text-[16px]" />
+            <span>Cargar informe de corte (PDF)</span>
+          </button>
         )}
       </div>
 
@@ -242,10 +249,12 @@ export default function PresupuestoDashboard() {
           cohortes={cohortes.data ?? []}
           filtro={filtro}
           onQuitarFiltro={() => setFiltro(null)}
-          soloLectura
+          onCambio={recargar}
           filasExternas={filas[recurso.id]}
         />
       ) : null}
+
+      {cargandoPdf && <CsvUploaderModal soloPdf onClose={() => setCargandoPdf(false)} onImportado={recargar} />}
     </div>
   )
 }

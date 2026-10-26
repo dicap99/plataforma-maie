@@ -11,6 +11,8 @@ import InsigniaPromocion from './academico/InsigniaPromocion.jsx'
 // `filtro` = { etiqueta, fn } limita las filas visibles (p. ej. al hacer clic en una gráfica).
 // `soloLectura`: sin agregar, editar ni eliminar. `filasExternas`: filas ya calculadas (p. ej. el reflejo
 // de Gestión académica) en lugar de las de la hoja; si traen `origen`, se muestra de dónde sale cada fila.
+// Al editar una fila del reflejo, sus columnas `reflejados` quedan bloqueadas y, si no tiene fila en la
+// hoja (`sin_registro`), se crea.
 export default function RecursoTabla({
   recurso,
   cohortes,
@@ -330,9 +332,12 @@ export default function RecursoTabla({
           recurso={recurso}
           fila={editando === 'nuevo' ? null : editando}
           cohortes={cohortes}
+          bloqueados={editando !== 'nuevo' && editando.origen === 'gestion' ? editando.reflejados ?? recurso.reflejados ?? [] : []}
           onClose={() => setEditando(null)}
           onGuardar={(datos) =>
-            tras(editando === 'nuevo' ? adminApi.crear(recurso, datos) : adminApi.actualizar(recurso, editando, datos))
+            tras(editando === 'nuevo' || editando.sin_registro
+              ? adminApi.crear(recurso, datos)
+              : adminApi.actualizar(recurso, editando, datos))
           }
         />
       )}

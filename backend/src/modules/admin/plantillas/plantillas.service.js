@@ -4,6 +4,8 @@ const ExcelJS = require('exceljs');
 const { RECURSOS } = require('../recursos/recursos.definicion');
 const repositorios = require('../recursos/recursos.repository');
 const { HOJA_INSTRUCCIONES } = require('../importaciones/lectorPlantilla');
+const asignacion = require('../importaciones/asignacionDocente');
+const beneficiosEstudiante = require('../importaciones/beneficiosEstudiante');
 
 const IMPORTABLES = RECURSOS.filter((r) => r.id !== 'parametros');
 const COLOR_ENCABEZADO = 'FF0B3D6B';
@@ -16,6 +18,11 @@ const AYUDA_TIPO = {
   entero: 'Número entero ≥ 0',
   dinero: 'Valor en pesos, sin símbolos',
   semestre: 'Semestre 1 a 4',
+  docente: 'Nombre completo del docente tal como aparece en "Docentes UDENAR-EXTERNOS"',
+};
+const LISTAS = {
+  cohorte: `'Promociones y Estudiantes'!$A$2:$A$${MAX_FILAS_VALIDACION}`,
+  docente: `'Docentes UDENAR-EXTERNOS'!$A$2:$A$${MAX_FILAS_VALIDACION}`,
 };
 
 const letra = (n) => {
@@ -35,10 +42,12 @@ const hojaInstrucciones = (libro) => {
     ['3. Deje vacías las celdas que aún no aplican (p. ej. semestres no cursados). Los encabezados en negrita con * son obligatorios.'],
     ['4. No agregue filas de totales, promedios ni porcentajes: la plataforma los calcula.'],
     ['5. Si una fila ya existe (misma promoción/periodo), la importación la actualiza.'],
+    ['   En "Asignación docente" cada fila es un docente en un curso; el semestre es el de la promoción (1 a 4) y el curso es el código o nombre de la clase (Gestión académica › Clases).'],
+    ['   En "Beneficios por estudiante" cada fila es un beneficio de un estudiante en un semestre (una sola beca por semestre); el estudiante debe estar registrado en su promoción y queda con exactamente los beneficios de sus filas.'],
     ['6. Puede dejar hojas vacías; solo se importan las filas diligenciadas. Si hay errores no se guarda nada y se listan por hoja y fila.'],
     [''],
     ['Hojas:', { bold: true }],
-    ...IMPORTABLES.map((r) => [`• ${r.hoja} (${r.requisito}): ${r.titulo}`]),
+    ...[...IMPORTABLES, asignacion.ASIGNACION, beneficiosEstudiante.BENEFICIOS_ESTUDIANTE].map((r) => [`• ${r.hoja} (${r.requisito}): ${r.titulo}`]),
   ];
   lineas.forEach(([texto, font], i) => {
     const c = h.getCell(i + 1, 1);
@@ -74,7 +83,7 @@ const hojaRecurso = (libro, recurso, filas) => {
     let regla = null;
     if (campo.type === 'enum') regla = { type: 'list', formulae: [`"${campo.options.join(',')}"`] };
     if (campo.type === 'semestre') regla = { type: 'whole', operator: 'between', formulae: [1, 4] };
-    if (campo.type === 'cohorte') regla = { type: 'list', formulae: [`'Promociones y Estudiantes'!$A$2:$A$${MAX_FILAS_VALIDACION}`] };
+    if (LISTAS[campo.type]) regla = { type: 'list', formulae: [LISTAS[campo.type]] };
     if (!regla) return;
     h.dataValidations.add(`${col}2:${col}${MAX_FILAS_VALIDACION}`, {
       ...regla,
@@ -109,6 +118,8 @@ module.exports = {
       const filas = conDatos ? await repositorios[recurso.id].list() : [];
       hojaRecurso(libro, recurso, filas);
     }
+    hojaRecurso(libro, await asignacion.definicion(), conDatos ? await asignacion.listar() : []);
+    hojaRecurso(libro, beneficiosEstudiante.BENEFICIOS_ESTUDIANTE, conDatos ? await beneficiosEstudiante.listar() : []);
     const fecha = new Date().toISOString().slice(0, 10);
     return {
       nombreArchivo: conDatos ? `MaIE_datos_administrativos_${fecha}.xlsx` : 'MaIE_plantilla_importacion.xlsx',

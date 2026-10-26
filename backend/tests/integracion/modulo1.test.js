@@ -256,6 +256,142 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     expect(cohortes).toMatchObject({ filas: 2, insertados: 0, actualizados: 2 });
   });
 
+  it('la hoja «Asignación docente» crea las ofertas con su docente y no duplica al reimportar', async () => {
+    const vacia = await coord.get('/admin/plantillas').buffer(true).parse((res, cb) => {
+      const partes = [];
+      res.on('data', (c) => partes.push(c)).on('end', () => cb(null, Buffer.concat(partes)));
+    });
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(vacia.body);
+    libro.getWorksheet('Docentes UDENAR-EXTERNOS').addRow(['Docente Asignación Prueba', null, 'Control', 'UDENAR']);
+    const hoja = libro.getWorksheet('Asignación docente');
+    hoja.addRow(['II', 2, 'Docente Asignación Prueba', 'Profundización', 'CB1-01']); // componente errado: advertencia
+    hoja.addRow(['II', 3, 'docente asignación prueba', null, 'Optimización']); // por nombre de la clase
+    const archivo = Buffer.from(await libro.xlsx.writeBuffer());
+
+    const res = await coord.subir('/admin/importaciones', archivo, 'asignacion.xlsx');
+    expect(res.status).toBe(201);
+    expect(res.body.data.resumen.find((r) => r.hoja === 'Asignación docente')).toMatchObject({ filas: 2, insertados: 2 });
+    expect(res.body.data.advertencias).toEqual(expect.arrayContaining([
+      expect.objectContaining({ hoja: 'Asignación docente', mensaje: expect.stringMatching(/componente Básico/) }),
+    ]));
+    // Promoción II empezó en 2021-A: su semestre 2 es 2021-B y el 3 es 2022-A.
+    const { rows } = await db.query(`
+      SELECT cl.codigo, c.periodo FROM cursos c JOIN clases cl ON cl.id_clase = c.id_clase
+      JOIN curso_docentes cd ON cd.id_curso = c.id_curso JOIN docentes_perfil d ON d.id_docente = cd.id_docente
+      WHERE d.nombre_completo = 'Docente Asignación Prueba' ORDER BY c.periodo`);
+    expect(rows).toEqual([{ codigo: 'CB1-01', periodo: '2021-B' }, { codigo: 'CB2-01', periodo: '2022-A' }]);
+
+    const otra = await coord.subir('/admin/importaciones', archivo, 'asignacion.xlsx');
+    expect(otra.body.data.resumen.find((r) => r.hoja === 'Asignación docente')).toMatchObject({ insertados: 0, actualizados: 2 });
+
+    const exportada = await coord.get('/admin/plantillas?datos=true').buffer(true).parse((r, cb) => {
+      const partes = [];
+      r.on('data', (c) => partes.push(c)).on('end', () => cb(null, Buffer.concat(partes)));
+    });
+    const libroExportado = new ExcelJS.Workbook();
+    await libroExportado.xlsx.load(exportada.body);
+    expect(libroExportado.getWorksheet('Asignación docente').getRow(2).values.slice(1))
+      .toEqual(['II', 2, 'Docente Asignación Prueba', 'Básico', 'CB1-01']);
+  });
+
+  it('una asignación con un curso inexistente no guarda nada', async () => {
+    const vacia = await coord.get('/admin/plantillas').buffer(true).parse((res, cb) => {
+      const partes = [];
+      res.on('data', (c) => partes.push(c)).on('end', () => cb(null, Buffer.concat(partes)));
+    });
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(vacia.body);
+    libro.getWorksheet('Asignación docente').addRow(['II', 4, 'Docente Asignación Prueba', null, 'Curso que no existe']);
+    const res = await coord.subir('/admin/importaciones', Buffer.from(await libro.xlsx.writeBuffer()), 'mal.xlsx');
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.errores).toEqual([
+      expect.objectContaining({ hoja: 'Asignación docente', fila: 2, mensaje: expect.stringMatching(/Curso que no existe/) }),
+    ]);
+  });
+
+  it('los beneficios por semestre del estudiante alimentan «Beneficios» y deducen su beca', async () => {
+    const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
+    const base = {
+      identificacion: '333', nombres: 'Becada', apellidos: 'Prueba', email: 'becada@udenar.edu.co',
+      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte,
+    };
+    const doble = await coord.post('/usuarios', { ...base, beneficios: [{ semestre: 2, tipo: '100' }, { semestre: 2, tipo: 'sintraunicol' }] });
+    expect(doble.status).toBe(400);
+    expect(doble.body.error.message).toMatch(/una beca por semestre/);
+
+    const creado = await coord.post('/usuarios', {
+      ...base,
+      beneficios: [
+        { semestre: 1, tipo: 'hora_catedra' }, { semestre: 2, tipo: '100' }, { semestre: 3, tipo: '100' },
+        { semestre: 3, tipo: 'asistente_investigacion' },
+      ],
+    });
+    expect(creado.status).toBe(201);
+    expect(creado.body.data).toMatchObject({ beca: '100', beneficios: expect.arrayContaining([{ semestre: 3, tipo: 'asistente_investigacion' }]) });
+
+    const fila = (await coord.get('/admin/academico/reflejo')).body.data.beneficios.find((b) => b.cohorte === 'II');
+    // Cuenta estudiantes (no semestres) y, al haber beneficios por semestre, también los asistentes.
+    expect(fila).toMatchObject({ becas_100: 1, becas_hora_catedra: 1, asistentes_investigacion: 1, ayudantes_docencia: 0, origen: 'gestion' });
+
+    await coord.delete(`/usuarios/${creado.body.data.id_usuario}`);
+    expect(await contar('estudiante_beneficios')).toBe(0);
+  });
+
+  it('la hoja «Beneficios por estudiante» reemplaza los beneficios de cada estudiante y deduce su beca', async () => {
+    const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
+    const creado = await coord.post('/usuarios', {
+      identificacion: '444', nombres: 'Ana', apellidos: 'Plantilla', email: 'ana.plantilla@udenar.edu.co',
+      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte, beneficios: [{ semestre: 4, tipo: 'ayudante_docencia' }],
+    });
+    const vacia = await coord.get('/admin/plantillas').buffer(true).parse((res, cb) => {
+      const partes = [];
+      res.on('data', (c) => partes.push(c)).on('end', () => cb(null, Buffer.concat(partes)));
+    });
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(vacia.body);
+    const hoja = libro.getWorksheet('Beneficios por estudiante');
+    hoja.addRow(['II', 444, 'Plantilla Ana', 1, 'Beca SINTRAUNICOL']);
+    hoja.addRow(['II', '444', null, 2, 'Beca SINTRAUNICOL']);
+    hoja.addRow(['II', '444', null, 2, 'Asistente de investigación']);
+
+    const res = await coord.subir('/admin/importaciones', Buffer.from(await libro.xlsx.writeBuffer()), 'beneficios.xlsx');
+    expect(res.status).toBe(201);
+    expect(res.body.data.resumen.find((r) => r.hoja === 'Beneficios por estudiante')).toMatchObject({ filas: 3, actualizados: 3 });
+    const usuario = (await coord.get(`/usuarios/${creado.body.data.id_usuario}`)).body.data;
+    expect(usuario.beca).toBe('sintraunicol');
+    expect(usuario.beneficios).toHaveLength(3); // la ayudantía del semestre 4 ya no está en la hoja
+    const fila = (await coord.get('/admin/academico/reflejo')).body.data.beneficios.find((b) => b.cohorte === 'II');
+    expect(fila).toMatchObject({ becas_sintraunicol: 1, asistentes_investigacion: 1, ayudantes_docencia: 0 });
+
+    hoja.addRow(['II', '444', null, 1, 'Beca 100 %']);
+    hoja.addRow(['II', '999', null, 1, 'Beca 100 %']);
+    const mal = await coord.subir('/admin/importaciones', Buffer.from(await libro.xlsx.writeBuffer()), 'mal.xlsx');
+    expect(mal.status).toBe(400);
+    expect(mal.body.error.details.errores).toEqual(expect.arrayContaining([
+      expect.objectContaining({ fila: 6, mensaje: expect.stringMatching(/999/) }),
+      expect.objectContaining({ mensaje: expect.stringMatching(/una beca por semestre \(semestre 1\)/) }),
+    ]));
+
+    await coord.delete(`/usuarios/${creado.body.data.id_usuario}`);
+  });
+
+  it('los productos de investigación calculan la «Producción científica» de su promoción', async () => {
+    const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
+    const mal = await coord.post('/admin/productos', { id_cohorte: ii.id_cohorte, tipo: 'Libro', cita: 'X' });
+    expect(mal.status).toBe(400);
+    const creado = await coord.post('/admin/productos', {
+      id_cohorte: ii.id_cohorte, tipo: 'Ponencia', cita: 'Prueba, A. «Ponencia de integración». Congreso Z, 2025.',
+      anio: 2025, estudiantes: 'Ana Prueba', enlace: null,
+    });
+    expect(creado.status).toBe(201);
+    const fila = (await coord.get('/admin/academico/reflejo')).body.data.produccion.find((p) => p.cohorte === 'II');
+    expect(fila).toMatchObject({ ponencias: 1, articulos: 0, origen: 'gestion', detalles: expect.stringMatching(/Ponencia de integración/) });
+    expect((await coord.delete(`/admin/productos/${creado.body.data.id_producto}`)).status).toBe(200);
+    expect((await coord.get('/admin/academico/reflejo')).body.data.produccion.find((p) => p.cohorte === 'II')?.origen ?? 'registro')
+      .toBe('registro');
+  });
+
   it('CSV de un recurso', async () => {
     const csv = 'Periodo;Promociones;N.° OPS;Valor OPS\n2022-A;I, II;3;36800000\n';
     const res = await coord.subir('/admin/importaciones?recurso=contrataciones', Buffer.from(csv), 'ops.csv');

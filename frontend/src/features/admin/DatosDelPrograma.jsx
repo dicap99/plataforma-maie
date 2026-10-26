@@ -13,9 +13,9 @@ const GRUPOS = [
 ]
 const posicion = (orden, id) => (orden?.includes(id) ? orden.indexOf(id) : Infinity)
 
-// Datos del programa (RF-ADM-01 a RF-ADM-06), pestaña de Gestión académica: único lugar donde se
-// editan las hojas del libro «Estadísticas MaIE» y se importa o exporta el Excel. Información
-// académica y Presupuesto y finanzas solo las muestran.
+// Datos del programa (RF-ADM-01 a RF-ADM-06), pestaña de Gestión académica: todas las hojas del libro
+// «Estadísticas MaIE» en un solo lugar, con la importación y exportación del Excel. Información académica
+// y Presupuesto y finanzas también editan las hojas que muestran.
 export default function DatosDelPrograma() {
   const recursos = useApi(adminApi.listarRecursos)
   const cohortes = useApi(() => adminApi.listar('cohortes'))

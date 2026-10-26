@@ -12,6 +12,11 @@ const repositorios = require('../recursos/recursos.repository');
 const { leerEstadisticas } = require('./lectorEstadisticas');
 const { esPlantilla, leerPlantilla, leerCsv } = require('./lectorPlantilla');
 const { leerGastosPdf } = require('./lectorGastosPdf');
+const asignacion = require('./asignacionDocente');
+const beneficiosEstudiante = require('./beneficiosEstudiante');
+
+// Hojas de la plantilla que no son recursos (cada módulo exporta HOJA y guardar), en orden de guardado.
+const HOJAS_ESPECIALES = [asignacion, beneficiosEstudiante];
 
 // Recursos que se pueden importar (la tabla de parámetros se alimenta aparte).
 const IMPORTABLES = RECURSOS.filter((r) => r.id !== 'parametros');
@@ -39,7 +44,7 @@ const leerArchivo = async (file, query) => {
     throw ApiError.badRequest('No se pudo leer el archivo .xlsx (¿está dañado o protegido?)');
   }
   return esPlantilla(libro)
-    ? { formato: 'plantilla', ...leerPlantilla(libro, IMPORTABLES) }
+    ? { formato: 'plantilla', ...leerPlantilla(libro, [...IMPORTABLES, ...HOJAS_ESPECIALES.map((h) => h.HOJA)]) }
     : { formato: 'estadisticas', ...leerEstadisticas(libro) };
 };
 
@@ -92,6 +97,13 @@ const guardar = async (lectura, simular) => {
         else if (r.insertado) cuenta.insertados++;
         else cuenta.actualizados++;
       }
+    }
+
+    // Asignación docente y beneficios por estudiante (solo plantilla): van después de las hojas, que
+    // crean las promociones y los docentes que referencian.
+    for (const especial of HOJAS_ESPECIALES) {
+      const filas = lectura.datos[especial.HOJA.id];
+      if (filas) resumen[especial.HOJA.id] = await especial.guardar(cliente, filas, errores, lectura.advertencias);
     }
 
     for (const p of lectura.parametros) {

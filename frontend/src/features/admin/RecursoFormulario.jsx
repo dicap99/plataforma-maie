@@ -4,7 +4,8 @@ import Modal from '../../components/common/Modal.jsx'
 // Formulario de alta/edición generado a partir de los campos del recurso (metadatos del API).
 // En edición la llave no se modifica (identifica el registro en la URL).
 // Las columnas calculadas (p. ej. cursos del docente) se muestran en la tabla pero no se editan.
-export default function RecursoFormulario({ recurso, fila, cohortes, onGuardar, onClose }) {
+// `bloqueados`: columnas que en esta fila se calculan desde Gestión académica (se muestran sin editar).
+export default function RecursoFormulario({ recurso, fila, cohortes, bloqueados = [], onGuardar, onClose }) {
   const editando = Boolean(fila)
   const campos = recurso.campos.filter((c) => !c.calculado)
   const [valores, setValores] = useState(() =>
@@ -36,7 +37,7 @@ export default function RecursoFormulario({ recurso, fila, cohortes, onGuardar, 
       id: `campo-${campo.name}`,
       value: valores[campo.name] ?? '',
       required: campo.required,
-      disabled: editando && recurso.llave.includes(campo.name),
+      disabled: (editando && recurso.llave.includes(campo.name)) || bloqueados.includes(campo.name),
       onChange: (e) => cambiar(campo.name, e.target.value),
     }
     if (campo.type === 'cohorte') {
@@ -80,6 +81,12 @@ export default function RecursoFormulario({ recurso, fila, cohortes, onGuardar, 
             </div>
           ))}
         </div>
+        {bloqueados.length > 0 && (
+          <p className="texto-suave">
+            Los campos deshabilitados se calculan con los estudiantes registrados en Gestión académica › Usuarios
+            (promoción, estado y beneficios por semestre).
+          </p>
+        )}
         {errores.length > 0 && (
           <ul className="alerta-error" role="alert">{errores.map((m) => <li key={m}>{m}</li>)}</ul>
         )}

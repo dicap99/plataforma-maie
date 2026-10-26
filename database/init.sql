@@ -167,6 +167,19 @@ CREATE TABLE cohorte_produccion (
     detalles TEXT
 );
 
+-- Producción científica por producto (RF-ADM-04) — hoja "Productos de investigación". Las promociones con
+-- productos registrados calculan de aquí los conteos de cohorte_produccion (que queda como histórico).
+CREATE TABLE productos_investigacion (
+    id_producto SERIAL PRIMARY KEY,
+    id_cohorte INT NOT NULL REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,
+    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('Artículo', 'Ponencia', 'Software', 'Prototipo', 'Tesis')),
+    cita TEXT NOT NULL,
+    anio SMALLINT CHECK (anio BETWEEN 1990 AND 2100),
+    estudiantes TEXT,          -- participantes (texto: también de promociones sin cuentas en la plataforma)
+    enlace VARCHAR(255),
+    CONSTRAINT unq_producto UNIQUE (id_cohorte, tipo, cita)
+);
+
 -- Pasantías / estancias por promoción (RF-ADM-04) — hoja "Pasantías"
 CREATE TABLE cohorte_pasantias (
     id_cohorte INT PRIMARY KEY REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,
@@ -261,6 +274,18 @@ CREATE TABLE cohorte_estudiantes (
     -- Beca del estudiante en su promoción (columnas de la hoja «Beneficios»); NULL = sin beca
     beca VARCHAR(20) CHECK (beca IN ('100', 'hora_catedra', 'sintraunicol')),
     PRIMARY KEY (id_cohorte, id_estudiante)
+);
+
+-- Beneficios del estudiante en cada semestre de su promoción (beca, asistencia de investigación o
+-- ayudantía de docencia). Si un estudiante no tiene filas, cuenta la beca de cohorte_estudiantes.
+CREATE TABLE estudiante_beneficios (
+    id_cohorte INT NOT NULL,
+    id_estudiante UUID NOT NULL,
+    semestre SMALLINT NOT NULL CHECK (semestre BETWEEN 1 AND 4),
+    tipo VARCHAR(30) NOT NULL
+        CHECK (tipo IN ('100', 'hora_catedra', 'sintraunicol', 'asistente_investigacion', 'ayudante_docencia')),
+    PRIMARY KEY (id_cohorte, id_estudiante, semestre, tipo),
+    FOREIGN KEY (id_cohorte, id_estudiante) REFERENCES cohorte_estudiantes(id_cohorte, id_estudiante) ON DELETE CASCADE
 );
 
 CREATE TABLE curso_estudiantes (
