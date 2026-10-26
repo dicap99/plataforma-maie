@@ -9,8 +9,8 @@ Requisitos: SRS IEEE 830 (Actividad 1). Diseño: Documento Técnico (Actividad 2
 | Módulo | Estado |
 |---|---|
 | Autenticación, usuarios y RBAC | ✅ Implementado |
-| 1. Procesos Administrativos (RF-ADM-01 a 06) | ✅ Implementado: panel general del coordinador, hojas separadas en *Información académica* y *Presupuesto y finanzas*, importación Excel/CSV, plantilla/exportación, detalle de producción científica |
-| 1. Reporte oficial de presupuesto (PDF PSP-GEF-FR-04) | 🟡 Tablas creadas (`presupuesto_ingresos*`); lector de PDF pendiente |
+| 1. Procesos Administrativos (RF-ADM-01 a 06) | ✅ Implementado: panel general con alertas (evaluación docente, plazos de titulación, presupuesto, datos desactualizados), titulación y deserción por promoción; hojas editables en *Información académica* y *Presupuesto y finanzas*; importación Excel/CSV, plantilla/exportación con asignación docente y beneficios por estudiante y semestre; productos de investigación con su cita |
+| 1. Informe PDF de gastos de la Oficina de Presupuesto (PSP-GEF-FR-03) | ✅ Implementado: se carga desde *Presupuesto y finanzas › Cargar informe de corte (PDF)* y actualiza el corte del mes de la promoción (ingresos = apropiación definitiva, gastos = comprometido, saldo = Por_CDP), mostrando antes los valores actuales frente a los del informe. El informe de ingresos (PSP-GEF-FR-04) se reconoce y se rechaza con un aviso |
 | 2. Resultados de Aprendizaje (RF-RA-01 a 04) | ✅ Implementado: catálogo y ofertas de curso, matrícula, rúbricas RA1–RA7, calificación por criterio, reportes por nivel y exportación |
 | 3. Evaluación Docente | ⬜ Esqueleto (responde `501`); categorización del Acuerdo 058 implementada |
 
@@ -60,8 +60,11 @@ npm run datos:sinteticos -- --limpiar     # solo borra los datos sintéticos (no
 
 Los usuarios sintéticos usan la contraseña de `SINTETICO_PASSWORD` (por defecto `MaIE-Sintetico-2026`).
 
-Carga inicial de datos: *Procesos administrativos › Información académica › Importar Excel/CSV* con el libro «Estadísticas MaIE»
-tal como lo maneja Coordinación. Las hojas financieras se consultan y editan en *Presupuesto y finanzas*.
+Carga inicial de datos: *Procesos administrativos › Información académica › Importar Excel* (o *Gestión académica › Datos del
+programa*) con el libro «Estadísticas MaIE» tal como lo maneja Coordinación; después los datos se editan en la propia plataforma
+(vista «Datos» de cada pantalla) y las gráficas se actualizan al guardar. Las hojas financieras se editan en *Presupuesto y finanzas*.
+La plantilla oficial añade dos hojas que no están en el libro: «Asignación docente» (promoción, semestre, docente, componente, curso)
+y «Beneficios por estudiante» (beca, asistencia de investigación o ayudantía en cada semestre).
 
 > **Bases existentes:** la columna `cohorte_produccion.detalles` es nueva. Si la base se creó antes, aplique
 > `ALTER TABLE cohorte_produccion ADD COLUMN IF NOT EXISTS detalles TEXT;` o recree el volumen de `db`.
@@ -89,9 +92,10 @@ backend/src/
     auth/ usuarios/
     admin/
       recursos/                # recursos.definicion.js: una definición por hoja del Excel (tabla, llave, campos, RBAC, categoría)
-      importaciones/           # lector del libro «Estadísticas MaIE», lector de plantilla/CSV, importación transaccional
+      importaciones/           # lectores del libro «Estadísticas MaIE», de la plantilla/CSV y del PDF de gastos;
+                               # hojas de asignación docente y beneficios por estudiante; importación transaccional
       plantillas/              # plantilla .xlsx y exportación de datos
-      reportes/                # estadisticas.js (fórmulas puras) + /reportes/estadisticas, /presupuesto/resumen
+      reportes/                # estadisticas.js y alertas.js (funciones puras), reflejo.js + /reportes/estadisticas, /presupuesto/resumen
       docentes/                # perfil propio del docente (/docentes/me/perfil)
       cursos/ matriculas/      # catálogo del plan, ofertas por promoción, docentes y matrícula
     ra/
@@ -113,7 +117,8 @@ frontend/src/
                                # matrícula, usuarios y apertura de la calificación)
   features/ra/                 # ConsolidadoRAPage, MatrizRubricasPage, MisCursosPage,
                                # PlanillaRubricaPage (+ planilla/: evaluación por estudiante y resumen general)
-  features/admin/panel/        # BannerPrograma, FranjaAviso, TarjetaKpi, TarjetaLateral, LineasInvestigacion
+  features/admin/panel/        # BannerPrograma, PanelAlertas, TarjetaKpi, TarjetaLateral, LineasInvestigacion
+  config/institucional.js      # registro calificado, acreditación, contacto y líneas de investigación (login y panel)
 ```
 
 Para agregar una hoja nueva al Módulo 1 basta con crear su tabla en `init.sql` y su definición en
@@ -129,18 +134,19 @@ Las rutas de las hojas del Módulo 1 se generan desde `recursos.definicion.js` (
 | Recurso | Rutas | Rol |
 |---|---|---|
 | Auth | `POST /auth/login`, `GET /auth/me`, `PUT /auth/password` | Público / Todos |
-| Usuarios | CRUD `/usuarios`: estudiante con `id_cohorte` y `beca`; docente con `afiliacion` y `campos_formacion` (perfil docente); `GET /usuarios/campos-formacion` | Coord |
-| Reflejo académico | `GET /admin/academico/reflejo`: promociones, beneficios y cursos/docentes por semestre calculados desde Gestión cuando hay registros | Coord, Docente |
+| Usuarios | CRUD `/usuarios`: estudiante con `id_cohorte` y `beneficios` por semestre (la `beca` de la promoción se deduce de ellos); docente con `afiliacion` y `campos_formacion` (perfil docente); `GET /usuarios/campos-formacion` | Coord |
+| Reflejo académico | `GET /admin/academico/reflejo`: promociones, beneficios, cursos/docentes por semestre y producción científica calculados desde Gestión y los productos cuando hay registros | Coord, Docente |
 | Metadatos | `GET /admin/recursos` (hojas visibles para el rol) | Coord, Docente |
 | Promociones | CRUD `/admin/cohortes` | Coord (Docente: lectura) |
 | Cursos y docentes | CRUD `/admin/cohorte-semestres/:id_cohorte/:semestre` | Coord (Docente: lectura) |
 | Docentes | CRUD `/admin/docentes`; `GET/PUT /admin/docentes/me/perfil` | Coord (Docente: lectura) / Docente propio |
 | Beneficios, producción, pasantías | CRUD `/admin/beneficios`, `/admin/produccion`, `/admin/pasantias` (llave `id_cohorte`) | Coord (Docente: lectura) |
+| Productos de investigación | CRUD `/admin/productos` (tipo, cita, año, estudiantes, enlace) | Coord (Docente: lectura) |
 | Financiero | CRUD `/admin/punto-equilibrio`, `/admin/presupuesto`, `/admin/pregrado`, `/admin/transferencias`, `/admin/contrataciones` | Coord |
 | Parámetros | CRUD `/admin/parametros` (SMMLV, % de distribución, créditos) | Coord |
-| Importación | `POST /admin/importaciones` (multipart `archivo`; `?simular=true`; `?recurso=` para CSV) | Coord |
+| Importación | `POST /admin/importaciones` (multipart `archivo`: libro, plantilla, CSV o PDF PSP-GEF-FR-03; `?simular=true`; `?recurso=` para CSV) | Coord |
 | Plantilla / exportación | `GET /admin/plantillas` (`?datos=true` incluye los datos actuales) | Coord |
-| Estadísticas | `GET /admin/reportes/estadisticas`, `GET /admin/presupuesto/resumen` | Coord |
+| Estadísticas | `GET /admin/reportes/estadisticas` (incluye `alertas`), `GET /admin/presupuesto/resumen` | Coord |
 | Clases | CRUD `/admin/clases` (código generado, nombre único, un curso del plan) | Coord (Docente: lectura) |
 | Catálogo y ofertas | `GET /admin/cursos/catalogo`; CRUD `/admin/cursos` (clase + semestre + promoción; `?clase&docente&periodo`); `PUT /admin/cursos/:id/docentes`, `/:id/estudiantes`; `POST /:id/estudiantes/cohorte` | Coord (Docente: sus ofertas) |
 | Estudiantes por promoción | `GET/PUT /admin/cohortes/:id/estudiantes` | Coord |
