@@ -1,4 +1,5 @@
 import Icono from '../../../components/common/Icono.jsx'
+import { PROGRAMA, REGISTRO_CALIFICADO } from '../../../config/institucional'
 
 // Banner institucional del panel: identifica el programa y resume sus datos de
 // cabecera. `metadatos` es la tira inferior: [{ icono, etiqueta, valor }].
@@ -10,13 +11,20 @@ export default function BannerPrograma({ descripcion, metadatos = [], children }
 
       <div className="relative z-10 flex flex-col gap-space-md lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-label-sm uppercase tracking-wider text-secondary-fixed backdrop-blur-md">
-            <Icono nombre="verified" className="text-[16px]" />
-            Facultad de Ingeniería · Universidad de Nariño
+          <div className="flex flex-wrap gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-label-sm uppercase tracking-wider text-secondary-fixed backdrop-blur-md">
+              <Icono nombre="account_balance" className="text-[16px]" />
+              Facultad de Ingeniería · Universidad de Nariño
+            </div>
+            <div
+              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-label-sm uppercase tracking-wider text-secondary-fixed backdrop-blur-md"
+              title={`Registro calificado renovado por ${REGISTRO_CALIFICADO.vigencia} el ${REGISTRO_CALIFICADO.fecha}`}
+            >
+              <Icono nombre="verified" className="text-[16px]" />
+              Registro calificado · Res. MEN {REGISTRO_CALIFICADO.resolucion} · SNIES {PROGRAMA.snies}
+            </div>
           </div>
-          <h1 className="font-display text-headline-xl tracking-tight text-on-primary">
-            Maestría en Ingeniería Electrónica
-          </h1>
+          <h1 className="font-display text-headline-xl tracking-tight text-on-primary">{PROGRAMA.nombre}</h1>
           <p className="max-w-3xl text-body-md text-primary-fixed-dim">{descripcion}</p>
         </div>
 

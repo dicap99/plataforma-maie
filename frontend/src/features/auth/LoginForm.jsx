@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { INICIO_POR_ROL } from '../../routes/navigation'
+import {
+  ACREDITACION, CERTIFICACION, CONTACTO, PROGRAMA, REGISTRO_CALIFICADO, TEXTO_LEGAL_COMPLETO,
+} from '../../config/institucional'
+import ContactoSoporte from './ContactoSoporte.jsx'
 
 export default function LoginForm() {
   const { usuario, login } = useAuth()
@@ -12,6 +16,8 @@ export default function LoginForm() {
   const [error, setError] = useState(null)
   const [enviando, setEnviando] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  // Motivo del recuadro de contacto abierto ('soporte' | 'contrasena'); null = cerrado.
+  const [contacto, setContacto] = useState(null)
 
   if (usuario) return <Navigate to={INICIO_POR_ROL[usuario.rol]} replace />
 
@@ -35,62 +41,69 @@ export default function LoginForm() {
       <div className="relative w-full md:w-1/2 lg:w-7/12 min-h-[340px] md:min-h-full flex flex-col justify-between p-8 sm:p-12 lg:p-16 overflow-hidden bg-[#070b16]">
         {/* Imagen de fondo */}
         <div className="absolute inset-0 z-0">
-          <img alt="Circuito integrado electrónico" className="w-full h-full object-cover object-center scale-105 filter brightness-75 contrast-110" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBnKJu4ixEsE0ji57xrEzmLsGU2FNoAl-Pkmql2oibryab19LSS5Ve4x7I0cMmJ-F-WmccU-Uf0G75x6hjDMSIXgpdNAa8tkfNJM-nAt8Who-XuaOctKzvXlWrapLWFuANZfhfrYYyuB1JCEZX7C2JhgqCML-DtV81AEnByXpR4faMXeX--86P_tYZePKQV__vrt5ozWzUUsfVfa6PLc6iEuO0XFjzX2jSoEgjfXJS2" />
+          <img alt="Circuito integrado electrónico" className="w-full h-full object-cover object-center scale-105 filter brightness-75 contrast-110" src="/fondo-circuito.jpg" />
           <div className="absolute inset-0 bg-gradient-to-tr from-[#040039]/95 via-[#0b1120]/80 to-[#1b1856]/70 mix-blend-multiply"></div>
           <div className="absolute inset-0 bg-gradient-to-t from-[#040039] via-transparent to-transparent opacity-90"></div>
+          {/* Franja oscura de transición hacia el formulario, de ancho fijo */}
+          <div className="absolute inset-y-0 right-0 hidden w-7 bg-[#11142a] md:block"></div>
         </div>
         
         {/* Encabezado Institucional: Escudo */}
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img alt="Escudo Universidad de Nariño" className="h-9 md:h-11 w-auto object-contain brightness-0 invert opacity-95 transition-opacity hover:opacity-100" src="/logo-udenar.png" />
-            <div className="h-6 w-px bg-white/20 hidden sm:block"></div>
-            <span className="hidden sm:inline-block text-xs uppercase tracking-widest text-slate-300 font-medium">
-              Facultad de Ingeniería
-            </span>
-          </div>
-          <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-slate-200 text-xs font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            SNIES 108095
+            <div className="h-9 w-px bg-white/20 hidden sm:block"></div>
+            <div className="hidden sm:flex flex-col gap-0.5">
+              <span className="text-xs uppercase tracking-widest text-slate-300 font-medium">Facultad de Ingeniería</span>
+              <span className="text-sm text-slate-100 font-semibold">{PROGRAMA.nombre}</span>
+            </div>
           </div>
         </div>
         
         {/* Título Principal */}
         <div className="relative z-10 py-12 md:py-0 max-w-xl">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold font-display tracking-tight text-white leading-tight mb-4">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold font-display tracking-tight text-white leading-tight">
             Plataforma Tecnológica <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-indigo-200 to-violet-300">MaIE</span>
           </h1>
-          <p className="text-base sm:text-lg text-slate-300 font-normal leading-relaxed font-body">
-            Maestría en Ingeniería Electrónica • Universidad de Nariño
-          </p>
         </div>
-        <div className="relative z-10 flex items-center gap-2 text-xs text-slate-400"></div>
+        {/* Identificador de Acreditación Institucional (versión blanca sobre fondo oscuro, Manual de
+            Identidad Visual 1.2.1.8) y registro calificado del programa */}
+        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+          <img
+            alt={`Universidad de Nariño, acreditada en alta calidad, Resolución MEN ${ACREDITACION.resolucion} del ${ACREDITACION.fecha}`}
+            className="h-16 w-auto shrink-0 object-contain opacity-95 sm:h-20"
+            src={ACREDITACION.logoBlanco}
+          />
+          <div className="hidden h-14 w-px bg-white/20 sm:block"></div>
+          <div className="space-y-1 text-xs leading-relaxed text-slate-300">
+            <p className="font-semibold uppercase tracking-wider text-slate-100">Registro calificado</p>
+            <p>
+              Resolución MEN {REGISTRO_CALIFICADO.resolucion} del {REGISTRO_CALIFICADO.fecha} · vigencia de {REGISTRO_CALIFICADO.vigencia}
+            </p>
+            <p className="text-slate-400">{PROGRAMA.nombre} · SNIES {PROGRAMA.snies}</p>
+          </div>
+        </div>
       </div>
       
       {/* Panel Derecho: Formulario de Autenticación */}
       <div className="w-full md:w-1/2 lg:w-5/12 flex-1 flex flex-col justify-between bg-surface-bright md:bg-white p-6 sm:p-10 lg:p-14 overflow-y-auto">
         {/* Top mini bar */}
-        <div className="w-full flex items-center justify-between text-xs text-slate-500 mb-6">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            Servicios Académicos Activos
-          </span>
-          <a className="inline-flex items-center gap-1 hover:text-secondary transition-colors" href="mailto:maie@udenar.edu.co">
+        <div className="w-full flex items-center justify-end text-xs text-slate-500 mb-6">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 hover:text-secondary transition-colors"
+            onClick={() => setContacto('soporte')}
+          >
             <span className="material-symbols-outlined text-[16px]">help_outline</span>
             <span>Soporte</span>
-          </a>
+          </button>
         </div>
         
         {/* Contenedor central del Formulario */}
         <div className="w-full max-w-sm mx-auto my-auto space-y-6">
-          <div className="space-y-1.5">
-            <h2 className="text-2xl sm:text-3xl font-bold font-display text-slate-900 tracking-tight">
-              Iniciar Sesión
-            </h2>
-            <p className="text-sm text-slate-500 font-normal">
-              Ingrese sus credenciales institucionales.
-            </p>
-          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold font-display text-slate-900 tracking-tight">
+            Iniciar Sesión
+          </h2>
           
           <form className="space-y-4" onSubmit={onSubmit}>
             {/* Campo Correo Institucional */}
@@ -122,9 +135,13 @@ export default function LoginForm() {
                 <label className="font-medium text-slate-700" htmlFor="user-password">
                   Contraseña
                 </label>
-                <a className="text-secondary hover:text-indigo-800 font-medium transition-colors" href="#">
+                <button
+                  type="button"
+                  className="text-secondary hover:text-indigo-800 font-medium transition-colors"
+                  onClick={() => setContacto('contrasena')}
+                >
                   ¿Olvidó su contraseña?
-                </a>
+                </button>
               </div>
               <div className="relative flex items-center">
                 <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[19px] pointer-events-none">lock</span>
@@ -177,12 +194,26 @@ export default function LoginForm() {
         </div>
         
         {/* Pie de Página Discreto y Minimalista */}
-        <div className="w-full pt-6 text-center">
-          <p className="text-[12px] text-slate-400 font-normal">
-            Universidad de Nariño
-          </p>
-        </div>
+        {/* Pie institucional: sellos Icontec–IQNet con sus códigos y textos legales (manual, 1.3 y 2.1.3) */}
+        <footer className="w-full border-t border-slate-100 pt-5 flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-center">
+          <figure className="m-0 flex shrink-0 flex-col items-center">
+            <img
+              alt="Certificación ISO 9001 Icontec e IQNet del Sistema Integrado de Gestión de Calidad"
+              className="h-12 w-auto"
+              src={CERTIFICACION.sellos}
+            />
+            <figcaption className="mt-1 flex gap-3 text-[9px] text-slate-500">
+              {CERTIFICACION.codigos.map((c) => <span key={c}>{c}</span>)}
+            </figcaption>
+          </figure>
+          <div className="text-center text-[11px] leading-snug text-slate-400 sm:text-left">
+            {TEXTO_LEGAL_COMPLETO.map((linea) => <p key={linea} className="m-0">{linea}</p>)}
+            <p className="m-0 mt-1 text-slate-500">{CONTACTO.email} · {CONTACTO.telefono}</p>
+          </div>
+        </footer>
       </div>
+
+      {contacto && <ContactoSoporte motivo={contacto} onCerrar={() => setContacto(null)} />}
     </div>
   )
 }
