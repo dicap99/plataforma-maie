@@ -144,7 +144,7 @@ const generarModulo1 = (azar, { cohortes, docentes, estudiantes, cursos, actual 
 // Hojas financieras de las promociones sintéticas: punto de equilibrio, cortes de presupuesto (alguno
 // con gastos por encima de los ingresos), estudiantes de pregrado y transferencias y contrataciones OPS
 // por periodo. Valores en pesos con el SMMLV de la semilla (seed.sql: smmlv_2025).
-const SMMLV = 1400000;
+const SMMLV = 1423500;
 const finDeSemestre = (indice) => `${Math.floor(indice / 2)}-${indice % 2 ? '12-15' : '06-30'}`;
 const redondearMiles = (x) => Math.round(x / 1000) * 1000;
 

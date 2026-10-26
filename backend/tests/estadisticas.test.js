@@ -67,6 +67,17 @@ describe('Estadísticas administrativas (RF-ADM-05)', () => {
     expect(VI.poblacion_referencia).toBe(6); // último semestre aprobado
   });
 
+  it('titulación y deserción por promoción desde los matriculados al I semestre', () => {
+    const [I, II, VI] = r.promociones.filas;
+    expect(I.retirados).toBe(2);
+    cerca(I.pct_desercion, 2 / 11);
+    cerca(II.pct_titulacion, 7 / 16);
+    expect(VI.pct_titulacion).toBeNull(); // en curso: aún no se titula
+    expect(VI.pct_desercion).toBe(0); // 6 matriculados y 6 aprobaron el I semestre
+    cerca(r.promociones.indicadores.pct_titulacion, 16 / 27);
+    cerca(r.promociones.indicadores.pct_desercion, 9 / 27);
+  });
+
   it('globales solo con promociones egresadas', () => {
     cerca(r.promociones.indicadores.pct_egresados, 18 / 27);
     expect(r.promociones.totales.inscritos).toBe(37);

@@ -249,7 +249,10 @@ INSERT INTO rubricas_criterios (id_ra, orden, nombre_criterio, peso_porcentaje,
 
 -- Parámetros del programa (valores de la hoja "Estadísticas MaIE 2025-B"; editables por Coordinación)
 INSERT INTO parametros_programa (clave, valor, descripcion) VALUES
-('smmlv_2025', 1400000, 'Salario mínimo mensual legal vigente 2025 (COP)'),
+('smmlv_2025', 1423500, 'Salario mínimo mensual legal vigente 2025 (COP), Decreto 2641 de 2024'),
+('smmlv_2026', 1750905, 'Salario mínimo mensual legal vigente 2026 (COP), Decreto 1469 de 2025'),
+('creditos_obligatorios', 48, 'Créditos obligatorios del plan de estudios'),
+('plazo_sustentacion_anios', 3, 'Años para sustentar el trabajo de grado desde el fin de la promoción'),
 ('pct_transferencia_central', 15, '% del saldo presupuestal transferido a la administración central'),
 ('pct_transferencia_viis', 5, '% del saldo presupuestal transferido a la VIIS'),
 ('pct_fondo_investigaciones', 50, '% del saldo presupuestal destinado al Fondo de Investigaciones'),

@@ -10,17 +10,11 @@ import { SERIES } from '../../components/charts/paleta'
 import { fecha, numero, pesos, pesosCompactos, porcentaje } from '../../utils/formato'
 import { periodoAcademico } from '../../utils/periodo'
 import BannerPrograma, { BotonBanner } from './panel/BannerPrograma.jsx'
-import FranjaAviso from './panel/FranjaAviso.jsx'
 import LineasInvestigacion from './panel/LineasInvestigacion.jsx'
+import PanelAlertas from './panel/PanelAlertas.jsx'
 import TarjetaKpi, { BarraProgreso, Insignia } from './panel/TarjetaKpi.jsx'
 import TarjetaLateral, { Renglon } from './panel/TarjetaLateral.jsx'
 import { smmlvVigente } from './academico/estadisticas'
-
-const DIA = 86_400_000
-// A partir de medio año sin actualizar, las cifras presupuestales dejan de servir
-// para la autoevaluación; a partir de un trimestre conviene avisar.
-const DIAS_CRITICO = 180
-const DIAS_ATENCION = 90
 
 // Panel de gestión del coordinador (RF-ADM-05). Toda la información proviene de
 // /admin/reportes/estadisticas: aquí no hay cifras fijas en el código.
@@ -34,7 +28,7 @@ export default function EstadisticasDashboard() {
   const {
     promociones, presupuesto, produccion, beneficios, pasantias,
     cursosDocentes, contrataciones, transferencias, pregrado, docentes,
-    puntoEquilibrio, parametros,
+    puntoEquilibrio, parametros, alertas,
   } = data
 
   if (promociones.filas.length === 0) {
@@ -56,18 +50,15 @@ export default function EstadisticasDashboard() {
   // Los parámetros son pares clave/valor y el SMMLV se versiona por año.
   const vigente = smmlvVigente(parametros)
   const smmlv = vigente?.valor ?? null
-  const creditosPlan = Object.entries(parametros)
+  // Los créditos por semestre de la hoja «Cursos y Docentes» son los ofertados (promedio entre
+  // promociones), no los obligatorios del plan, que se registran aparte.
+  const creditosOfertados = Object.entries(parametros)
     .filter(([k]) => k.startsWith('creditos_semestre_'))
     .reduce((s, [, v]) => s + Number(v), 0)
+  const creditosObligatorios = parametros.creditos_obligatorios ?? null
 
   const equilibrio = puntoEquilibrio.filas.at(-1)
   const matriculaSmmlv = equilibrio?.valor_matricula_smmlv ?? null
-
-  const diasCorte = presupuesto.fecha_corte
-    ? Math.floor((Date.now() - new Date(presupuesto.fecha_corte).getTime()) / DIA)
-    : null
-  const nivelCorte =
-    diasCorte === null || diasCorte > DIAS_CRITICO ? 'critico' : diasCorte > DIAS_ATENCION ? 'atencion' : 'info'
 
   // Serie temporal unificada de contrataciones y transferencias (misma unidad: pesos).
   const periodos = [...new Set([...contrataciones.filas, ...transferencias.filas].map((f) => f.periodo))].sort()
@@ -96,8 +87,11 @@ export default function EstadisticasDashboard() {
           },
           {
             icono: 'menu_book',
-            etiqueta: 'Créditos del plan',
-            valor: creditosPlan ? numero(creditosPlan) : '—',
+            etiqueta: 'Créditos obligatorios',
+            valor: [
+              creditosObligatorios ? numero(creditosObligatorios) : '—',
+              creditosOfertados ? `ofertados ≈ ${numero(creditosOfertados)}` : null,
+            ].filter(Boolean).join(' · '),
           },
           {
             icono: 'payments',
@@ -114,44 +108,13 @@ export default function EstadisticasDashboard() {
         </BotonBanner>
       </BannerPrograma>
 
-      <FranjaAviso
-        nivel={nivelCorte}
-        titulo={`Presupuesto con corte al ${fecha(presupuesto.fecha_corte)}`}
-        acciones={
-          <>
-            <Link
-              to="presupuesto"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-surface-container px-3 py-2 text-label-md text-on-surface no-underline transition-colors hover:bg-surface-container-high"
-            >
-              <Icono nombre="account_balance_wallet" className="text-[18px]" />
-              Ver presupuesto
-            </Link>
-            <Link
-              to="datos"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-label-md text-on-primary no-underline shadow-sm transition-colors hover:bg-primary-container active:scale-95"
-            >
-              <Icono nombre="sync" className="text-[18px]" />
-              Actualizar datos
-            </Link>
-          </>
-        }
-      >
-        {diasCorte === null ? (
-          <>Ninguna promoción tiene fecha de corte registrada en la hoja «Presupuesto».</>
-        ) : (
-          <>
-            Última actualización hace <span className="font-bold text-on-surface">{numero(diasCorte)} días</span>.
-            Ejecución consolidada del <span className="font-bold text-secondary">{porcentaje(presupuesto.indicadores.pct_ejecucion)}</span>{' '}
-            sobre {pesosCompactos(presupuesto.totales.ingresos)} de ingresos.
-          </>
-        )}
-      </FranjaAviso>
+      <PanelAlertas alertas={alertas} />
 
-      <section className="grid grid-cols-1 gap-space-md sm:grid-cols-2 lg:grid-cols-4">
-        <TarjetaKpi etiqueta="Estudiantes matriculados" valor={numero(promociones.totales.matriculados)} icono="groups">
+      <section className="grid grid-cols-1 gap-space-md sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <TarjetaKpi etiqueta="Matriculados al I semestre" valor={numero(promociones.totales.matriculados)} icono="groups">
           <div className="flex items-center justify-between gap-2">
             {deltaMatriculados === null ? (
-              <Insignia>{numero(promociones.indicadores.poblacion_total)} en curso</Insignia>
+              <Insignia>{numero(promociones.filas.length)} promociones</Insignia>
             ) : (
               <Insignia>
                 <Icono nombre={deltaMatriculados >= 0 ? 'trending_up' : 'trending_down'} className="text-[14px]" />
@@ -159,7 +122,7 @@ export default function EstadisticasDashboard() {
               </Insignia>
             )}
             <span className="text-label-sm text-on-surface-variant">
-              {anterior ? `vs. promoción ${anterior.nombre}` : 'histórico acumulado'}
+              {anterior ? `${ultima.nombre} vs. ${anterior.nombre}` : 'histórico acumulado'}
             </span>
           </div>
         </TarjetaKpi>
@@ -170,7 +133,7 @@ export default function EstadisticasDashboard() {
           icono="account_balance_wallet"
         >
           <BarraProgreso fraccion={presupuesto.indicadores.pct_ejecucion} />
-          <div className="mt-2 flex justify-between text-label-sm text-on-surface-variant">
+          <div className="mt-2 flex justify-between gap-2 text-label-sm text-on-surface-variant">
             <span>Comprometido: {pesosCompactos(presupuesto.totales.gastos_comprometidos)}</span>
             <span>Saldo: {pesosCompactos(presupuesto.totales.saldo_comprometido)}</span>
           </div>
@@ -179,42 +142,46 @@ export default function EstadisticasDashboard() {
         <TarjetaKpi etiqueta="Docentes vinculados" valor={numero(docentes.total)} icono="badge">
           <div className="flex items-center justify-between gap-2">
             <Insignia tono="acento">{numero(docentes.udenar)} UDENAR</Insignia>
-            <span className="text-label-sm text-on-surface-variant">
-              {numero(docentes.externos)} externos · {numero(docentes.porCampo?.length ?? 0)} campos
-            </span>
+            <span className="text-label-sm text-on-surface-variant">{numero(docentes.externos)} externos</span>
           </div>
         </TarjetaKpi>
 
         <TarjetaKpi
-          etiqueta="Graduados sobre egresados"
-          valor={porcentaje(promociones.indicadores.pct_graduados)}
+          etiqueta="Titulación"
+          valor={porcentaje(promociones.indicadores.pct_titulacion)}
           icono="military_tech"
           destacado
         >
           <div className="flex items-center justify-between gap-2">
             <Insignia tono="fuerte">{numero(promociones.totales.graduados)} graduados</Insignia>
             <span className="text-label-sm text-on-surface-variant">
-              de {numero(promociones.totales.egresados)} egresados
+              {porcentaje(promociones.indicadores.pct_graduados)} de {numero(promociones.totales.egresados)} egresados
             </span>
+          </div>
+        </TarjetaKpi>
+
+        <TarjetaKpi etiqueta="Deserción" valor={porcentaje(promociones.indicadores.pct_desercion)} icono="person_remove">
+          <div className="flex items-center justify-between gap-2">
+            <Insignia>{numero(promociones.indicadores.retirados)} retirados</Insignia>
+            <span className="text-label-sm text-on-surface-variant">desde el I semestre</span>
           </div>
         </TarjetaKpi>
       </section>
 
       {/* Figura principal + costos y acciones de carga */}
       <section className="grid grid-cols-1 gap-space-lg lg:grid-cols-12">
-        <div className="lg:col-span-8">
+        <div className="flex flex-col gap-space-lg lg:col-span-8">
           <ChartCard
-            titulo="Evolución de matrículas vs. graduados"
-            subtitulo={`Comparativo por promoción desde ${promociones.filas[0].periodo_inicio}. Tasa de egreso acumulada: ${porcentaje(promociones.indicadores.pct_egresados)}.`}
-            altura="h-80"
+            titulo="Titulación por promoción"
+            subtitulo={`Graduados sobre matriculados al I semestre. Promociones egresadas: ${porcentaje(promociones.indicadores.pct_titulacion)}.`}
             tabla={{
               columnas: [
                 { clave: 'promocion', titulo: 'Promoción' },
-                { clave: 'inscritos', titulo: 'Inscritos', formato: numero },
-                { clave: 'matriculados', titulo: 'Matriculados', formato: numero },
+                { clave: 'matriculados', titulo: 'Matriculados I sem.', formato: numero },
                 { clave: 'egresados', titulo: 'Egresados', formato: numero },
                 { clave: 'graduados', titulo: 'Graduados', formato: numero },
-                { clave: 'pct_retiros', titulo: '% retiros', formato: porcentaje },
+                { clave: 'pct_titulacion', titulo: '% titulación', formato: porcentaje },
+                { clave: 'pct_graduados', titulo: '% de egresados', formato: porcentaje },
               ],
               filas: filasPromociones,
             }}
@@ -223,11 +190,32 @@ export default function EstadisticasDashboard() {
               datos={filasPromociones}
               ejeX="promocion"
               series={[
-                { clave: 'matriculados', nombre: 'Matriculados' },
-                { clave: 'egresados', nombre: 'Egresados' },
-                { clave: 'graduados', nombre: 'Graduados' },
+                { clave: 'pct_titulacion', nombre: '% sobre matriculados', color: SERIES[0] },
+                { clave: 'pct_graduados', nombre: '% sobre egresados', color: SERIES[2] },
               ]}
-              formato={numero}
+              formato={porcentaje}
+            />
+          </ChartCard>
+
+          <ChartCard
+            titulo="Deserción por promoción"
+            subtitulo={`Retirados desde la matrícula al I semestre (parcial en promociones en curso). Promociones egresadas: ${porcentaje(promociones.indicadores.pct_desercion)}.`}
+            tabla={{
+              columnas: [
+                { clave: 'promocion', titulo: 'Promoción' },
+                { clave: 'matriculados', titulo: 'Matriculados I sem.', formato: numero },
+                { clave: 'poblacion_referencia', titulo: 'Vigentes o egresados', formato: numero },
+                { clave: 'retirados', titulo: 'Retirados', formato: numero },
+                { clave: 'pct_desercion', titulo: '% deserción', formato: porcentaje },
+              ],
+              filas: filasPromociones,
+            }}
+          >
+            <GraficoBarras
+              datos={filasPromociones}
+              ejeX="promocion"
+              series={[{ clave: 'pct_desercion', nombre: '% deserción', color: SERIES[3] }]}
+              formato={porcentaje}
             />
           </ChartCard>
         </div>
@@ -331,7 +319,7 @@ export default function EstadisticasDashboard() {
               datos={filasPromociones}
               ejeX="promocion"
               series={[
-                // Mismos colores que "Egresados" y "Graduados" en la gráfica anterior.
+                // "% graduados" con el mismo color que "% sobre egresados" en la gráfica de titulación.
                 { clave: 'pct_egresados', nombre: '% egresados', color: SERIES[1] },
                 { clave: 'pct_graduados', nombre: '% graduados', color: SERIES[2] },
               ]}

@@ -95,6 +95,19 @@ const guardar = async (lectura, simular) => {
     }
 
     for (const p of lectura.parametros) {
+      // El SMMLV oficial (decreto) lo registra Coordinación; el libro trae un valor de referencia
+      // (p. ej. «SMMLV 2025: 1.400.000») que solo se usa si el año aún no está registrado.
+      if (p.clave.startsWith('smmlv_')) {
+        const existe = await cliente.query('SELECT 1 FROM parametros_programa WHERE clave = $1', [p.clave]);
+        if (existe.rowCount) {
+          lectura.advertencias.push({
+            hoja: 'Punto de equilibrio',
+            fila: '—',
+            mensaje: `Se conservó el ${p.clave.replace('smmlv_', 'SMMLV ')} registrado; el del libro (${p.valor}) no se importó.`,
+          });
+          continue;
+        }
+      }
       await repositorios.parametros.upsert(p, cliente);
     }
 

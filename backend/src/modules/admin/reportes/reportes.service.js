@@ -3,6 +3,8 @@ const { RECURSOS } = require('../recursos/recursos.definicion');
 const repositorios = require('../recursos/recursos.repository');
 const estadisticas = require('./estadisticas');
 const reflejo = require('./reflejo');
+const alertas = require('./alertas');
+const db = require('../../../config/db');
 
 const cargarTodo = async () => {
   const listas = await Promise.all(RECURSOS.map((r) => repositorios[r.id].list()));
@@ -10,8 +12,16 @@ const cargarTodo = async () => {
 };
 
 module.exports = {
-  // Todas las secciones del informe administrativo (con el reflejo de Gestión académica).
-  estadisticas: async () => estadisticas.calcular(await reflejo.aplicar(await cargarTodo())),
+  // Todas las secciones del informe administrativo (con el reflejo de Gestión académica) y las
+  // alertas del Panel general.
+  async estadisticas() {
+    const [datos, periodos] = await Promise.all([
+      cargarTodo().then(reflejo.aplicar),
+      db.query('SELECT codigo_periodo, fecha_apertura, fecha_cierre, activo FROM evaluacion_periodos').then((r) => r.rows),
+    ]);
+    const resultado = estadisticas.calcular(datos);
+    return { ...resultado, alertas: alertas.calcular(resultado, periodos) };
+  },
 
   // Hojas de Información académica que reflejan Gestión académica (promociones, beneficios y cursos
   // y docentes por semestre), con el origen de cada fila.

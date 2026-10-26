@@ -313,7 +313,7 @@ const construir = () => {
       '/admin/reportes/estadisticas': {
         get: {
           tags: ['Módulo 1 · General'], summary: 'Estadísticas administrativas (RF-ADM-05)',
-          description: `Totales, promedios, desviación estándar muestral y porcentajes por sección. ${roles(['coordinador'])}`,
+          description: `Totales, promedios, desviación estándar muestral y porcentajes por sección (incluye tasas de titulación y deserción por promoción) y \`alertas\` del Panel general: evaluación docente, plazos de titulación, corte presupuestal y datos por actualizar. ${roles(['coordinador'])}`,
           responses: { 200: exito({ type: 'object' }), ...errores(401, 403) },
         },
       },

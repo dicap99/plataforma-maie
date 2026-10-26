@@ -30,15 +30,27 @@ const poblacionReferencia = (c) =>
     (v) => typeof v === 'number',
   ) ?? null;
 
+// Retirados de una promoción contados desde los matriculados al I semestre: quienes ya no figuran
+// en el último corte (egresados o último semestre aprobado). En curso es una deserción parcial.
+const retirados = (c) => {
+  const vigentes = poblacionReferencia(c);
+  return typeof c.matriculados === 'number' && typeof vigentes === 'number' ? Math.max(c.matriculados - vigentes, 0) : null;
+};
+
 const promociones = (cohortes) => {
   const filas = cohortes.map((c) => {
     const pctEgresados = c.egresados === null ? null : razon(c.egresados, c.matriculados);
+    const ret = retirados(c);
     return {
       ...c,
       poblacion_referencia: poblacionReferencia(c),
       pct_egresados: pctEgresados,
       pct_graduados: razon(c.graduados, c.egresados),
       pct_retiros: pctEgresados === null ? null : 1 - pctEgresados,
+      retirados: ret,
+      pct_desercion: razon(ret, c.matriculados),
+      // Titulación sobre los matriculados al I semestre; solo cuando la promoción ya egresó.
+      pct_titulacion: c.egresados === null ? null : razon(c.graduados, c.matriculados),
     };
   });
   const cols = ['inscritos', 'matriculados', 'aprobados_sem1', 'aprobados_sem2', 'aprobados_sem3', 'egresados', 'graduados'];
@@ -53,6 +65,10 @@ const promociones = (cohortes) => {
       pct_egresados: pctEgresados,
       pct_graduados: razon(suma(egresadas.map((f) => f.graduados)), suma(egresadas.map((f) => f.egresados))),
       pct_retiros: pctEgresados === null ? null : 1 - pctEgresados,
+      pct_titulacion: razon(suma(egresadas.map((f) => f.graduados)), suma(egresadas.map((f) => f.matriculados))),
+      // Deserción de las promociones que ya egresaron (las en curso aún pueden cambiar).
+      pct_desercion: razon(suma(egresadas.map((f) => f.retirados)), suma(egresadas.map((f) => f.matriculados))),
+      retirados: suma(filas.map((f) => f.retirados)),
       promedio_pct_egresados: promedio(egresadas.map((f) => f.pct_egresados)),
       poblacion_total: suma(filas.map((f) => f.poblacion_referencia)),
     },
