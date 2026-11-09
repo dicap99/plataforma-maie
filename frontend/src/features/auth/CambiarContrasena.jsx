@@ -2,8 +2,9 @@ import { useState } from 'react'
 import * as authApi from '../../api/authApi'
 
 // Cambio de la contraseña propia: es lo único que cada usuario modifica de su cuenta (asesoría del
-// 20-oct-2026). Al cambiarla deja de ser temporal; avisa a MainLayout para quitar el aviso.
-export default function CambiarContrasena({ temporal = false }) {
+// 20-oct-2026). Al cambiarla deja de ser temporal: avisa a MainLayout y llama `onCambio` para que la
+// página recargue sus datos.
+export default function CambiarContrasena({ temporal = false, onCambio }) {
   const [clave, setClave] = useState({ actual: '', nueva: '', confirmacion: '' })
   const [mensaje, setMensaje] = useState(null)
   const [ocupado, setOcupado] = useState(false)
@@ -20,6 +21,7 @@ export default function CambiarContrasena({ temporal = false }) {
       setClave({ actual: '', nueva: '', confirmacion: '' })
       setMensaje({ ok: true, texto: 'Contraseña actualizada' })
       window.dispatchEvent(new Event('maie:cuenta-actualizada'))
+      onCambio?.()
     } catch (err) {
       setMensaje({ ok: false, texto: err.message })
     } finally {

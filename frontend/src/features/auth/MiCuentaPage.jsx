@@ -41,7 +41,7 @@ export default function MiCuentaPage() {
       </section>
       <section className="card">
         <h2>Contraseña</h2>
-        <CambiarContrasena temporal={u.debe_cambiar_password} />
+        <CambiarContrasena temporal={u.debe_cambiar_password} onCambio={cuenta.recargar} />
       </section>
     </>
   )

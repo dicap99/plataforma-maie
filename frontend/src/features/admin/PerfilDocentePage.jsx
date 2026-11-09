@@ -63,7 +63,7 @@ export default function PerfilDocentePage() {
         <div className="form-grid">
           {CUENTA.map((c) => <Dato key={c.name} etiqueta={c.label}>{perfil[c.name]}</Dato>)}
         </div>
-        <CambiarContrasena temporal={perfil.debe_cambiar_password} />
+        <CambiarContrasena temporal={perfil.debe_cambiar_password} onCambio={recargar} />
       </section>
 
       <section className="card">

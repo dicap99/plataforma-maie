@@ -44,8 +44,9 @@ const main = async () => {
 
     for (const f of filas) {
       // Idempotente: si ya se renombró o se creó en una corrida anterior, se busca por el nombre final.
+      // `||`: un nombre vacío ('') también pasa al siguiente criterio.
       let p = (f.nombre_plataforma && await perfil(f.nombre_plataforma))
-        ?? (f.renombrar_a && await perfil(f.renombrar_a)) ?? (f.crear && await perfil(f.crear.nombre_completo)) ?? null;
+        || (f.renombrar_a && await perfil(f.renombrar_a)) || (f.crear && await perfil(f.crear.nombre_completo)) || null;
       if (!p && f.crear) {
         p = (await cliente.query(
           `INSERT INTO docentes_perfil (nombre_completo, afiliacion, campo_formacion) VALUES ($1, $2, $3) RETURNING *`,
@@ -59,6 +60,9 @@ const main = async () => {
       // Formación con solo la institución (externos del libro): la institución pasa a «Universidad» si
       // ni la base ni el PEP la traen, y la formación se reemplaza por la del PEP.
       if (p.afiliacion === 'EXTERNO' && esInstitucion(p.formacion_profesional) && f.formacion_profesional) {
+        if (!vacio(p.universidad) && p.universidad !== p.formacion_profesional) {
+          revisar.push(`${p.nombre_completo}: la formación «${p.formacion_profesional}» se reemplazó por la del PEP y «Universidad» ya era «${p.universidad}»`);
+        }
         if (vacio(p.universidad) && vacio(f.universidad)) {
           anotar(p.nombre_completo, 'universidad', p.universidad, p.formacion_profesional);
           await actualizar(p.id_docente, 'universidad', p.formacion_profesional);

@@ -153,6 +153,21 @@ const Usuario = {
   },
 };
 
+// Fila de la pestaña «Beneficios»: un estudiante de la promoción con su beca y beneficios por semestre.
+const BeneficiosEstudiante = {
+  type: 'object',
+  properties: {
+    id_usuario: { type: 'string', format: 'uuid' },
+    identificacion: { type: 'string' },
+    nombres: { type: 'string' },
+    apellidos: { type: 'string' },
+    activo: { type: 'boolean' },
+    beca: { type: 'string', enum: ['100', 'hora_catedra', 'sintraunicol'], nullable: true },
+    estado_promocion: { type: 'string', nullable: true },
+    beneficios: { type: 'array', items: { $ref: '#/components/schemas/BeneficioSemestre' } },
+  },
+};
+
 const BeneficioSemestre = {
   type: 'object',
   required: ['semestre', 'tipo'],
@@ -271,7 +286,7 @@ const construir = () => {
         get: {
           tags: ['Usuarios'], summary: 'Estudiantes de una promoción con su beca y beneficios por semestre', description: roles(['coordinador']),
           parameters: [{ name: 'id_cohorte', in: 'query', required: true, schema: { type: 'integer', minimum: 1 } }],
-          responses: { 200: exito({ type: 'array', items: ref('Usuario') }), ...errores(400, 401, 403, 404) },
+          responses: { 200: exito({ type: 'array', items: ref('BeneficiosEstudiante') }), ...errores(400, 401, 403, 404) },
         },
       },
       '/usuarios/{id}/beneficios': {
@@ -286,7 +301,7 @@ const construir = () => {
               beneficios: { type: 'array', items: ref('BeneficioSemestre') },
             },
           }),
-          responses: { 200: exito(ref('Usuario')), ...errores(400, 401, 403, 404) },
+          responses: { 200: exito(ref('BeneficiosEstudiante')), ...errores(400, 401, 403, 404) },
         },
       },
       '/admin/finanzas/reflejo': {
@@ -417,6 +432,7 @@ const construir = () => {
         Usuario,
         UsuarioEntrada,
         BeneficioSemestre,
+        BeneficiosEstudiante,
         Participacion: {
           type: 'object', required: ['id_cohorte', 'periodo', 'id_clase'],
           properties: { id_cohorte: { type: 'integer' }, periodo: { type: 'string', pattern: '^\d{4}-[AB]$' }, id_clase: { type: 'integer' } },
