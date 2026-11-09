@@ -40,7 +40,7 @@ export const CERTIFICACION = {
 
 // Secretaría del programa.
 export const CONTACTO = {
-  direccion: ['Ciudad Universitaria Torobajo', 'Calle 18 No. 50 – 02', 'Bloque 6, oficina 309', 'Pasto - Nariño, Colombia'],
+  direccion: ['Ciudad Universitaria Torobajo', 'Calle 18 No. 50 – 02', 'Bloque de Ingeniería, oficina 309', 'Pasto - Nariño, Colombia'],
   telefono: '(602) 7244309 – Extensión 2015',
   email: 'maestriaelectronica@udenar.edu.co',
 }
