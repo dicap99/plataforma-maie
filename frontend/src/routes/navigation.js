@@ -11,7 +11,10 @@ export const INICIO_POR_ROL = {
 export const MENU_POR_ROL = {
   coordinador: [
     {
-      items: [{ to: '/coordinacion', label: 'Panel general', icono: 'space_dashboard', end: true }],
+      items: [
+        { to: '/coordinacion', label: 'Panel general', icono: 'space_dashboard', end: true },
+        { to: '/cuenta', label: 'Mi cuenta', icono: 'key' },
+      ],
     },
     {
       grupo: 'Procesos administrativos',
@@ -65,7 +68,10 @@ export const MENU_POR_ROL = {
   ],
   estudiante: [
     {
-      items: [{ to: '/estudiante', label: 'Panel', icono: 'space_dashboard', end: true }],
+      items: [
+        { to: '/estudiante', label: 'Panel', icono: 'space_dashboard', end: true },
+        { to: '/cuenta', label: 'Mi cuenta', icono: 'key' },
+      ],
     },
     {
       grupo: 'Evaluación docente',

@@ -12,6 +12,7 @@ import DatosProgramaPage from '../features/admin/DatosProgramaPage.jsx'
 import PresupuestoDashboard from '../features/admin/PresupuestoDashboard.jsx'
 import GestionAcademicaPage from '../features/admin/GestionAcademicaPage.jsx'
 import PerfilDocentePage from '../features/admin/PerfilDocentePage.jsx'
+import MiCuentaPage from '../features/auth/MiCuentaPage.jsx'
 import MisCursosPage from '../features/ra/MisCursosPage.jsx'
 import PlanillaRubricaPage from '../features/ra/PlanillaRubricaPage.jsx'
 import ConsolidadoRAPage from '../features/ra/ConsolidadoRAPage.jsx'
@@ -33,6 +34,8 @@ export default function AppRouter() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route index element={<Inicio />} />
+          {/* Mi cuenta: datos de la cuenta y cambio de contraseña, para todos los roles */}
+          <Route path="cuenta" element={<MiCuentaPage />} />
 
           <Route path="coordinacion" element={<ProtectedRoute roles={['coordinador']} />}>
             <Route index element={<EstadisticasDashboard />} />

@@ -177,9 +177,13 @@ export default function MainLayout() {
             <div role="alert" className="mb-space-md flex flex-wrap items-center gap-space-sm rounded-xl border border-amber-300 bg-amber-50 px-space-md py-space-sm text-body-sm text-amber-900">
               <Icono nombre="key" className="text-[20px]" />
               <span>Su contraseña es temporal: cámbiela. Si su identificación o su correo no son los suyos, solicite a Coordinación que los actualice.</span>
-              {usuario?.rol === 'docente' && pathname !== '/docente/perfil' && (
-                <Link to="/docente/perfil" className="font-semibold underline">Ir a Mi perfil</Link>
-              )}
+              {/* El docente cambia su contraseña en «Mi perfil»; los demás roles, en «Mi cuenta». */}
+              {(() => {
+                const destino = usuario?.rol === 'docente' ? '/docente/perfil' : '/cuenta'
+                return pathname !== destino && (
+                  <Link to={destino} className="font-semibold underline">{usuario?.rol === 'docente' ? 'Ir a Mi perfil' : 'Ir a Mi cuenta'}</Link>
+                )
+              })()}
             </div>
           )}
           <Outlet />

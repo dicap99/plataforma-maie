@@ -134,7 +134,7 @@ Las rutas de las hojas del Módulo 1 se generan desde `recursos.definicion.js` (
 
 | Recurso | Rutas | Rol |
 |---|---|---|
-| Auth | `POST /auth/login`, `GET /auth/me`, `PUT /auth/password` | Público / Todos |
+| Auth | `POST /auth/login`, `GET /auth/me`, `PUT /auth/password` (cada usuario solo cambia su contraseña: página «Mi cuenta», `/cuenta`, o «Mi perfil» del docente) | Público / Todos |
 | Usuarios | CRUD `/usuarios` con `telefono` de contacto: estudiante con `id_cohorte`; docente con `afiliacion` y `campos_formacion` (perfil docente); `GET /usuarios/campos-formacion`. Beneficios por semestre: `GET /usuarios/beneficios?id_cohorte=` y `PUT /usuarios/{id}/beneficios` (la `beca` de la promoción se deduce de ellos) | Coord |
 | Reflejo académico | `GET /admin/academico/reflejo`: promociones, beneficios, cursos/docentes por semestre y producción científica calculados desde Gestión y los productos cuando hay registros | Coord, Docente |
 | Metadatos | `GET /admin/recursos` (hojas visibles para el rol) | Coord, Docente |
