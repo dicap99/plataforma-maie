@@ -43,11 +43,4 @@ const cambiarPassword = async ({ user, body }) => {
   return { mensaje: 'Contraseña actualizada' };
 };
 
-// Identificación y correo de la propia cuenta; el correo es el que se usa para iniciar sesión.
-const actualizarCuenta = async ({ user, body }) => {
-  const usuario = await repository.updateCuenta(user.id, body);
-  if (!usuario || !usuario.activo) throw ApiError.unauthorized('La sesión ya no es válida');
-  return usuario;
-};
-
-module.exports = { login, me, cambiarPassword, actualizarCuenta };
+module.exports = { login, me, cambiarPassword };

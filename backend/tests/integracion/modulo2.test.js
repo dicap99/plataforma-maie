@@ -348,18 +348,20 @@ describe('Ofertas de curso, matrícula y calificación (RF-RA-02)', () => {
 describe('Usuarios en Gestión académica y reflejo en Información académica', () => {
   const base = { nombres: 'Prueba', activo: true, password: 'ClavePrueba2026' };
 
-  it('registra al estudiante con promoción y beca, y Información académica lo refleja', async () => {
+  it('registra al estudiante con promoción y beneficios, y Información académica lo refleja', async () => {
     const { id_cohorte: idCohorte } = await idDe("SELECT id_cohorte FROM cohortes WHERE nombre = 'Sintética V'");
     const antes = (await coord.get('/admin/academico/reflejo')).body.data;
     const benAntes = antes.beneficios.find((b) => b.id_cohorte === idCohorte)
     const cohAntes = antes.cohortes.find((c) => c.id_cohorte === idCohorte)
 
-    expect((await coord.post('/usuarios', { ...base, identificacion: 'EST-R1', apellidos: 'Becada', email: 'becada@prueba.co', rol: 'estudiante', beca: '100' })).status).toBe(400);
+    expect((await coord.post('/usuarios', { ...base, identificacion: 'DOC-X', apellidos: 'Docente', email: 'docx@prueba.co', rol: 'docente', afiliacion: 'UDENAR', id_cohorte: idCohorte })).status).toBe(400);
     const res = await coord.post('/usuarios', {
-      ...base, identificacion: 'EST-R1', apellidos: 'Becada', email: 'becada@prueba.co', rol: 'estudiante', id_cohorte: idCohorte, beca: 'sintraunicol',
+      ...base, identificacion: 'EST-R1', apellidos: 'Becada', email: 'becada@prueba.co', rol: 'estudiante', id_cohorte: idCohorte,
     });
     expect(res.status).toBe(201);
-    expect(res.body.data).toMatchObject({ id_cohorte: idCohorte, cohorte: 'Sintética V', beca: 'sintraunicol' });
+    expect(res.body.data).toMatchObject({ id_cohorte: idCohorte, cohorte: 'Sintética V', beca: null });
+    const becada = await coord.put(`/usuarios/${res.body.data.id_usuario}/beneficios`, { id_cohorte: idCohorte, beneficios: [{ semestre: 1, tipo: 'sintraunicol' }] });
+    expect(becada.body.data).toMatchObject({ beca: 'sintraunicol' });
 
     const despues = (await coord.get('/admin/academico/reflejo')).body.data;
     expect(despues.cohortes.find((c) => c.id_cohorte === idCohorte)).toMatchObject({ matriculados: cohAntes.matriculados + 1, origen: 'gestion' });

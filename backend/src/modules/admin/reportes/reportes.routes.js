@@ -10,6 +10,8 @@ const router = Router();
 // Montado en /api/v1/admin (el informe incluye información financiera: solo Coordinación)
 router.get('/reportes/estadisticas', authenticate, authorize(COORDINADOR), controller.estadisticas);
 router.get('/presupuesto/resumen', authenticate, authorize(COORDINADOR), controller.resumenPresupuesto);
+// Hojas financieras con reflejo («Contrataciones» calculada con los «Contratos OPS»).
+router.get('/finanzas/reflejo', authenticate, authorize(COORDINADOR), controller.reflejoFinanciero);
 // Hojas académicas con el reflejo de Gestión académica (Información académica la ve también el docente).
 router.get('/academico/reflejo', authenticate, authorize(COORDINADOR, DOCENTE), controller.reflejoAcademico);
 

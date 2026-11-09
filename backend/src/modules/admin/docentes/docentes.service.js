@@ -1,5 +1,6 @@
 // RF-ADM-06 — Perfil del docente y cursos en los que participa.
-// El docente mantiene su perfil y sus cursos; Coordinación puede hacerlo por cualquier docente.
+// Coordinación mantiene el perfil y los cursos de cada docente; el docente solo los consulta (asesoría
+// del 20-oct-2026: docentes y estudiantes no modifican datos, solo reciben su usuario).
 // Los cursos alimentan «Cursos y docentes por semestre» y los componentes que apoya.
 const ApiError = require('../../../utils/ApiError');
 const repository = require('./docentes.repository');
@@ -54,15 +55,6 @@ module.exports = {
   semestreDe,
 
   obtenerPerfilPropio: async ({ user }) => conCursos(await perfilPropio(user)),
-
-  async actualizarPerfilPropio({ user, body }) {
-    const perfil = await repository.updateByUsuario(user.id, body);
-    if (!perfil) throw sinPerfil();
-    return conCursos(perfil);
-  },
-
-  agregarCursoPropio: async ({ user, body }) => agregar(await perfilPropio(user), body),
-  quitarCursoPropio: async ({ user, params }) => quitar(await perfilPropio(user), params.idCurso),
 
   obtenerPerfil: async ({ params }) => conCursos(await perfilPorId(params.id)),
   agregarCurso: async ({ params, body }) => agregar(await perfilPorId(params.id), body),

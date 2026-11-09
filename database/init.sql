@@ -20,6 +20,7 @@ CREATE TABLE usuarios (
     nombres VARCHAR(100) NOT NULL,
     apellidos VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
+    telefono VARCHAR(30), -- contacto; lo registra Coordinación
     password_hash VARCHAR(255) NOT NULL,
     rol tipo_rol NOT NULL,
     activo BOOLEAN DEFAULT TRUE,
@@ -136,6 +137,22 @@ CREATE TABLE contrataciones_periodo (
     valor NUMERIC(16,2) NOT NULL DEFAULT 0 CHECK (valor >= 0)
 );
 
+-- Contratos OPS con nombres — hoja "Contratos OPS". Los periodos con contratos registrados calculan
+-- contrataciones_periodo (reflejo.js); los demás conservan el histórico.
+CREATE TABLE contratos_ops (
+    id_contrato SERIAL PRIMARY KEY,
+    periodo periodo_academico NOT NULL,
+    id_cohorte INT REFERENCES cohortes(id_cohorte) ON DELETE SET NULL, -- opcional: puede servir a varias
+    contratista VARCHAR(200) NOT NULL,
+    objeto TEXT NOT NULL,                                               -- curso o actividad contratada
+    numero_contrato VARCHAR(50),
+    fecha_inicio DATE,
+    fecha_fin DATE,
+    valor NUMERIC(16,2) NOT NULL CHECK (valor >= 0),
+    CONSTRAINT unq_contrato_ops UNIQUE (periodo, contratista, objeto),
+    CONSTRAINT chk_fechas_contrato_ops CHECK (fecha_fin IS NULL OR fecha_inicio IS NULL OR fecha_fin >= fecha_inicio)
+);
+
 -- Estudiantes de pregrado en cursos de la maestría — hoja "Estudiantes Pregrado"
 CREATE TABLE pregrado_periodo (
     id_cohorte INT REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,
@@ -196,12 +213,15 @@ CREATE TABLE docentes_perfil (
     formacion_profesional TEXT,
     campo_formacion VARCHAR(200),
     afiliacion tipo_afiliacion NOT NULL,
+    departamento VARCHAR(150), -- departamento o unidad académica
+    universidad VARCHAR(150),  -- institución de afiliación (externos)
     componentes TEXT,          -- obsoleto: los componentes salen de los cursos asignados (curso_docentes)
     cursos_participa TEXT,     -- obsoleto: texto histórico del libro; los cursos salen de curso_docentes
     enlace_perfil VARCHAR(255),
-    titulacion_maxima VARCHAR(100),
+    titulacion_maxima VARCHAR(100), -- obsoleto: la titulación va en formacion_profesional (decisión del 2026-11-09)
     linea_investigacion VARCHAR(150),
-    vinculacion_tipo VARCHAR(50)
+    vinculacion_tipo VARCHAR(50),
+    grupo_investigacion VARCHAR(150)
 );
 
 CREATE TABLE docentes_formacion (

@@ -80,7 +80,7 @@ const RECURSOS = [
     // Nadie la edita: se calcula de los cursos asignados a los docentes (reflejo.js); las filas
     // guardadas son el histórico del libro para promociones sin cursos registrados.
     rolesEscritura: [],
-    nota: 'Se calcula sola con los cursos que registran los docentes (Mi perfil) o Coordinación por ellos. '
+    nota: 'Se calcula sola con los cursos que Coordinación registra a cada docente (Gestión académica › Usuarios › Cursos). '
       + 'Los semestres sin cursos registrados muestran el histórico del libro «Estadísticas MaIE».',
     campos: [
       cohorte,
@@ -107,6 +107,11 @@ const RECURSOS = [
       { name: 'formacion_profesional', label: 'Formación profesional', type: 'texto', multilinea: true },
       { name: 'campo_formacion', label: 'Campo de formación', type: 'texto' },
       { name: 'afiliacion', label: 'Afiliación', type: 'enum', options: ['UDENAR', 'EXTERNO'], required: true },
+      { name: 'departamento', label: 'Departamento o unidad', type: 'texto' },
+      { name: 'universidad', label: 'Universidad (externos)', type: 'texto' },
+      { name: 'vinculacion_tipo', label: 'Tipo de vinculación', type: 'texto' },
+      { name: 'linea_investigacion', label: 'Línea de investigación', type: 'texto' },
+      { name: 'grupo_investigacion', label: 'Grupo de investigación', type: 'texto' },
       { name: 'enlace_perfil', label: 'Enlace a perfil', type: 'texto' },
     ],
     // Cursos y componentes salen de las asignaciones del docente (curso_docentes).
@@ -201,6 +206,9 @@ const RECURSOS = [
     categoria: 'financiero',
     llave: ['periodo'],
     ordenarPor: 't.periodo',
+    // Los periodos con contratos en «Contratos OPS» calculan estas columnas (reflejo.js).
+    reflejados: ['promociones', 'n_ops', 'valor'],
+    nota: 'Los periodos con contratos registrados en «Contratos OPS» se calculan de ahí; los demás conservan el histórico del libro.',
     rolesLectura: SOLO_COORD,
     rolesEscritura: SOLO_COORD,
     campos: [
@@ -208,6 +216,32 @@ const RECURSOS = [
       { name: 'promociones', label: 'Promociones', type: 'texto' },
       { name: 'n_ops', label: 'N.° OPS', type: 'entero', required: true },
       { name: 'valor', label: 'Valor OPS', type: 'dinero', required: true },
+    ],
+  },
+  {
+    // Registro interno con nombres (asesoría del 20-oct-2026); reflejo.js deriva de aquí la hoja
+    // «Contrataciones» de cada periodo con contratos. Las gráficas solo muestran cifras.
+    id: 'contratos-ops',
+    titulo: 'Contratos OPS',
+    hoja: 'Contratos OPS',
+    requisito: 'RF-ADM-03',
+    tabla: 'contratos_ops',
+    categoria: 'financiero',
+    llave: ['id_contrato'],
+    conflicto: ['periodo', 'contratista', 'objeto'],
+    unirCohorte: true,
+    ordenarPor: 't.periodo, t.contratista, t.objeto',
+    rolesLectura: SOLO_COORD,
+    rolesEscritura: SOLO_COORD,
+    campos: [
+      { name: 'periodo', label: 'Periodo', type: 'periodo', required: true },
+      { name: 'contratista', label: 'Contratista', type: 'texto', required: true },
+      { name: 'objeto', label: 'Objeto (curso o actividad)', type: 'texto', required: true },
+      { ...cohorte, required: false },
+      { name: 'numero_contrato', label: 'N.° de contrato', type: 'texto' },
+      { name: 'fecha_inicio', label: 'Fecha de inicio', type: 'fecha' },
+      { name: 'fecha_fin', label: 'Fecha de terminación', type: 'fecha' },
+      { name: 'valor', label: 'Valor (COP)', type: 'dinero', required: true },
     ],
   },
   {

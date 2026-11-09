@@ -75,3 +75,26 @@ describe('Producción científica por producto', () => {
     expect(filas[2]).toMatchObject({ id_cohorte: 3, cohorte: 'III', software: 1, articulos: 0, sin_registro: true });
   });
 });
+
+describe('Reflejo de «Contratos OPS» en «Contrataciones»', () => {
+  const { combinarContrataciones } = require('../src/modules/admin/reportes/reflejo');
+
+  it('los periodos con contratos cuentan, suman y listan promociones; los demás conservan la hoja', () => {
+    const filas = combinarContrataciones(
+      [
+        { periodo: '2023-A', promociones: 'II y III', n_ops: 3, valor: 9000000 },
+        { periodo: '2024-A', promociones: null, n_ops: 1, valor: 1000000 },
+      ],
+      [
+        { periodo: '2024-A', valor: 2500000, cohorte: 'IV' },
+        { periodo: '2024-A', valor: 1500000, cohorte: 'V' },
+        { periodo: '2024-A', valor: 500000, cohorte: 'IV' },
+        { periodo: '2025-B', valor: 800000, cohorte: null },
+      ],
+    );
+    expect(filas.map((f) => f.periodo)).toEqual(['2023-A', '2024-A', '2025-B']);
+    expect(filas[0]).toMatchObject({ n_ops: 3, valor: 9000000, origen: 'registro' });
+    expect(filas[1]).toMatchObject({ n_ops: 3, valor: 4500000, promociones: 'IV, V', origen: 'gestion' });
+    expect(filas[2]).toMatchObject({ n_ops: 1, valor: 800000, promociones: null, origen: 'gestion', sin_registro: true });
+  });
+});

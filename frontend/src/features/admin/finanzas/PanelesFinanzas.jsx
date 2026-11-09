@@ -10,19 +10,7 @@ import { porCohorte, razon, suma } from '../academico/estadisticas'
 // indicada, filtrada a la promoción o al periodo en que se hizo clic.
 
 const ejePesos = (v) => pesosCompactos(v)
-const DISTRIBUCION = [
-  { clave: 'transferencia_central', nombre: 'Administración central' },
-  { clave: 'transferencia_viis', nombre: 'VIIS' },
-  { clave: 'fondo_investigaciones', nombre: 'Fondo de Investigaciones' },
-  { clave: 'unidad_academica', nombre: 'Unidad Académica' },
-]
 const tablaDe = (filas, columnas) => ({ columnas, filas })
-const PCT_DISTRIBUCION = {
-  transferencia_central: 'pct_transferencia_central',
-  transferencia_viis: 'pct_transferencia_viis',
-  fondo_investigaciones: 'pct_fondo_investigaciones',
-  unidad_academica: 'pct_unidad_academica',
-}
 const porPromocion = (hoja) => (f) => ({ hoja, etiqueta: `Promoción ${f.promocion}`, fn: (x) => x.id_cohorte === f.id_cohorte })
 const porPeriodoEn = (hoja) => (f) => ({ hoja, etiqueta: `Periodo ${f.periodo}`, fn: (x) => x.periodo === f.periodo })
 
@@ -34,49 +22,60 @@ const ultimosCortes = (resumen, cohortes) => {
     .map((f) => ({ ...f, promocion: f.cohorte }))
 }
 
-// 1. Ejecución presupuestal y saldos (RF-ADM-03): último corte de cada promoción.
-export function PanelEjecucion({ resumen, parametros = [], cohortes, onFiltrar }) {
+// 1. Ejecución presupuestal y saldos (RF-ADM-03): último corte de cada promoción y su comparación con
+// el estudio de viabilidad (línea base: ingresos = gastos proyectados en la hoja «Punto de equilibrio»).
+// La distribución del saldo (administración, VIIS, fondo, unidad) no se grafica: la liquidación está
+// suspendida (asesoría del 20-oct-2026); los valores se conservan en los cortes por si se reactiva.
+export function PanelEjecucion({ resumen, equilibrio, cohortes, onFiltrar }) {
   const filas = ultimosCortes(resumen, cohortes)
+  const proyectado = new Map(equilibrio.map((e) => [e.id_cohorte, e.ingresos_proyectados]))
+  const viabilidad = filas.map((f) => {
+    const base = proyectado.get(f.id_cohorte) ?? null
+    return { ...f, ingresos_proyectados: base, pct_recaudo: razon(f.ingresos, base), pct_gasto: razon(f.gastos_comprometidos, base) }
+  })
   if (!filas.length) return <SinDatos texto="No hay cortes de presupuesto para estas promociones." />
 
   const filtrar = (f) => onFiltrar(porPromocion('presupuesto')(f))
-  const valorParametro = (clave) => parametros.find((p) => p.clave === clave)?.valor ?? null
-  const reparto = Object.fromEntries(DISTRIBUCION.map((d) => [d.clave, valorParametro(PCT_DISTRIBUCION[d.clave])]))
+  const conBase = viabilidad.filter((f) => f.ingresos_proyectados !== null)
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <ChartCard titulo="Ingresos y gastos por promoción" subtitulo={`Último corte (${fecha(resumen.fecha_corte)}) · clic para ver los cortes`}
-        tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'fecha_corte', titulo: 'Corte', formato: fecha }, { clave: 'ingresos', titulo: 'Ingresos', formato: pesos }, { clave: 'gastos_comprometidos', titulo: 'Gastos', formato: pesos }])}>
+      <ChartCard titulo="Ingresos, gastos y saldo por promoción"
+        subtitulo={`Último corte (${fecha(resumen.fecha_corte)}); el saldo es ingresos menos gastos comprometidos y puede ser negativo · clic para ver los cortes`}
+        tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'fecha_corte', titulo: 'Corte', formato: fecha }, { clave: 'ingresos', titulo: 'Ingresos', formato: pesos }, { clave: 'gastos_comprometidos', titulo: 'Gastos', formato: pesos }, { clave: 'saldo_comprometido', titulo: 'Saldo', formato: pesos }])}>
         <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
-          series={[{ clave: 'ingresos', nombre: 'Ingresos', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }]} />
+          series={[{ clave: 'ingresos', nombre: 'Ingresos', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }, { clave: 'saldo_comprometido', nombre: 'Saldo', color: SERIES[2] }]} />
       </ChartCard>
 
-      <ChartCard titulo="Distribución del saldo por promoción"
-        subtitulo="Valor que corresponde a cada destino; registrada en el corte o calculada con los porcentajes de Parámetros · clic para ver los cortes"
-        tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, ...DISTRIBUCION.map((d) => ({ clave: d.clave, titulo: d.nombre, formato: pesos }))])}>
-        <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
-          series={DISTRIBUCION.map((d, i) => ({ ...d, nombre: reparto[d.clave] === null ? d.nombre : `${d.nombre} (${numero(reparto[d.clave])} %)`, color: SERIES[i + 2] }))} />
+      <ChartCard titulo="Ejecución frente al estudio de viabilidad"
+        subtitulo="Línea base del estudio de viabilidad (ingresos proyectados = gastos proyectados en el punto de equilibrio) frente a lo recaudado y comprometido en el último corte · clic para ver los cortes"
+        tabla={tablaDe(viabilidad, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'ingresos_proyectados', titulo: 'Viabilidad', formato: pesos }, { clave: 'ingresos', titulo: 'Recaudado', formato: pesos }, { clave: 'pct_recaudo', titulo: '% recaudo', formato: porcentaje }, { clave: 'gastos_comprometidos', titulo: 'Comprometido', formato: pesos }, { clave: 'pct_gasto', titulo: '% gasto', formato: porcentaje }])}>
+        {conBase.length ? (
+          <GraficoBarras datos={viabilidad} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
+            series={[{ clave: 'ingresos_proyectados', nombre: 'Viabilidad (proyectado)', color: SERIES[3] }, { clave: 'ingresos', nombre: 'Ingresos recaudados', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }]} />
+        ) : <SinDatos texto="No hay estudio de viabilidad (punto de equilibrio) registrado para estas promociones." />}
       </ChartCard>
     </div>
   )
 }
 
-// 2. Sostenibilidad y punto de equilibrio: viabilidad de cada promoción y aporte del pregrado.
-export function PanelSostenibilidad({ equilibrio, pregrado, resumen, cohortes, onFiltrar }) {
-  const recaudado = new Map(ultimosCortes(resumen, cohortes).map((f) => [f.id_cohorte, f.ingresos]))
+// 2. Sostenibilidad y punto de equilibrio: matriculados frente al equilibrio y aporte del pregrado.
+// El aporte de cada promoción suma los ingresos de pregrado registrados para ella (sus cuatro
+// semestres) y se compara con los ingresos proyectados en su estudio de viabilidad.
+export function PanelSostenibilidad({ equilibrio, pregrado, cohortes, onFiltrar }) {
   const filasPregrado = porCohorte(pregrado, cohortes)
   const datos = porCohorte(equilibrio, cohortes).map((f) => {
-    const ingresos = recaudado.get(f.id_cohorte) ?? null
+    const ingresoPregrado = suma(filasPregrado.filter((p) => p.id_cohorte === f.id_cohorte).map((p) => p.ingreso))
     return {
       ...f,
       matriculados: cohortes.find((c) => c.id_cohorte === f.id_cohorte)?.matriculados ?? null,
-      ingresos,
-      pct_recaudo: razon(ingresos, f.ingresos_proyectados),
+      ingreso_pregrado: ingresoPregrado,
+      pct_aporte: razon(ingresoPregrado, f.ingresos_proyectados),
     }
   })
   if (!datos.length && !filasPregrado.length) return <SinDatos />
 
-  const conRecaudo = datos.filter((f) => f.ingresos !== null)
+  const conPregrado = datos.filter((f) => f.ingreso_pregrado > 0)
   const periodos = [...new Set(filasPregrado.map((f) => f.periodo))].sort().map((p) => {
     const del = filasPregrado.filter((f) => f.periodo === p)
     return { periodo: p, estudiantes: suma(del.map((f) => f.estudiantes)), inscripciones: suma(del.map((f) => f.inscripciones)), ingreso: suma(del.map((f) => f.ingreso)) }
@@ -93,12 +92,13 @@ export function PanelSostenibilidad({ equilibrio, pregrado, resumen, cohortes, o
               series={[{ clave: 'matriculados', nombre: 'Matriculados', color: SERIES[0] }, { clave: 'estudiantes_equilibrio', nombre: 'Estudiantes de equilibrio', color: SERIES[3] }]} />
           ) : <SinDatos texto="No hay punto de equilibrio registrado para estas promociones." />}
         </ChartCard>
-        <ChartCard titulo="Recaudo frente a la proyección" subtitulo="Ingresos del último corte de presupuesto sobre los ingresos proyectados de la promoción"
-          tabla={tablaDe(datos, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'ingresos_proyectados', titulo: 'Proyectados', formato: pesos }, { clave: 'ingresos', titulo: 'Recaudados', formato: pesos }, { clave: 'pct_recaudo', titulo: 'Recaudo', formato: porcentaje }])}>
-          {conRecaudo.length ? (
-            <GraficoBarras datos={datos} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
-              series={[{ clave: 'ingresos_proyectados', nombre: 'Ingresos proyectados', color: SERIES[2] }, { clave: 'ingresos', nombre: 'Ingresos recaudados', color: SERIES[0] }]} />
-          ) : <SinDatos texto="No hay cortes de presupuesto para comparar con la proyección." />}
+        <ChartCard titulo="Aporte del pregrado frente a la viabilidad" subtitulo="Ingresos de pregrado durante los semestres de cada promoción; la tabla incluye el % de los ingresos proyectados"
+          tabla={tablaDe(datos, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'ingresos_proyectados', titulo: 'Viabilidad', formato: pesos }, { clave: 'ingreso_pregrado', titulo: 'Aporte pregrado', formato: pesos }, { clave: 'pct_aporte', titulo: '% de la viabilidad', formato: porcentaje }])}>
+          {conPregrado.length ? (
+            <GraficoBarras datos={datos} ejeX="promocion" formato={pesos} formatoEje={ejePesos}
+              onSeleccionar={(f) => onFiltrar(porPromocion('pregrado')(f))}
+              series={[{ clave: 'ingresos_proyectados', nombre: 'Viabilidad (proyectado)', color: SERIES[3] }, { clave: 'ingreso_pregrado', nombre: 'Aporte del pregrado', color: SERIES[4] }]} />
+          ) : <SinDatos texto="No hay ingresos de pregrado registrados para estas promociones." />}
         </ChartCard>
       </RejillaGraficas>
 

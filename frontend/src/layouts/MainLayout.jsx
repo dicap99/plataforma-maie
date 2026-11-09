@@ -27,7 +27,7 @@ export default function MainLayout() {
   useEffect(() => setMenuAbierto(false), [pathname])
 
   // Cuentas con credenciales temporales: aviso hasta que el usuario cambie su contraseña.
-  // «Mi perfil» emite `maie:cuenta-actualizada` al guardar para volver a consultar.
+  // «Mi perfil» emite `maie:cuenta-actualizada` al cambiar la contraseña para volver a consultar.
   const [temporal, setTemporal] = useState(false)
   useEffect(() => {
     if (!usuario) return undefined
@@ -176,7 +176,7 @@ export default function MainLayout() {
           {temporal && (
             <div role="alert" className="mb-space-md flex flex-wrap items-center gap-space-sm rounded-xl border border-amber-300 bg-amber-50 px-space-md py-space-sm text-body-sm text-amber-900">
               <Icono nombre="key" className="text-[20px]" />
-              <span>Su cuenta tiene una identificación, un correo y una contraseña temporales. Cámbielos para seguir usando la plataforma con sus datos.</span>
+              <span>Su contraseña es temporal: cámbiela. Si su identificación o su correo no son los suyos, solicite a Coordinación que los actualice.</span>
               {usuario?.rol === 'docente' && pathname !== '/docente/perfil' && (
                 <Link to="/docente/perfil" className="font-semibold underline">Ir a Mi perfil</Link>
               )}

@@ -150,15 +150,26 @@ describe('Usuarios, RBAC y perfil docente', () => {
     expect(ids).not.toContain('presupuesto');
   });
 
-  it('el docente mantiene su propio perfil (RF-ADM-06)', async () => {
-    const res = await docente.put('/admin/docentes/me/perfil', { linea_investigacion: 'Control', afiliacion: 'EXTERNO' });
-    expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ linea_investigacion: 'Control', afiliacion: 'UDENAR' }); // afiliación no editable
+  it('el docente consulta su perfil (RF-ADM-06) pero no lo modifica; Coordinación registra la afiliación', async () => {
+    expect((await docente.put('/admin/docentes/me/perfil', { linea_investigacion: 'Control' })).status).toBe(404);
     expect((await coord.get('/admin/docentes/me/perfil')).status).toBe(403);
-    // Un PUT parcial no borra los demás campos.
-    await docente.put('/admin/docentes/me/perfil', { enlace_perfil: 'https://orcid.org/0000' });
+
+    const { id_usuario: idUsuario } = (await coord.get('/usuarios')).body.data.find((u) => u.email === 'docente@udenar.edu.co');
+    const base = { identificacion: '111', nombres: 'Docente', apellidos: 'Prueba', email: 'docente@udenar.edu.co', rol: 'docente' };
+    const externo = await coord.put(`/usuarios/${idUsuario}`, {
+      ...base, afiliacion: 'EXTERNO', departamento: 'Departamento de Electrónica', universidad: 'Universidad del Cauca',
+    });
+    expect(externo.body.data).toMatchObject({ afiliacion: 'EXTERNO', departamento: 'Departamento de Electrónica', universidad: 'Universidad del Cauca' });
     expect((await docente.get('/admin/docentes/me/perfil')).body.data)
-      .toMatchObject({ linea_investigacion: 'Control', enlace_perfil: 'https://orcid.org/0000' });
+      .toMatchObject({ afiliacion: 'EXTERNO', departamento: 'Departamento de Electrónica', universidad: 'Universidad del Cauca' });
+
+    // Sin enviar el departamento se conserva; al pasar a UDENAR la universidad se borra; un texto vacío borra.
+    expect((await coord.put(`/usuarios/${idUsuario}`, { ...base, afiliacion: 'UDENAR' })).body.data)
+      .toMatchObject({ afiliacion: 'UDENAR', departamento: 'Departamento de Electrónica', universidad: null });
+    expect((await coord.put(`/usuarios/${idUsuario}`, { ...base, telefono: '3001234567' })).body.data).toMatchObject({ telefono: '3001234567' });
+    // El teléfono sin enviar se conserva.
+    expect((await coord.put(`/usuarios/${idUsuario}`, { ...base, departamento: '' })).body.data)
+      .toMatchObject({ afiliacion: 'UDENAR', departamento: null, telefono: '3001234567' });
   });
 
   it('los cursos del docente alimentan «Cursos y docentes por semestre» (semestre real de la promoción)', async () => {
@@ -168,11 +179,16 @@ describe('Usuarios, RBAC y perfil docente', () => {
     const { rows: [robotica] } = await db.query("SELECT id_clase FROM clases WHERE codigo = 'CE2-01'");
     const curso = { id_cohorte: cohorte.id_cohorte, periodo: '2030-B', id_clase: robotica.id_clase };
 
-    const res = await docente.post('/admin/docentes/me/cursos', curso);
+    // El docente no registra sus cursos: lo hace Coordinación por él.
+    // La ruta propia ya no existe: cae en /:id/cursos, reservada a Coordinación (403).
+    expect((await docente.post('/admin/docentes/me/cursos', curso)).status).toBe(403);
+    const { id_docente: idDocente } = (await docente.get('/admin/docentes/me/perfil')).body.data;
+    expect((await docente.post(`/admin/docentes/${idDocente}/cursos`, curso)).status).toBe(403);
+    const res = await coord.post(`/admin/docentes/${idDocente}/cursos`, curso);
     expect(res.status).toBe(201);
     expect(res.body.data.cursos).toEqual([expect.objectContaining({ clase: 'Robótica', semestre: 2, componente: 'Electivo' })]);
     expect(res.body.data.componentes).toEqual(['Electivo']);
-    expect((await docente.post('/admin/docentes/me/cursos', { ...curso, periodo: '2032-A' })).status).toBe(400);
+    expect((await coord.post(`/admin/docentes/${idDocente}/cursos`, { ...curso, periodo: '2032-A' })).status).toBe(400);
 
     const semestres = (await coord.get('/admin/academico/reflejo')).body.data['cohorte-semestres'];
     expect(semestres.find((s) => s.id_cohorte === cohorte.id_cohorte))
@@ -182,24 +198,27 @@ describe('Usuarios, RBAC y perfil docente', () => {
 
     // La tabla no se edita a mano; Coordinación registra cursos por el docente.
     expect((await coord.post('/admin/cohorte-semestres', { id_cohorte: cohorte.id_cohorte, semestre: 1, n_cursos: 1, docentes_udenar: 0, docentes_externos: 0 })).status).toBe(403);
-    const { id_docente: idDocente, cursos } = res.body.data;
-    expect((await docente.post(`/admin/docentes/${idDocente}/cursos`, curso)).status).toBe(403);
+    const { cursos } = res.body.data;
     const otro = await coord.post(`/admin/docentes/${idDocente}/cursos`, { ...curso, periodo: '2031-A' });
     expect(otro.body.data.cursos).toHaveLength(2);
 
     // Al quitar al único docente, la oferta deja de existir.
-    const quitar = await docente.delete(`/admin/docentes/me/cursos/${cursos[0].id_curso}`);
+    expect((await docente.delete(`/admin/docentes/${idDocente}/cursos/${cursos[0].id_curso}`)).status).toBe(403);
+    const quitar = await coord.delete(`/admin/docentes/${idDocente}/cursos/${cursos[0].id_curso}`);
     expect(quitar.body.data.cursos.map((c) => c.periodo)).toEqual(['2031-A']);
     expect((await db.query('SELECT 1 FROM cursos WHERE id_curso = $1', [cursos[0].id_curso])).rowCount).toBe(0);
     await coord.delete(`/admin/cohortes/${cohorte.id_cohorte}`);
   });
 
-  it('el usuario actualiza su identificación y correo; cambiar la contraseña quita la marca temporal', async () => {
+  it('el usuario solo cambia su contraseña (quita la marca temporal); Coordinación cambia su correo', async () => {
     await db.query("UPDATE usuarios SET debe_cambiar_password = TRUE WHERE email = 'docente@udenar.edu.co'");
     expect((await docente.get('/auth/me')).body.data.debe_cambiar_password).toBe(true);
-    const cuenta = await docente.put('/auth/me', { identificacion: '111-A', email: 'docente.prueba@udenar.edu.co' });
+    expect((await docente.put('/auth/me', { email: 'docente.prueba@udenar.edu.co' })).status).toBe(404);
+    const { id_usuario: idUsuario } = (await coord.get('/usuarios')).body.data.find((u) => u.email === 'docente@udenar.edu.co');
+    const cuenta = await coord.put(`/usuarios/${idUsuario}`, {
+      identificacion: '111-A', nombres: 'Docente', apellidos: 'Prueba', email: 'docente.prueba@udenar.edu.co', rol: 'docente',
+    });
     expect(cuenta.body.data).toMatchObject({ identificacion: '111-A', email: 'docente.prueba@udenar.edu.co' });
-    expect((await docente.put('/auth/me', { email: 'no-es-correo' })).status).toBe(400);
     await docente.put('/auth/password', { actual: 'ClaveDocente1', nueva: 'ClaveDocente2' });
     expect((await docente.get('/auth/me')).body.data.debe_cambiar_password).toBe(false);
     expect(await login({ email: 'docente.prueba@udenar.edu.co', password: 'ClaveDocente2' })).toBeTruthy();
@@ -226,6 +245,23 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     expect(porHoja['Promociones y Estudiantes']).toMatchObject({ filas: 2, insertados: 2 });
     expect(porHoja.Contrataciones).toMatchObject({ filas: 2, insertados: 2 });
     expect(await contar('cohorte_beneficios')).toBe(2);
+  });
+
+  it('reimportar el libro no borra los datos del docente que el libro no trae', async () => {
+    await db.query("UPDATE docentes_perfil SET departamento = 'Departamento de Electrónica', grupo_investigacion = 'GIIEE' WHERE nombre_completo = 'DOCENTE PRUEBA'");
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(await libroEstadisticas());
+    const hoja = libro.addWorksheet('Docentes UDENAR-EXTERNOS');
+    // En el libro real esta hoja empieza en la columna A (las demás dejan la A vacía).
+    hoja.getRow(2).values = ['N.°', 'Docente', 'Formación profesional', 'Campo de formación', 'Afiliación'];
+    hoja.getRow(3).values = [1, 'DOCENTE PRUEBA', 'Ingeniero Electrónico', 'Control', 'UDENAR'];
+    const res = await coord.subir('/admin/importaciones', Buffer.from(await libro.xlsx.writeBuffer()), 'estadisticas.xlsx');
+    expect(res.status).toBe(201);
+    const { rows: [perfil] } = await db.query("SELECT * FROM docentes_perfil WHERE nombre_completo = 'DOCENTE PRUEBA'");
+    expect(perfil).toMatchObject({
+      formacion_profesional: 'Ingeniero Electrónico', campo_formacion: 'Control',
+      departamento: 'Departamento de Electrónica', grupo_investigacion: 'GIIEE',
+    });
   });
 
   it('un archivo con errores no guarda nada y reporta hoja y fila', async () => {
@@ -310,25 +346,42 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     ]);
   });
 
-  it('los beneficios por semestre del estudiante alimentan «Beneficios» y deducen su beca', async () => {
+  it('los beneficios por semestre se editan aparte del usuario, alimentan «Beneficios» y deducen su beca', async () => {
     const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
     const base = {
-      identificacion: '333', nombres: 'Becada', apellidos: 'Prueba', email: 'becada@udenar.edu.co',
+      identificacion: '333', nombres: 'Becada', apellidos: 'Prueba', email: 'becada@udenar.edu.co', telefono: '+57 300 123 4567',
       rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte,
     };
-    const doble = await coord.post('/usuarios', { ...base, beneficios: [{ semestre: 2, tipo: '100' }, { semestre: 2, tipo: 'sintraunicol' }] });
+    const creado = await coord.post('/usuarios', base);
+    expect(creado.status).toBe(201);
+    expect(creado.body.data).toMatchObject({ telefono: '+57 300 123 4567', beca: null, beneficios: [] });
+    const ruta = `/usuarios/${creado.body.data.id_usuario}/beneficios`;
+
+    const doble = await coord.put(ruta, { id_cohorte: ii.id_cohorte, beneficios: [{ semestre: 2, tipo: '100' }, { semestre: 2, tipo: 'sintraunicol' }] });
     expect(doble.status).toBe(400);
     expect(doble.body.error.message).toMatch(/una beca por semestre/);
+    expect((await request(app).put(`${API}${ruta}`).send({ id_cohorte: ii.id_cohorte, beneficios: [] })).status).toBe(401);
+    expect((await coord.put(ruta, { beneficios: [] })).status).toBe(400); // falta la promoción
+    // Una promoción a la que el estudiante no pertenece no se toca.
+    const { rows: [i] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'I'");
+    expect((await coord.put(ruta, { id_cohorte: i.id_cohorte, beneficios: [] })).status).toBe(404);
 
-    const creado = await coord.post('/usuarios', {
-      ...base,
+    const res = await coord.put(ruta, {
+      id_cohorte: ii.id_cohorte,
       beneficios: [
         { semestre: 1, tipo: 'hora_catedra' }, { semestre: 2, tipo: '100' }, { semestre: 3, tipo: '100' },
         { semestre: 3, tipo: 'asistente_investigacion' },
       ],
     });
-    expect(creado.status).toBe(201);
-    expect(creado.body.data).toMatchObject({ beca: '100', beneficios: expect.arrayContaining([{ semestre: 3, tipo: 'asistente_investigacion' }]) });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ beca: '100', beneficios: expect.arrayContaining([{ semestre: 3, tipo: 'asistente_investigacion' }]) });
+    const lista = (await coord.get('/usuarios/beneficios').query({ id_cohorte: ii.id_cohorte })).body.data;
+    expect(lista.find((e) => e.identificacion === '333').beneficios).toHaveLength(4);
+
+    // Editar el usuario (sin cambiar de promoción) conserva la beca y los beneficios.
+    const editado = await coord.put(`/usuarios/${creado.body.data.id_usuario}`, { ...base, telefono: '' });
+    expect(editado.body.data).toMatchObject({ telefono: null, beca: '100' });
+    expect(editado.body.data.beneficios).toHaveLength(4);
 
     const fila = (await coord.get('/admin/academico/reflejo')).body.data.beneficios.find((b) => b.cohorte === 'II');
     // Cuenta estudiantes (no semestres) y, al haber beneficios por semestre, también los asistentes.
@@ -342,8 +395,9 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
     const creado = await coord.post('/usuarios', {
       identificacion: '444', nombres: 'Ana', apellidos: 'Plantilla', email: 'ana.plantilla@udenar.edu.co',
-      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte, beneficios: [{ semestre: 4, tipo: 'ayudante_docencia' }],
+      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte,
     });
+    await coord.put(`/usuarios/${creado.body.data.id_usuario}/beneficios`, { id_cohorte: ii.id_cohorte, beneficios: [{ semestre: 4, tipo: 'ayudante_docencia' }] });
     const vacia = await coord.get('/admin/plantillas').buffer(true).parse((res, cb) => {
       const partes = [];
       res.on('data', (c) => partes.push(c)).on('end', () => cb(null, Buffer.concat(partes)));
@@ -374,6 +428,31 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     ]));
 
     await coord.delete(`/usuarios/${creado.body.data.id_usuario}`);
+  });
+
+  it('los contratos OPS con nombres calculan «Contrataciones» del periodo (solo Coordinación)', async () => {
+    const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
+    const base = { periodo: '2031-A', valor: 1000000 };
+    const a = await coord.post('/admin/contratos-ops', { ...base, contratista: 'Ana Pérez', objeto: 'Robótica', id_cohorte: ii.id_cohorte });
+    expect(a.status).toBe(201);
+    expect(a.body.data).toMatchObject({ cohorte: 'II' });
+    const b = await coord.post('/admin/contratos-ops', { ...base, contratista: 'Luis Gómez', objeto: 'Apoyo a laboratorios', valor: 500000 });
+    expect(b.status).toBe(201);
+    expect(b.body.data).toMatchObject({ id_cohorte: null, cohorte: null });
+    expect((await coord.post('/admin/contratos-ops', { ...base, contratista: 'Sin objeto' })).status).toBe(400);
+
+    const reflejo = await coord.get('/admin/finanzas/reflejo');
+    expect(reflejo.body.data.contrataciones.find((c) => c.periodo === '2031-A'))
+      .toMatchObject({ n_ops: 2, valor: 1500000, promociones: 'II', origen: 'gestion', sin_registro: true });
+    const docente = conToken(await login({ email: 'docente.prueba@udenar.edu.co', password: 'ClaveDocente2' }));
+    expect((await docente.get('/admin/finanzas/reflejo')).status).toBe(403);
+    expect((await docente.get('/admin/contratos-ops')).status).toBe(403);
+    // El Panel general usa las mismas cifras.
+    const informe = (await coord.get('/admin/reportes/estadisticas')).body.data;
+    expect(informe.contrataciones.filas.find((c) => c.periodo === '2031-A')).toMatchObject({ n_ops: 2, valor: 1500000 });
+
+    await coord.delete(`/admin/contratos-ops/${a.body.data.id_contrato}`);
+    await coord.delete(`/admin/contratos-ops/${b.body.data.id_contrato}`);
   });
 
   it('los productos de investigación calculan la «Producción científica» de su promoción', async () => {

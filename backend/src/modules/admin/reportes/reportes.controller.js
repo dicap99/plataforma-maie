@@ -17,4 +17,9 @@ const reflejoAcademico = asyncHandler(async (req, res) => {
   success(res, await service.reflejoAcademico());
 });
 
-module.exports = { estadisticas, resumenPresupuesto, reflejoAcademico };
+// GET /api/v1/admin/finanzas/reflejo
+const reflejoFinanciero = asyncHandler(async (req, res) => {
+  success(res, await service.reflejoFinanciero());
+});
+
+module.exports = { estadisticas, resumenPresupuesto, reflejoAcademico, reflejoFinanciero };

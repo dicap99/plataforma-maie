@@ -4,16 +4,24 @@ const env = require('../../config/env');
 const db = require('../../config/db');
 const ApiError = require('../../utils/ApiError');
 const { ROLES } = require('../../utils/roles');
-const { becaPrincipal, semestresConVariasBecas } = require('../../utils/beneficios');
 const repository = require('./usuarios.repository');
 
 const noEncontrado = () => ApiError.notFound('Usuario no encontrado');
 
 // Docente: deja el usuario vinculado a un perfil (el indicado, el que ya tenía, uno sin cuenta con el
-// mismo nombre o uno nuevo) y guarda en él la afiliación y los campos de formación.
+// mismo nombre o uno nuevo) y guarda en él la afiliación (con departamento y universidad) y los campos
+// de formación.
 const guardarPerfilDocente = async (cliente, idUsuario, body) => {
-  const campos = body.campos_formacion ? [...new Set(body.campos_formacion.map((c) => c.trim()).filter(Boolean))] : null;
-  const perfil = { afiliacion: body.afiliacion ?? null, campo_formacion: campos ? campos.join(repository.SEPARADOR_CAMPOS) || null : null };
+  // Solo se cambian los datos enviados (undefined = conservar); un texto vacío borra el dato.
+  const texto = (v) => (v === undefined ? undefined : v?.trim() || null);
+  const campos = body.campos_formacion ? [...new Set(body.campos_formacion.map((c) => c.trim()).filter(Boolean))] : undefined;
+  const perfil = {
+    afiliacion: body.afiliacion ?? undefined,
+    campo_formacion: campos && (campos.join(repository.SEPARADOR_CAMPOS) || null),
+    departamento: texto(body.departamento),
+    // La universidad solo aplica a los externos: un docente UDENAR no la conserva.
+    universidad: body.afiliacion === 'UDENAR' ? null : texto(body.universidad),
+  };
   if (body.id_docente) {
     if (!(await repository.vincularDocente(cliente, idUsuario, body.id_docente))) throw ApiError.badRequest('El perfil docente indicado no existe');
     return repository.actualizarPerfil(cliente, body.id_docente, perfil);
@@ -31,29 +39,19 @@ const guardarPerfilDocente = async (cliente, idUsuario, body) => {
   return repository.crearPerfil(cliente, idUsuario, { ...perfil, nombre_completo: nombre });
 };
 
-// Crea/actualiza el usuario con lo propio de su rol (perfil docente, o promoción, beca y beneficios por
-// semestre del estudiante) en una sola transacción. Si llegan `beneficios`, la beca de la promoción se
-// deduce de ellos (la de más semestres).
+// Crea/actualiza el usuario con lo propio de su rol (perfil docente, o promoción del estudiante) en una
+// sola transacción. La beca y los beneficios por semestre no se editan aquí sino en la pestaña
+// «Beneficios» (beneficios.service.js), como se acordó en la asesoría del 20-oct-2026.
 const guardar = async (id, body) => {
-  const datos = { ...body };
+  // Teléfono: sin enviar se conserva (como los datos del perfil docente); vacío lo borra.
+  const datos = { ...body, telefono: body.telefono === undefined ? undefined : body.telefono?.trim() || null };
   if (body.password) datos.password_hash = await bcrypt.hash(body.password, env.bcryptCost);
   const esDocente = body.rol === ROLES.DOCENTE;
   const esEstudiante = body.rol === ROLES.ESTUDIANTE;
-  if ((body.id_docente || body.afiliacion || body.campos_formacion?.length) && !esDocente) {
-    throw ApiError.badRequest('El perfil docente (afiliación y campos de formación) es solo para el rol docente');
+  if ((body.id_docente || body.afiliacion || body.departamento || body.universidad || body.campos_formacion?.length) && !esDocente) {
+    throw ApiError.badRequest('El perfil docente (afiliación, departamento, universidad y campos de formación) es solo para el rol docente');
   }
-  const beneficios = body.beneficios
-    ? [...new Map(body.beneficios.map((b) => [`${b.semestre}|${b.tipo}`, b])).values()]
-    : null;
-  if ((body.id_cohorte || body.beca || beneficios?.length) && !esEstudiante) {
-    throw ApiError.badRequest('La promoción, la beca y los beneficios son solo para el rol estudiante');
-  }
-  if ((body.beca || beneficios?.length) && !body.id_cohorte) {
-    throw ApiError.badRequest('Para registrar la beca o los beneficios indique la promoción del estudiante');
-  }
-  const repetidas = semestresConVariasBecas(beneficios ?? []);
-  if (repetidas.length) throw ApiError.badRequest(`Solo puede haber una beca por semestre (semestre ${repetidas.join(', ')})`);
-  const beca = beneficios ? becaPrincipal(beneficios) : body.beca;
+  if (body.id_cohorte && !esEstudiante) throw ApiError.badRequest('La promoción es solo para el rol estudiante');
   if (body.id_cohorte && !(await repository.existeCohorte(body.id_cohorte))) throw ApiError.badRequest('La promoción indicada no existe');
 
   return db.withTransaction(async (cliente) => {
@@ -70,8 +68,7 @@ const guardar = async (id, body) => {
       await repository.vincularDocente(cliente, idUsuario, null);
     }
     if (esEstudiante && body.id_cohorte) {
-      await repository.asignarPromocion(cliente, idUsuario, body.id_cohorte, beca);
-      if (beneficios) await repository.reemplazarBeneficios(cliente, idUsuario, body.id_cohorte, beneficios);
+      await repository.asignarPromocion(cliente, idUsuario, body.id_cohorte);
     } else if (esEstudiante && body.id_cohorte === null) await repository.quitarPromocion(cliente, idUsuario);
     else if (!esEstudiante && id) await repository.quitarPromocion(cliente, idUsuario);
     return idUsuario;

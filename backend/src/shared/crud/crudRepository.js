@@ -13,7 +13,8 @@ const crudRepository = (recurso) => {
 
   const extra = calculados.map((c) => `, ${c.sql} AS ${id(c.name)}`).join('');
   const select = unirCohorte
-    ? `SELECT t.*, c.nombre AS cohorte${extra} FROM ${id(tabla)} t JOIN cohortes c ON c.id_cohorte = t.id_cohorte`
+    // LEFT JOIN: en algunas hojas la promoción es opcional (p. ej. «Contratos OPS»).
+    ? `SELECT t.*, c.nombre AS cohorte${extra} FROM ${id(tabla)} t LEFT JOIN cohortes c ON c.id_cohorte = t.id_cohorte`
     : `SELECT t.*${extra} FROM ${id(tabla)} t`;
 
   // Recarga el registro con el mismo formato que list() (p. ej. con el nombre de la promoción).
@@ -61,10 +62,11 @@ const crudRepository = (recurso) => {
     },
 
     // Inserta o actualiza según la restricción única del recurso (usado por la importación).
-    // Devuelve { insertado } para el resumen de la carga.
+    // Al actualizar solo toca las columnas presentes en `datos` (undefined = no venía en el origen y se
+    // conserva). Devuelve { insertado } para el resumen de la carga.
     async upsert(datos, cliente) {
       const ph = columnas.map((_, i) => `$${i + 1}`).join(', ');
-      const actualizables = columnas.filter((c) => !conflicto.includes(c) && !llave.includes(c));
+      const actualizables = columnas.filter((c) => !conflicto.includes(c) && !llave.includes(c) && datos[c] !== undefined);
       const accion = actualizables.length
         ? `DO UPDATE SET ${actualizables.map((c) => `${id(c)} = EXCLUDED.${id(c)}`).join(', ')}`
         : 'DO NOTHING';

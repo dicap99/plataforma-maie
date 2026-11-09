@@ -45,6 +45,18 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
     }
   })
 
+  // Por promoción: suma de sus cuatro semestres, como las columnas «Totales» de la hoja «Cursos y Docentes»
+  // (un docente que acompaña varios semestres cuenta en cada uno).
+  const porPromocion = promociones.map((c) => {
+    const del = datosCursos.filter((f) => f.id_cohorte === c.id_cohorte)
+    return {
+      id_cohorte: c.id_cohorte,
+      promocion: c.nombre,
+      udenar: suma(del.map((f) => f.docentes_udenar)),
+      externos: suma(del.map((f) => f.docentes_externos)),
+    }
+  })
+
   const evolucion = [1, 2, 3, 4].map((s) => ({
     semestre: `Semestre ${ROMANOS[s - 1]}`,
     ...Object.fromEntries(
@@ -122,6 +134,33 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
         </ChartCard>
 
         <ChartCard
+          titulo="Docentes UDENAR y externos por promoción"
+          subtitulo="Suma de los cuatro semestres de cada promoción · clic en una promoción para filtrar"
+          tabla={{
+            columnas: [
+              { clave: 'promocion', titulo: 'Promoción' },
+              { clave: 'udenar', titulo: 'UDENAR', formato: numero },
+              { clave: 'externos', titulo: 'Externos', formato: numero },
+            ],
+            filas: porPromocion,
+          }}
+        >
+          <GraficoBarras
+            datos={porPromocion}
+            ejeX="promocion"
+            apilado
+            series={[
+              { clave: 'udenar', nombre: 'UDENAR', color: SERIES[0] },
+              { clave: 'externos', nombre: 'Externos', color: SERIES[1] },
+            ]}
+            formato={numero}
+            onSeleccionar={(p) => onFiltrar?.({ etiqueta: `Promoción ${p.promocion}`, fn: (f) => f.id_cohorte === p.id_cohorte })}
+          />
+        </ChartCard>
+      </RejillaGraficas>
+
+      <RejillaGraficas>
+        <ChartCard
           titulo="Afiliación de la planta docente"
           subtitulo="Distribución de docentes institucionales frente a invitados externos"
           tabla={{
@@ -142,9 +181,6 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
             }}
           />
         </ChartCard>
-      </RejillaGraficas>
-
-      <RejillaGraficas>
         <ChartCard
           titulo="Docentes por campo de formación"
           subtitulo="Especialidades y líneas que apoya el cuerpo docente"
@@ -186,9 +222,6 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
         >
           <GraficoLineas datos={evolucion} ejeX="semestre" series={seriesPromociones} formato={numero} />
         </ChartCard>
-      </RejillaGraficas>
-
-      <RejillaGraficas>
         {promocionCreditos && (
           <ChartCard
             titulo="Créditos por promoción"

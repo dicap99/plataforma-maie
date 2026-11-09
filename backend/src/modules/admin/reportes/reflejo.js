@@ -64,6 +64,13 @@ const ofertasPorCohorte = async () =>
     WHERE ${SEMESTRE_REAL} BETWEEN 1 AND 4
     GROUP BY c.id_cohorte, semestre`)).rows;
 
+// Contratos OPS con el nombre de la promoción atendida (si la tienen).
+const contratosOps = async () =>
+  (await db.query(`
+    SELECT o.periodo, o.valor, h.nombre AS cohorte
+    FROM contratos_ops o LEFT JOIN cohortes h ON h.id_cohorte = o.id_cohorte
+    ORDER BY o.periodo, h.periodo_inicio`)).rows;
+
 // --- Combinación (funciones puras) -------------------------------------------------------
 // Promociones: inscritos, matriculados, egresados y graduados desde los estudiantes registrados.
 // Los aprobados por semestre siguen saliendo de la hoja.
@@ -128,6 +135,25 @@ const combinarProduccion = (hoja, productos, cohortes) => {
   return filas;
 };
 
+// Contrataciones OPS: cada periodo con contratos registrados (con nombres, «Contratos OPS») cuenta sus
+// contratos, suma su valor y lista las promociones atendidas; los demás periodos conservan la hoja.
+// `contratos`: [{ periodo, valor, cohorte }] (cohorte = nombre de la promoción o null).
+const combinarContrataciones = (hoja, contratos) => {
+  const porPeriodo = new Map();
+  for (const c of contratos) porPeriodo.set(c.periodo, [...(porPeriodo.get(c.periodo) ?? []), c]);
+  const calcular = (lista) => ({
+    n_ops: lista.length,
+    valor: lista.reduce((total, c) => total + Number(c.valor), 0),
+    promociones: [...new Set(lista.map((c) => c.cohorte).filter(Boolean))].join(', ') || null,
+    origen: 'gestion',
+  });
+  const filas = hoja.map((f) => (porPeriodo.has(f.periodo) ? { ...f, ...calcular(porPeriodo.get(f.periodo)) } : { ...f, origen: 'registro' }));
+  for (const [periodo, lista] of porPeriodo) {
+    if (!filas.some((f) => f.periodo === periodo)) filas.push({ periodo, ...calcular(lista), sin_registro: true });
+  }
+  return filas.sort((a, b) => (a.periodo < b.periodo ? -1 : 1));
+};
+
 // Cursos y docentes por semestre: cada semestre con clases ofertadas sale de ellas; los demás
 // semestres de la promoción conservan la hoja (p. ej. mientras se completan los históricos).
 const combinarSemestres = (hoja, ofertas, cohortes) => {
@@ -142,9 +168,10 @@ const combinarSemestres = (hoja, ofertas, cohortes) => {
 
 // Aplica el reflejo a las hojas ya cargadas: { cohortes, beneficios, 'cohorte-semestres', … }.
 const aplicar = async (datos) => {
-  const [conteos, beneficios, ofertas, productos] = await Promise.all([
+  const [conteos, beneficios, ofertas, productos, contratos] = await Promise.all([
     estudiantesPorCohorte(), beneficiosPorCohorte(), ofertasPorCohorte(),
     db.query('SELECT id_cohorte, tipo, cita, anio FROM productos_investigacion ORDER BY tipo, anio, cita').then((r) => r.rows),
+    datos.contrataciones ? contratosOps() : [],
   ]);
   const porCohorte = new Map(beneficios.map((b) => [b.id_cohorte, b]));
   const estudiantes = conteos.map((e) => ({ ...e, ...porCohorte.get(e.id_cohorte) }));
@@ -154,10 +181,17 @@ const aplicar = async (datos) => {
     beneficios: combinarBeneficios(datos.beneficios, estudiantes, datos.cohortes),
     'cohorte-semestres': combinarSemestres(datos['cohorte-semestres'], ofertas, datos.cohortes),
     produccion: combinarProduccion(datos.produccion, productos, datos.cohortes),
+    // Solo cuando se cargó la hoja financiera (informe de Coordinación o reflejo financiero).
+    ...(datos.contrataciones ? { contrataciones: combinarContrataciones(datos.contrataciones, contratos) } : {}),
   };
 };
 
+// Reflejo de las hojas financieras ya cargadas ({ contrataciones }), para Presupuesto y finanzas.
+const aplicarFinanciero = async (datos) => ({
+  contrataciones: combinarContrataciones(datos.contrataciones, await contratosOps()),
+});
+
 module.exports = {
-  SEMESTRE_REAL, aplicar, combinarCohortes, combinarBeneficios, combinarSemestres, combinarProduccion,
+  SEMESTRE_REAL, aplicar, aplicarFinanciero, combinarCohortes, combinarBeneficios, combinarSemestres, combinarProduccion, combinarContrataciones,
   RECURSOS_REFLEJADOS: ['cohortes', 'beneficios', 'cohorte-semestres', 'produccion'],
 };

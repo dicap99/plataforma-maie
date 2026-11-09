@@ -9,28 +9,16 @@ import Icono from '../../components/common/Icono.jsx'
 import { ETIQUETA_ROL } from '../../routes/navigation'
 import SelectorCampos from './SelectorCampos.jsx'
 import CursosDocente from './CursosDocente.jsx'
+import { etiquetaBeca } from './beneficios/tipos'
 
 const ROLES = ['coordinador', 'docente', 'estudiante']
-const BECAS = [
-  { valor: '100', etiqueta: 'Beca 100 %' },
-  { valor: 'hora_catedra', etiqueta: 'Beca hora cátedra' },
-  { valor: 'sintraunicol', etiqueta: 'Beca SINTRAUNICOL' },
-]
-// Beneficios que se suman a la beca en un semestre (backend/src/utils/beneficios.js).
-const AYUDAS = [
-  { valor: 'asistente_investigacion', etiqueta: 'Asistente de investigación' },
-  { valor: 'ayudante_docencia', etiqueta: 'Ayudante de docencia' },
-]
-const SEMESTRES = [1, 2, 3, 4]
-const ROMANOS = ['I', 'II', 'III', 'IV']
 const VACIO = {
-  identificacion: '', nombres: '', apellidos: '', email: '', rol: 'docente', activo: true, password: '',
-  id_docente: '', afiliacion: '', campos_formacion: [], id_cohorte: '', beca: '', beneficios: [],
+  identificacion: '', nombres: '', apellidos: '', email: '', telefono: '', rol: 'docente', activo: true, password: '',
+  id_docente: '', afiliacion: '', departamento: '', universidad: '', campos_formacion: [], id_cohorte: '',
 }
 const separarCampos = (texto) => String(texto ?? '').split(/\n|,|\s-\s|\+/).map((c) => c.replace(/^[-•\s]+/, '').trim()).filter(Boolean)
-const etiquetaBeca = (b) => BECAS.find((x) => x.valor === b)?.etiqueta ?? '—'
 
-// Coordinación registra los cursos en los que participa un docente (igual que él en «Mi perfil»).
+// Coordinación registra los cursos en los que participa un docente (el docente solo los consulta en «Mi perfil»).
 function CursosDeDocente({ usuario, onClose }) {
   const perfil = useApi(() => adminApi.perfilDocente(usuario.id_docente), [usuario.id_docente])
   const [cursos, setCursos] = useState(null)
@@ -47,9 +35,10 @@ function CursosDeDocente({ usuario, onClose }) {
   )
 }
 
-// Usuarios y roles (RNF-SEG-01), pestaña de Gestión académica. Lo propio de cada rol se registra aquí:
-// el estudiante con su promoción y sus beneficios por semestre, y el docente con su afiliación y campos de formación (perfil
-// de la hoja «Docentes», RF-ADM-06). Información académica refleja estos datos.
+// Usuarios y roles (RNF-SEG-01), pestaña de Gestión académica. Coordinación registra los datos de contacto
+// (correo y teléfono) y lo propio de cada rol: el estudiante con su promoción, y el docente con su afiliación
+// y campos de formación (perfil de la hoja «Docentes», RF-ADM-06). Los beneficios del estudiante por
+// semestre se editan en la pestaña «Beneficios». Información académica refleja estos datos.
 export default function UsuariosPage({ embebido = false }) {
   const { usuario: sesion } = useAuth()
   const usuarios = useApi(usuariosApi.listarUsuarios)
@@ -72,8 +61,9 @@ export default function UsuariosPage({ embebido = false }) {
     }
   }
   const editar = (u) => setEditando({
-    ...u, password: '', id_docente: u.id_docente ?? '', afiliacion: u.afiliacion ?? '', campos_formacion: separarCampos(u.campo_formacion),
-    id_cohorte: u.id_cohorte ? String(u.id_cohorte) : '', beca: u.beca ?? '', beneficios: u.beneficios ?? [],
+    ...u, password: '', telefono: u.telefono ?? '', id_docente: u.id_docente ?? '', afiliacion: u.afiliacion ?? '',
+    departamento: u.departamento ?? '', universidad: u.universidad ?? '',
+    campos_formacion: separarCampos(u.campo_formacion), id_cohorte: u.id_cohorte ? String(u.id_cohorte) : '',
   })
 
   const q = busqueda.trim().toLowerCase()
@@ -88,7 +78,8 @@ export default function UsuariosPage({ embebido = false }) {
     }
     if (u.rol === 'docente') {
       if (!u.id_docente) return 'Sin perfil docente'
-      return [u.afiliacion === 'EXTERNO' ? 'Externo' : 'UDENAR', separarCampos(u.campo_formacion).join(', ')].filter(Boolean).join(' · ')
+      const afiliacion = u.afiliacion === 'EXTERNO' ? ['Externo', u.universidad].filter(Boolean).join(', ') : 'UDENAR'
+      return [afiliacion, separarCampos(u.campo_formacion).join(', ')].filter(Boolean).join(' · ')
     }
     return '—'
   }
@@ -124,13 +115,14 @@ export default function UsuariosPage({ embebido = false }) {
         <div className="card tabla-scroll">
           <table>
             <thead>
-              <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Promoción / perfil</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
+              <tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Rol</th><th>Promoción / perfil</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
             </thead>
             <tbody>
               {visibles.map((u) => (
                 <tr key={u.id_usuario}>
                   <td>{u.nombres} {u.apellidos}</td>
                   <td>{u.email}</td>
+                  <td className="nowrap">{u.telefono ?? <span className="texto-suave">—</span>}</td>
                   <td>{ETIQUETA_ROL[u.rol] ?? u.rol}</td>
                   <td>{detalleRol(u)}</td>
                   <td>{u.activo ? 'Activo' : 'Inactivo'}{u.debe_cambiar_password ? ' · credenciales temporales' : ''}</td>
@@ -145,7 +137,7 @@ export default function UsuariosPage({ embebido = false }) {
                   </td>
                 </tr>
               ))}
-              {visibles.length === 0 && <tr><td colSpan={6} className="texto-suave">Ningún usuario coincide con el filtro.</td></tr>}
+              {visibles.length === 0 && <tr><td colSpan={7} className="texto-suave">Ningún usuario coincide con el filtro.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -169,49 +161,11 @@ export default function UsuariosPage({ embebido = false }) {
   )
 }
 
-// Beneficios del estudiante en cada semestre de su promoción: una beca (o ninguna) más asistencias y ayudantías.
-function BeneficiosPorSemestre({ beneficios, onChange, deshabilitado }) {
-  const tiene = (s, tipo) => beneficios.some((b) => b.semestre === s && b.tipo === tipo)
-  const sinSemestre = (s, tipos) => beneficios.filter((b) => b.semestre !== s || !tipos.includes(b.tipo))
-  const cambiarBeca = (s, tipo) => onChange([...sinSemestre(s, BECAS.map((b) => b.valor)), ...(tipo ? [{ semestre: s, tipo }] : [])])
-  const alternar = (s, tipo) => onChange(tiene(s, tipo) ? sinSemestre(s, [tipo]) : [...beneficios, { semestre: s, tipo }])
-  return (
-    <div className="tabla-scroll">
-      <table className="tabla-compacta">
-        <thead>
-          <tr><th>Semestre</th><th>Beca</th>{AYUDAS.map((a) => <th key={a.valor}>{a.etiqueta}</th>)}</tr>
-        </thead>
-        <tbody>
-          {SEMESTRES.map((s) => (
-            <tr key={s}>
-              <td className="nowrap">Semestre {ROMANOS[s - 1]}</td>
-              <td>
-                <select aria-label={`Beca del semestre ${ROMANOS[s - 1]}`} disabled={deshabilitado}
-                  value={BECAS.find((b) => tiene(s, b.valor))?.valor ?? ''} onChange={(e) => cambiarBeca(s, e.target.value)}>
-                  <option value="">Sin beca</option>
-                  {BECAS.map((b) => <option key={b.valor} value={b.valor}>{b.etiqueta}</option>)}
-                </select>
-              </td>
-              {AYUDAS.map((a) => (
-                <td key={a.valor} className="text-center">
-                  <input type="checkbox" aria-label={`${a.etiqueta}, semestre ${ROMANOS[s - 1]}`} disabled={deshabilitado}
-                    checked={tiene(s, a.valor)} onChange={() => alternar(s, a.valor)} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
 function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGuardado }) {
   const nuevo = !inicial.id_usuario
   const [v, setV] = useState(inicial)
-  // Los beneficios solo se envían si se editaron: así se conserva la beca registrada sin semestres.
-  const [beneficiosEditados, setBeneficiosEditados] = useState(false)
-  const becaSinSemestres = inicial.beca && !(inicial.beneficios ?? []).length
+  // Cambiar de promoción borra la beca y los beneficios registrados en la anterior.
+  const pierdeBeneficios = Boolean(inicial.id_cohorte && v.id_cohorte !== inicial.id_cohorte && (inicial.beca || inicial.beneficios?.length))
   const [errores, setErrores] = useState([])
   const [guardando, setGuardando] = useState(false)
   const campo = (nombre) => ({ id: `u-${nombre}`, value: v[nombre] ?? '', onChange: (e) => setV({ ...v, [nombre]: e.target.value }) })
@@ -220,7 +174,13 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
 
   const vincular = (idDocente) => {
     const p = docentes.find((d) => d.id_docente === idDocente)
-    setV({ ...v, id_docente: idDocente, ...(p ? { afiliacion: p.afiliacion, campos_formacion: separarCampos(p.campo_formacion) } : {}) })
+    setV({
+      ...v, id_docente: idDocente,
+      ...(p ? {
+        afiliacion: p.afiliacion, campos_formacion: separarCampos(p.campo_formacion),
+        departamento: p.departamento ?? '', universidad: p.universidad ?? '',
+      } : {}),
+    })
   }
 
   const enviar = async (e) => {
@@ -229,14 +189,15 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
     const esDocente = v.rol === 'docente'
     const esEstudiante = v.rol === 'estudiante'
     const datos = {
-      identificacion: v.identificacion, nombres: v.nombres, apellidos: v.apellidos, email: v.email,
+      identificacion: v.identificacion, nombres: v.nombres, apellidos: v.apellidos, email: v.email, telefono: v.telefono.trim() || null,
       rol: v.rol, activo: v.activo, password: v.password || undefined,
       id_docente: esDocente ? v.id_docente || null : null,
-      ...(esDocente ? { afiliacion: v.afiliacion || null, campos_formacion: v.campos_formacion } : {}),
-      ...(esEstudiante ? {
-        id_cohorte: v.id_cohorte ? Number(v.id_cohorte) : null,
-        ...(beneficiosEditados && v.id_cohorte ? { beneficios: v.beneficios } : { beca: v.id_cohorte ? v.beca || null : null }),
+      // La universidad solo aplica a los externos; al pasar a UDENAR se borra.
+      ...(esDocente ? {
+        afiliacion: v.afiliacion || null, campos_formacion: v.campos_formacion, departamento: v.departamento,
+        universidad: v.afiliacion === 'EXTERNO' ? v.universidad : '',
       } : {}),
+      ...(esEstudiante ? { id_cohorte: v.id_cohorte ? Number(v.id_cohorte) : null } : {}),
     }
     try {
       await (nuevo ? usuariosApi.crearUsuario(datos) : usuariosApi.actualizarUsuario(inicial.id_usuario, datos))
@@ -258,6 +219,10 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
           <div className="campo"><label htmlFor="u-nombres">Nombres *</label><input required {...campo('nombres')} /></div>
           <div className="campo"><label htmlFor="u-apellidos">Apellidos *</label><input required {...campo('apellidos')} /></div>
           <div className="campo">
+            <label htmlFor="u-telefono">Teléfono</label>
+            <input type="tel" maxLength={30} placeholder="+57 300 000 0000" autoComplete="off" {...campo('telefono')} />
+          </div>
+          <div className="campo">
             <label htmlFor="u-rol">Rol *</label>
             <select {...campo('rol')}>{ROLES.map((r) => <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>)}</select>
           </div>
@@ -276,19 +241,13 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
                   {cohortes.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>Promoción {c.nombre} ({c.periodo_inicio})</option>)}
                 </select>
               </div>
-              <span className="font-semibold">Beneficios por semestre de la promoción</span>
-              <BeneficiosPorSemestre
-                beneficios={v.beneficios ?? []}
-                deshabilitado={!v.id_cohorte}
-                onChange={(lista) => { setV({ ...v, beneficios: lista }); setBeneficiosEditados(true) }}
-              />
-              {becaSinSemestres && !beneficiosEditados && (
-                <p className="texto-suave">
-                  Tiene registrada la {etiquetaBeca(inicial.beca).toLowerCase()} para la promoción, sin semestres. Márquela en
-                  los semestres en que la recibió.
+              {pierdeBeneficios ? (
+                <p className="m-0 texto-suave" role="alert">
+                  Al cambiar de promoción se borran la beca y los beneficios registrados en la promoción {inicial.cohorte}.
                 </p>
+              ) : (
+                <p className="m-0 texto-suave">La beca y los beneficios de cada semestre se registran en la pestaña «Beneficios».</p>
               )}
-              {!v.id_cohorte && <p className="texto-suave">Asigne la promoción para registrar becas y beneficios.</p>}
             </fieldset>
           )}
 
@@ -306,6 +265,18 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
                     </label>
                   ))}
                 </div>
+              </div>
+              <div className="form-grid">
+                <div className="campo">
+                  <label htmlFor="u-departamento">Departamento o unidad</label>
+                  <input maxLength={150} placeholder="Departamento de Electrónica" {...campo('departamento')} />
+                </div>
+                {v.afiliacion === 'EXTERNO' && (
+                  <div className="campo">
+                    <label htmlFor="u-universidad">Universidad</label>
+                    <input maxLength={150} placeholder="Institución de afiliación" {...campo('universidad')} />
+                  </div>
+                )}
               </div>
               <SelectorCampos opciones={campos} valor={v.campos_formacion} onChange={(lista) => setV({ ...v, campos_formacion: lista })} />
               {perfilesLibres.length > 0 && (

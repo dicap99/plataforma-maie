@@ -83,8 +83,8 @@ export default function RecursoFormulario({ recurso, fila, cohortes, bloqueados 
         </div>
         {bloqueados.length > 0 && (
           <p className="texto-suave">
-            Los campos deshabilitados se calculan con los estudiantes registrados en Gestión académica › Usuarios
-            (promoción, estado y beneficios por semestre).
+            Los campos deshabilitados se calculan con los estudiantes registrados en Gestión académica (Usuarios y
+            Beneficios: promoción, estado y beneficios por semestre).
           </p>
         )}
         {errores.length > 0 && (

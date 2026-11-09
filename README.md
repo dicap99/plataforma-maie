@@ -63,8 +63,9 @@ Los usuarios sintéticos usan la contraseña de `SINTETICO_PASSWORD` (por defect
 Carga inicial de datos: *Procesos administrativos › Información académica › Importar Excel* (o *Gestión académica › Datos del
 programa*) con el libro «Estadísticas MaIE» tal como lo maneja Coordinación; después los datos se editan en la propia plataforma
 (vista «Datos» de cada pantalla) y las gráficas se actualizan al guardar. Las hojas financieras se editan en *Presupuesto y finanzas*.
-La plantilla oficial añade dos hojas que no están en el libro: «Asignación docente» (promoción, semestre, docente, componente, curso)
-y «Beneficios por estudiante» (beca, asistencia de investigación o ayudantía en cada semestre).
+La plantilla oficial añade hojas que no están en el libro: «Asignación docente» (promoción, semestre, docente, componente, curso),
+«Beneficios por estudiante» (beca, asistencia de investigación o ayudantía en cada semestre), «Productos de investigación»
+y «Contratos OPS» (contratista, objeto, promoción, fechas y valor; calcula la hoja «Contrataciones» de cada periodo).
 
 > **Bases existentes:** la columna `cohorte_produccion.detalles` es nueva. Si la base se creó antes, aplique
 > `ALTER TABLE cohorte_produccion ADD COLUMN IF NOT EXISTS detalles TEXT;` o recree el volumen de `db`.
@@ -96,7 +97,7 @@ backend/src/
                                # hojas de asignación docente y beneficios por estudiante; importación transaccional
       plantillas/              # plantilla .xlsx y exportación de datos
       reportes/                # estadisticas.js y alertas.js (funciones puras), reflejo.js + /reportes/estadisticas, /presupuesto/resumen
-      docentes/                # perfil propio del docente (/docentes/me/perfil)
+      docentes/                # perfil del docente (consulta propia /docentes/me/perfil; cursos por Coordinación)
       cursos/ matriculas/      # catálogo del plan, ofertas por promoción, docentes y matrícula
     ra/
       rubrica.js               # reglas puras: niveles, total ponderado, distribución, validación
@@ -134,15 +135,15 @@ Las rutas de las hojas del Módulo 1 se generan desde `recursos.definicion.js` (
 | Recurso | Rutas | Rol |
 |---|---|---|
 | Auth | `POST /auth/login`, `GET /auth/me`, `PUT /auth/password` | Público / Todos |
-| Usuarios | CRUD `/usuarios`: estudiante con `id_cohorte` y `beneficios` por semestre (la `beca` de la promoción se deduce de ellos); docente con `afiliacion` y `campos_formacion` (perfil docente); `GET /usuarios/campos-formacion` | Coord |
+| Usuarios | CRUD `/usuarios` con `telefono` de contacto: estudiante con `id_cohorte`; docente con `afiliacion` y `campos_formacion` (perfil docente); `GET /usuarios/campos-formacion`. Beneficios por semestre: `GET /usuarios/beneficios?id_cohorte=` y `PUT /usuarios/{id}/beneficios` (la `beca` de la promoción se deduce de ellos) | Coord |
 | Reflejo académico | `GET /admin/academico/reflejo`: promociones, beneficios, cursos/docentes por semestre y producción científica calculados desde Gestión y los productos cuando hay registros | Coord, Docente |
 | Metadatos | `GET /admin/recursos` (hojas visibles para el rol) | Coord, Docente |
 | Promociones | CRUD `/admin/cohortes` | Coord (Docente: lectura) |
 | Cursos y docentes | CRUD `/admin/cohorte-semestres/:id_cohorte/:semestre` | Coord (Docente: lectura) |
-| Docentes | CRUD `/admin/docentes`; `GET/PUT /admin/docentes/me/perfil` | Coord (Docente: lectura) / Docente propio |
+| Docentes | CRUD `/admin/docentes` (incluye `departamento` y `universidad`); `GET /admin/docentes/me/perfil` (solo consulta); `GET /admin/docentes/{id}/perfil`, `POST/DELETE /admin/docentes/{id}/cursos` | Coord (Docente: lectura de su perfil y de las hojas académicas) |
 | Beneficios, producción, pasantías | CRUD `/admin/beneficios`, `/admin/produccion`, `/admin/pasantias` (llave `id_cohorte`) | Coord (Docente: lectura) |
 | Productos de investigación | CRUD `/admin/productos` (tipo, cita, año, estudiantes, enlace) | Coord (Docente: lectura) |
-| Financiero | CRUD `/admin/punto-equilibrio`, `/admin/presupuesto`, `/admin/pregrado`, `/admin/transferencias`, `/admin/contrataciones` | Coord |
+| Financiero | CRUD `/admin/punto-equilibrio`, `/admin/presupuesto`, `/admin/pregrado`, `/admin/transferencias`, `/admin/contrataciones`, `/admin/contratos-ops` (contratos OPS con nombres); `GET /admin/finanzas/reflejo`: «Contrataciones» calculada con los contratos registrados | Coord |
 | Parámetros | CRUD `/admin/parametros` (SMMLV, % de distribución, créditos) | Coord |
 | Importación | `POST /admin/importaciones` (multipart `archivo`: libro, plantilla, CSV o PDF PSP-GEF-FR-03; `?simular=true`; `?recurso=` para CSV) | Coord |
 | Plantilla / exportación | `GET /admin/plantillas` (`?datos=true` incluye los datos actuales) | Coord |

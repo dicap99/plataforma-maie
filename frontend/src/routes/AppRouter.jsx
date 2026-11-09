@@ -16,6 +16,7 @@ import MisCursosPage from '../features/ra/MisCursosPage.jsx'
 import PlanillaRubricaPage from '../features/ra/PlanillaRubricaPage.jsx'
 import ConsolidadoRAPage from '../features/ra/ConsolidadoRAPage.jsx'
 import MatrizRubricasPage from '../features/ra/MatrizRubricasPage.jsx'
+import AperturaCalificacionPage from '../features/ra/AperturaCalificacionPage.jsx'
 import FormularioAcuerdo058 from '../features/evalDocente/FormularioAcuerdo058.jsx'
 import DocenteResultadoView from '../features/evalDocente/DocenteResultadoView.jsx'
 
@@ -43,6 +44,7 @@ export default function AppRouter() {
             <Route path="usuarios" element={<Navigate to="/coordinacion/gestion" replace />} />
             <Route path="ra" element={<ConsolidadoRAPage />} />
             <Route path="ra/rubricas" element={<MatrizRubricasPage />} />
+            <Route path="ra/calificacion" element={<AperturaCalificacionPage />} />
             <Route path="ra/cursos" element={<Navigate to="/coordinacion/gestion?pestana=semestre" replace />} />
             <Route path="ra/cursos/:idCurso" element={<PlanillaRubricaPage soloLectura />} />
             <Route path="evaluacion-coordinacion" element={<FormularioAcuerdo058 tipo="EC" />} />

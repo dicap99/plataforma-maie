@@ -8,7 +8,7 @@ export default function DocenteDashboard() {
         <article className="card">
           <h2>Mi perfil</h2>
           <p className="texto-suave">Formación, líneas de investigación y cursos en los que ha apoyado a la maestría.</p>
-          <Link to="perfil">Actualizar perfil</Link>
+          <Link to="perfil">Ver perfil</Link>
         </article>
         <article className="card">
           <h2>Calificar rúbricas</h2>

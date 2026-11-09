@@ -28,6 +28,7 @@ export const MENU_POR_ROL = {
       items: [
         { to: '/coordinacion/ra', label: 'Consolidado académico', icono: 'analytics', end: true },
         { to: '/coordinacion/ra/rubricas', label: 'Matriz de rúbricas', icono: 'rule' },
+        { to: '/coordinacion/ra/calificacion', label: 'Apertura de calificación', icono: 'lock_clock' },
       ],
     },
     {

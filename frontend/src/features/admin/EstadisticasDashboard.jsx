@@ -344,9 +344,11 @@ export default function EstadisticasDashboard() {
             <GraficoBarras
               datos={presupuesto.filas}
               ejeX="cohorte"
+              // Mismas series y colores que «Ingresos, gastos y saldo por promoción» (Presupuesto y finanzas).
               series={[
-                { clave: 'ingresos', nombre: 'Ingresos' },
-                { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos' },
+                { clave: 'ingresos', nombre: 'Ingresos', color: SERIES[0] },
+                { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] },
+                { clave: 'saldo_comprometido', nombre: 'Saldo', color: SERIES[2] },
               ]}
               formato={pesos}
               formatoEje={pesosCompactos}

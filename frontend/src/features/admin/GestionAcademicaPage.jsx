@@ -9,6 +9,7 @@ import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import Modal from '../../components/common/Modal.jsx'
 import { BarraProgreso, Insignia } from './panel/TarjetaKpi.jsx'
+import BeneficiosPanel from './beneficios/BeneficiosPanel.jsx'
 import UsuariosPage from './UsuariosPage.jsx'
 import DatosDelPrograma from './DatosDelPrograma.jsx'
 import { periodoAcademico } from '../../utils/periodo'
@@ -209,68 +210,6 @@ function MatriculaOferta({ oferta, onClose, onGuardada }) {
   )
 }
 
-// Apertura de la calificación de rúbricas por semestre académico: cada curso se evalúa al final
-// de su semestre y Coordinación abre o cierra la calificación de todos sus cursos a la vez.
-function CalificacionPorSemestre() {
-  const periodos = useApi(raApi.listarPeriodos)
-  const [cambiando, setCambiando] = useState(null)
-  const [error, setError] = useState(null)
-
-  const alternar = async (p) => {
-    setCambiando(p.periodo)
-    setError(null)
-    try {
-      await raApi.cambiarPeriodo(p.periodo, !p.abierto)
-      await periodos.recargar()
-    } catch (err) {
-      setError(err)
-    } finally {
-      setCambiando(null)
-    }
-  }
-
-  return (
-    <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
-      <p className="text-body-sm text-on-surface-variant">
-        Mientras el semestre está cerrado, los docentes solo consultan sus planillas. Abra la calificación al final del
-        semestre y ciérrela cuando los docentes hayan registrado las rúbricas.
-      </p>
-      <ErrorApi error={error ?? periodos.error} onReintentar={periodos.error ? periodos.recargar : undefined} />
-      {periodos.cargando && !periodos.data ? <Cargando /> : (
-        <div className="tabla-scroll">
-          <table className="text-body-sm">
-            <thead>
-              <tr><th>Semestre académico</th><th className="num">Cursos ofertados</th><th>Calificación</th><th>Último cambio</th><th><span className="sr-only">Acciones</span></th></tr>
-            </thead>
-            <tbody>
-              {(periodos.data ?? []).map((p) => (
-                <tr key={p.periodo}>
-                  <td className="font-semibold text-primary">{p.periodo}</td>
-                  <td className="num">{p.cursos}</td>
-                  <td>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-label-sm font-bold ${
-                      p.abierto ? 'bg-secondary-fixed text-on-secondary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'}`}>
-                      <Icono nombre={p.abierto ? 'lock_open' : 'lock'} className="text-[14px]" /> {p.abierto ? 'Abierta' : 'Cerrada'}
-                    </span>
-                  </td>
-                  <td className="texto-suave">{p.actualizado_en ? new Date(p.actualizado_en).toLocaleString('es-CO') : '—'}</td>
-                  <td className="acciones">
-                    <button type="button" className={p.abierto ? 'btn btn-secundario' : 'btn btn-primario'}
-                      disabled={cambiando !== null} onClick={() => alternar(p)}>
-                      {cambiando === p.periodo ? 'Guardando…' : p.abierto ? 'Cerrar calificación' : 'Abrir calificación'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {periodos.data?.length === 0 && <tr><td colSpan={5} className="texto-suave">Aún no hay cursos ofertados.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  )
-}
-
 // Clases con identificador único: cada una cubre un curso del plan (y sus RA).
 function FormularioClase({ clase, catalogo, onClose, onGuardada }) {
   const [datos, setDatos] = useState({
@@ -393,21 +332,22 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
   )
 }
 
-// Orden del flujo de trabajo: cuentas de usuario (estudiantes con su promoción y beca, docentes con su
-// perfil) → catálogo de clases → oferta de clases por semestre (docentes y matrícula) → apertura de la
-// calificación; «Datos del programa» guarda las hojas del Excel (promociones, finanzas, histórico).
+// Orden del flujo de trabajo: cuentas de usuario (estudiantes con su promoción, docentes con su perfil)
+// → beneficios de los estudiantes por semestre → catálogo de clases → oferta de clases por semestre (docentes y
+// matrícula); «Datos del programa» guarda las hojas del Excel (promociones, finanzas, histórico). La apertura de
+// la calificación de rúbricas está en Resultados de aprendizaje (asesoría del 20-oct-2026).
 const PESTANAS = [
   ['usuarios', 'Usuarios'],
+  ['beneficios', 'Beneficios'],
   ['clases', 'Clases'],
   ['semestre', 'Asignación por semestre'],
-  ['semestres', 'Calificación por semestre'],
   ['datos', 'Datos del programa'],
 ]
 const PESTANA_INICIAL = PESTANAS[0][0]
 
 // Gestión académica (RF-ADM-01, RF-RA-02, RNF-SEG-01): todo lo que organiza la operación académica de
 // cada semestre: clases del plan, su oferta a las promociones con los docentes asignados, la matrícula
-// de estudiantes, las cuentas de usuario y la apertura de la calificación de rúbricas.
+// de estudiantes y las cuentas de usuario.
 // La pestaña se puede indicar en la URL (?pestana=usuarios).
 export default function GestionAcademicaPage() {
   const [parametros, setParametros] = useSearchParams()
@@ -474,7 +414,7 @@ export default function GestionAcademicaPage() {
           <h1 className="m-0 mt-1 font-display text-headline-lg text-primary">Gestión académica</h1>
           <p className="m-0 max-w-3xl text-body-md text-on-surface-variant">
             Clases del plan, su oferta en cada semestre con los docentes asignados, la matrícula de estudiantes, las cuentas
-            de usuario y la apertura de la calificación de rúbricas.
+            de usuario.
           </p>
         </div>
       </header>
@@ -489,7 +429,7 @@ export default function GestionAcademicaPage() {
 
       {pestana === 'clases' && <ClasesPanel clases={clases.data} catalogo={catalogo.data} onCambio={clases.recargar} />}
       {pestana === 'usuarios' && <UsuariosPage embebido />}
-      {pestana === 'semestres' && <CalificacionPorSemestre />}
+      {pestana === 'beneficios' && <BeneficiosPanel />}
       {pestana === 'datos' && <DatosDelPrograma />}
 
       {pestana === 'semestre' && (
@@ -533,7 +473,8 @@ export default function GestionAcademicaPage() {
                 </select>
               </div>
               <span className="text-body-sm text-on-surface-variant">
-                Calificación del semestre: <strong>{estadoSemestre?.abierto ? 'abierta' : 'cerrada'}</strong>
+                Calificación de rúbricas: <strong>{estadoSemestre?.abierto ? 'abierta' : 'cerrada'}</strong>{' '}
+                (<Link to="/coordinacion/ra/calificacion" className="underline">cambiar</Link>)
               </span>
               <button type="button" className="btn btn-primario ml-auto" onClick={() => setEditando('nueva')}
                 disabled={listaCohortes.length === 0 || !/^[0-9]{4}-[AB]$/.test(periodo)}>

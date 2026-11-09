@@ -37,15 +37,22 @@ const PESTANAS = [
     hojas: [
       { id: 'transferencias', etiqueta: 'Transferencias Vicerrectoría Académica', icono: 'swap_horiz' },
       { id: 'contrataciones', etiqueta: 'Contrataciones OPS', icono: 'contract' },
+      { id: 'contratos-ops', etiqueta: 'Contratos OPS (detalle)', icono: 'badge' },
     ],
   },
 ]
-// Los parámetros (SMMLV, reparto del saldo) alimentan las gráficas; se consultan en Gestión académica.
-const HOJAS = [...PESTANAS.flatMap((p) => p.hojas.map((h) => h.id)), 'parametros']
+// «Contrataciones» llega con su reflejo: los periodos con contratos registrados se calculan de ellos.
+const REFLEJADAS = ['contrataciones']
+const HOJAS = PESTANAS.flatMap((p) => p.hojas.map((h) => h.id)).filter((id) => !REFLEJADAS.includes(id))
 
 const cargarHojas = async () => {
-  const respuestas = await Promise.all(HOJAS.map((id) => adminApi.listar(id)))
-  return { data: Object.fromEntries(HOJAS.map((id, i) => [id, respuestas[i].data ?? []])) }
+  const [respuestas, reflejo] = await Promise.all([Promise.all(HOJAS.map((id) => adminApi.listar(id))), adminApi.reflejoFinanciero()])
+  return {
+    data: {
+      ...Object.fromEntries(HOJAS.map((id, i) => [id, respuestas[i].data ?? []])),
+      ...Object.fromEntries(REFLEJADAS.map((id) => [id, reflejo.data?.[id] ?? []])),
+    },
+  }
 }
 
 function Selector({ id, etiqueta, valor, onChange, vacio, opciones }) {
@@ -232,10 +239,10 @@ export default function PresupuestoDashboard() {
       {vista === 'graficas' ? (
         <div>
           {activo === 'ejecucion' && (
-            <PanelEjecucion resumen={resumen.data} parametros={filas.parametros} cohortes={enRango} onFiltrar={filtrar} />
+            <PanelEjecucion resumen={resumen.data} equilibrio={filas['punto-equilibrio']} cohortes={enRango} onFiltrar={filtrar} />
           )}
           {activo === 'sostenibilidad' && (
-            <PanelSostenibilidad equilibrio={filas['punto-equilibrio']} pregrado={filas.pregrado} resumen={resumen.data} cohortes={enRango} onFiltrar={filtrar} />
+            <PanelSostenibilidad equilibrio={filas['punto-equilibrio']} pregrado={filas.pregrado} cohortes={enRango} onFiltrar={filtrar} />
           )}
           {activo === 'operacion' && (
             <PanelOperacion transferencias={filas.transferencias.filter(enPeriodos)} contrataciones={filas.contrataciones.filter(enPeriodos)}

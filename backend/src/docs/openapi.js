@@ -26,6 +26,7 @@ const LLAVES_GENERADAS = {
   id_cohorte: { type: 'integer', readOnly: true },
   id_presupuesto: { type: 'integer', readOnly: true },
   id_producto: { type: 'integer', readOnly: true },
+  id_contrato: { type: 'integer', readOnly: true },
   id_docente: { type: 'string', format: 'uuid', readOnly: true },
 };
 
@@ -139,11 +140,13 @@ const Usuario = {
     nombres: { type: 'string' },
     apellidos: { type: 'string' },
     email: { type: 'string', format: 'email' },
+    telefono: { type: 'string', nullable: true },
     rol: { type: 'string', enum: TODOS },
     debe_cambiar_password: { type: 'boolean', description: 'Cuenta con credenciales temporales' },
     activo: { type: 'boolean' },
     id_docente: { type: 'string', format: 'uuid', nullable: true }, docente_vinculado: { type: 'string', nullable: true },
     afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'], nullable: true }, campo_formacion: { type: 'string', nullable: true },
+    departamento: { type: 'string', nullable: true }, universidad: { type: 'string', nullable: true },
     id_cohorte: { type: 'integer', nullable: true }, cohorte: { type: 'string', nullable: true },
     beca: { type: 'string', enum: ['100', 'hora_catedra', 'sintraunicol'], nullable: true },
     beneficios: { type: 'array', items: { $ref: '#/components/schemas/BeneficioSemestre' } },
@@ -167,18 +170,16 @@ const UsuarioEntrada = {
     nombres: { type: 'string' },
     apellidos: { type: 'string' },
     email: { type: 'string', format: 'email' },
+    telefono: { type: 'string', maxLength: 30, nullable: true, description: 'Teléfono de contacto (lo registra Coordinación)' },
     rol: { type: 'string', enum: TODOS },
     activo: { type: 'boolean', default: true },
     password: { type: 'string', minLength: 8, description: 'Obligatoria al crear; opcional al editar' },
     id_docente: { type: 'string', format: 'uuid', nullable: true, description: 'Perfil docente a vincular (solo rol docente)' },
     afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'], nullable: true, description: 'Docente: obligatoria si no tiene perfil' },
+    departamento: { type: 'string', maxLength: 150, nullable: true, description: 'Docente: departamento o unidad académica' },
+    universidad: { type: 'string', maxLength: 150, nullable: true, description: 'Docente externo: universidad o institución de afiliación' },
     campos_formacion: { type: 'array', items: { type: 'string', maxLength: 100 }, description: 'Docente: campos de formación' },
-    id_cohorte: { type: 'integer', nullable: true, description: 'Estudiante: promoción (null la quita)' },
-    beca: { type: 'string', enum: ['100', 'hora_catedra', 'sintraunicol'], nullable: true, description: 'Estudiante: tipo de beca (requiere promoción)' },
-    beneficios: {
-      type: 'array', items: { $ref: '#/components/schemas/BeneficioSemestre' },
-      description: 'Estudiante: beneficios por semestre (reemplazan los anteriores; la beca se deduce de ellos)',
-    },
+    id_cohorte: { type: 'integer', nullable: true, description: 'Estudiante: promoción (null la quita). La beca y los beneficios se editan en /usuarios/{id}/beneficios' },
   },
 };
 
@@ -246,16 +247,11 @@ const construir = () => {
       },
       '/auth/me': {
         get: { tags: ['Autenticación'], summary: 'Usuario de la sesión actual', responses: { 200: exito(ref('Usuario')), ...errores(401) } },
-        put: {
-          tags: ['Autenticación'], summary: 'Actualizar identificación y correo de la propia cuenta',
-          description: 'El correo es el que se usa para iniciar sesión. Las cuentas temporales (`debe_cambiar_password`) los traen provisionales.',
-          requestBody: cuerpo({ type: 'object', properties: { identificacion: { type: 'string', maxLength: 20 }, email: { type: 'string', format: 'email' } } }),
-          responses: { 200: exito(ref('Usuario')), ...errores(400, 401, 409) },
-        },
       },
       '/auth/password': {
         put: {
           tags: ['Autenticación'], summary: 'Cambiar la contraseña propia',
+          description: 'Es lo único que cada usuario modifica de su cuenta; identificación, correo y teléfono los gestiona Coordinación en /usuarios.',
           requestBody: cuerpo({
             type: 'object', required: ['actual', 'nueva'],
             properties: { actual: { type: 'string', format: 'password' }, nueva: { type: 'string', format: 'password', minLength: 8 } },
@@ -270,6 +266,35 @@ const construir = () => {
       '/usuarios/campos-formacion': {
         get: { tags: ['Usuarios'], summary: 'Campos de formación registrados (selector del formulario)', description: roles(['coordinador']),
           responses: { 200: exito({ type: 'array', items: { type: 'string' } }), ...errores(401, 403) } },
+      },
+      '/usuarios/beneficios': {
+        get: {
+          tags: ['Usuarios'], summary: 'Estudiantes de una promoción con su beca y beneficios por semestre', description: roles(['coordinador']),
+          parameters: [{ name: 'id_cohorte', in: 'query', required: true, schema: { type: 'integer', minimum: 1 } }],
+          responses: { 200: exito({ type: 'array', items: ref('Usuario') }), ...errores(400, 401, 403, 404) },
+        },
+      },
+      '/usuarios/{id}/beneficios': {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        put: {
+          tags: ['Usuarios'], summary: 'Reemplazar los beneficios por semestre del estudiante',
+          description: 'Una sola beca por semestre; asistencias y ayudantías se suman. La beca de la promoción se deduce de ellos. ' + roles(['coordinador']),
+          requestBody: cuerpo({
+            type: 'object', required: ['id_cohorte', 'beneficios'],
+            properties: {
+              id_cohorte: { type: 'integer', description: 'Promoción del estudiante a la que se aplican (las demás no se tocan)' },
+              beneficios: { type: 'array', items: ref('BeneficioSemestre') },
+            },
+          }),
+          responses: { 200: exito(ref('Usuario')), ...errores(400, 401, 403, 404) },
+        },
+      },
+      '/admin/finanzas/reflejo': {
+        get: {
+          tags: ['Módulo 1 · General'], summary: 'Hojas financieras con su reflejo',
+          description: '«Contrataciones» por periodo: los periodos con contratos registrados en «Contratos OPS» (/admin/contratos-ops) calculan N.° OPS, valor y promociones; los demás conservan la hoja. Cada fila trae `origen` (gestion | registro). ' + roles(['coordinador']),
+          responses: { 200: exito({ type: 'object', properties: { contrataciones: { type: 'array', items: { type: 'object' } } } }), ...errores(401, 403) },
+        },
       },
       '/admin/academico/reflejo': {
         get: {
@@ -346,36 +371,8 @@ const construir = () => {
       ...rutasRecursos,
       '/admin/docentes/me/perfil': {
         get: {
-          tags: ['Módulo 1 · Docentes'], summary: 'Perfil del docente autenticado (RF-ADM-06)',
+          tags: ['Módulo 1 · Docentes'], summary: 'Perfil del docente autenticado (RF-ADM-06), solo consulta',
           description: `Incluye su cuenta (identificación, correo, debe_cambiar_password), los cursos en los que participa y los componentes que apoya (calculados de los cursos). ${roles(['docente'])}`,
-          responses: { 200: exito(ref('PerfilDocente')), ...errores(401, 403, 404) },
-        },
-        put: {
-          tags: ['Módulo 1 · Docentes'], summary: 'Actualizar el perfil propio',
-          description: `Solo cambia los campos enviados. Nombre y afiliación los administra Coordinación; cursos y componentes salen de /me/cursos. ${roles(['docente'])}`,
-          requestBody: cuerpo({
-            type: 'object',
-            properties: Object.fromEntries(
-              ['formacion_profesional', 'campo_formacion', 'enlace_perfil', 'titulacion_maxima', 'linea_investigacion']
-                .map((c) => [c, { type: 'string', nullable: true }]),
-            ),
-          }),
-          responses: { 200: exito(ref('PerfilDocente')), ...errores(400, 401, 403, 404) },
-        },
-      },
-      '/admin/docentes/me/cursos': {
-        post: {
-          tags: ['Módulo 1 · Docentes'], summary: 'Registrar un curso en el que participa el docente',
-          description: `Crea la oferta (promoción, periodo, curso) si no existe y cuenta de inmediato en «Cursos y docentes por semestre». El periodo debe ser uno de los cuatro semestres de la promoción. ${roles(['docente'])}`,
-          requestBody: cuerpo(ref('Participacion')),
-          responses: { 201: exito(ref('PerfilDocente')), ...errores(400, 401, 403, 404) },
-        },
-      },
-      '/admin/docentes/me/cursos/{idCurso}': {
-        delete: {
-          tags: ['Módulo 1 · Docentes'], summary: 'Quitar un curso del docente',
-          description: `Si la oferta queda sin docentes, estudiantes ni notas, se elimina. ${roles(['docente'])}`,
-          parameters: [{ name: 'idCurso', in: 'path', required: true, schema: { type: 'integer' } }],
           responses: { 200: exito(ref('PerfilDocente')), ...errores(401, 403, 404) },
         },
       },
@@ -428,7 +425,9 @@ const construir = () => {
           type: 'object',
           properties: {
             id_docente: { type: 'string', format: 'uuid' }, nombre_completo: { type: 'string' }, afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'] },
-            identificacion: { type: 'string' }, email: { type: 'string' }, debe_cambiar_password: { type: 'boolean' },
+            departamento: { type: 'string', nullable: true }, universidad: { type: 'string', nullable: true },
+            vinculacion_tipo: { type: 'string', nullable: true }, grupo_investigacion: { type: 'string', nullable: true },
+            identificacion: { type: 'string' }, email: { type: 'string' }, telefono: { type: 'string', nullable: true }, debe_cambiar_password: { type: 'boolean' },
             cursos: {
               type: 'array',
               items: { type: 'object', properties: { id_curso: { type: 'integer' }, cohorte: { type: 'string' }, periodo: { type: 'string' }, semestre: { type: 'integer' }, clase: { type: 'string' }, componente: { type: 'string' } } },

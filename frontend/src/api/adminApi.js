@@ -12,11 +12,10 @@ export const eliminar = (recurso, fila) => client.delete(`/admin/${recurso.id}/$
 export const estadisticas = () => client.get('/admin/reportes/estadisticas')
 export const resumenPresupuesto = () => client.get('/admin/presupuesto/resumen')
 
+// El docente solo consulta su perfil; Coordinación registra sus cursos: { id_cohorte, periodo, id_clase }.
 export const perfilDocentePropio = () => client.get('/admin/docentes/me/perfil')
-export const actualizarPerfilDocentePropio = (datos) => client.put('/admin/docentes/me/perfil', datos)
-// Cursos en los que participa el docente: { id_cohorte, periodo, id_clase }. Sin idDocente = el propio.
-export const agregarCursoDocente = (datos, idDocente) => client.post(`/admin/docentes/${idDocente ?? 'me'}/cursos`, datos)
-export const quitarCursoDocente = (idCurso, idDocente) => client.delete(`/admin/docentes/${idDocente ?? 'me'}/cursos/${idCurso}`)
+export const agregarCursoDocente = (datos, idDocente) => client.post(`/admin/docentes/${idDocente}/cursos`, datos)
+export const quitarCursoDocente = (idCurso, idDocente) => client.delete(`/admin/docentes/${idDocente}/cursos/${idCurso}`)
 export const perfilDocente = (idDocente) => client.get(`/admin/docentes/${idDocente}/perfil`)
 
 // opciones: { simular, recurso } — recurso solo aplica a CSV
@@ -32,3 +31,5 @@ export const descargarPlantilla = (conDatos = false) =>
 
 // Hojas académicas con el reflejo de Gestión académica (cada fila con su origen: gestion | registro)
 export const reflejoAcademico = () => client.get('/admin/academico/reflejo')
+// Hojas financieras con su reflejo («Contrataciones» calculada con los «Contratos OPS»), solo Coordinación.
+export const reflejoFinanciero = () => client.get('/admin/finanzas/reflejo')

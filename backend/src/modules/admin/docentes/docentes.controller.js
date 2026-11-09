@@ -8,12 +8,8 @@ const responder = (accion, estado = 200) => asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  // GET/PUT /api/v1/admin/docentes/me/perfil
+  // GET /api/v1/admin/docentes/me/perfil (consulta del propio docente)
   obtenerPerfilPropio: responder('obtenerPerfilPropio'),
-  actualizarPerfilPropio: responder('actualizarPerfilPropio'),
-  // POST /api/v1/admin/docentes/me/cursos · DELETE /api/v1/admin/docentes/me/cursos/:idCurso
-  agregarCursoPropio: responder('agregarCursoPropio', 201),
-  quitarCursoPropio: responder('quitarCursoPropio'),
   // GET /api/v1/admin/docentes/:id/perfil · POST/DELETE /api/v1/admin/docentes/:id/cursos (Coordinación)
   obtenerPerfil: responder('obtenerPerfil'),
   agregarCurso: responder('agregarCurso', 201),

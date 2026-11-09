@@ -2,6 +2,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const requestContext = require('../../utils/requestContext');
 const { success } = require('../../utils/apiResponse');
 const service = require('./usuarios.service');
+const beneficios = require('./beneficios.service');
 
 // GET /api/v1/usuarios
 const listar = asyncHandler(async (req, res) => {
@@ -33,4 +34,14 @@ const eliminar = asyncHandler(async (req, res) => {
   success(res, await service.eliminar(requestContext(req)));
 });
 
-module.exports = { listar, camposFormacion, obtener, crear, actualizar, eliminar };
+// GET /api/v1/usuarios/beneficios?id_cohorte=
+const listarBeneficios = asyncHandler(async (req, res) => {
+  success(res, await beneficios.listar(requestContext(req)));
+});
+
+// PUT /api/v1/usuarios/:id/beneficios
+const reemplazarBeneficios = asyncHandler(async (req, res) => {
+  success(res, await beneficios.reemplazar(requestContext(req)));
+});
+
+module.exports = { listar, camposFormacion, obtener, crear, actualizar, eliminar, listarBeneficios, reemplazarBeneficios };

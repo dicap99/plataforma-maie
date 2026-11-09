@@ -7,8 +7,8 @@ const db = require('../../config/db');
 const SEPARADOR_CAMPOS = ', ';
 
 const SELECT = `
-  SELECT u.id_usuario, u.identificacion, u.nombres, u.apellidos, u.email, u.rol, u.activo, u.debe_cambiar_password, u.creado_en,
-         d.id_docente, d.nombre_completo AS docente_vinculado, d.afiliacion, d.campo_formacion,
+  SELECT u.id_usuario, u.identificacion, u.nombres, u.apellidos, u.email, u.telefono, u.rol, u.activo, u.debe_cambiar_password, u.creado_en,
+         d.id_docente, d.nombre_completo AS docente_vinculado, d.afiliacion, d.departamento, d.universidad, d.campo_formacion,
          he.id_cohorte, h.nombre AS cohorte, he.beca, he.estado AS estado_promocion,
          COALESCE((SELECT json_agg(json_build_object('semestre', b.semestre, 'tipo', b.tipo) ORDER BY b.semestre, b.tipo)
                    FROM estudiante_beneficios b
@@ -26,17 +26,19 @@ const get = async (id) => (await db.query(`${SELECT} WHERE u.id_usuario = $1`, [
 
 const create = (cliente, u) =>
   cliente.query(
-    `INSERT INTO usuarios (identificacion, nombres, apellidos, email, password_hash, rol, activo)
-     VALUES ($1, $2, $3, LOWER($4), $5, $6, $7) RETURNING id_usuario`,
-    [u.identificacion, u.nombres, u.apellidos, u.email, u.password_hash, u.rol, u.activo ?? true],
+    `INSERT INTO usuarios (identificacion, nombres, apellidos, email, telefono, password_hash, rol, activo)
+     VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8) RETURNING id_usuario`,
+    [u.identificacion, u.nombres, u.apellidos, u.email, u.telefono ?? null, u.password_hash, u.rol, u.activo ?? true],
   );
 
 const update = (cliente, id, u) =>
   cliente.query(
-    `UPDATE usuarios SET identificacion = $2, nombres = $3, apellidos = $4, email = LOWER($5), rol = $6, activo = $7,
-            password_hash = COALESCE($8, password_hash)
+    `UPDATE usuarios SET identificacion = $2, nombres = $3, apellidos = $4, email = LOWER($5),
+            telefono = CASE WHEN $10 THEN $6 ELSE telefono END, rol = $7,
+            activo = $8, password_hash = COALESCE($9, password_hash)
      WHERE id_usuario = $1`,
-    [id, u.identificacion, u.nombres, u.apellidos, u.email, u.rol, u.activo ?? true, u.password_hash ?? null],
+    [id, u.identificacion, u.nombres, u.apellidos, u.email, u.telefono ?? null, u.rol, u.activo ?? true, u.password_hash ?? null,
+      u.telefono !== undefined],
   );
 
 // Deja el usuario vinculado a lo sumo a un perfil docente (o a ninguno si idDocente es null).
@@ -50,19 +52,37 @@ const vincularDocente = async (cliente, idUsuario, idDocente) => {
   return rowCount;
 };
 
-// Promoción y beca del estudiante: queda en una sola promoción (conserva su estado si ya estaba).
-const asignarPromocion = async (cliente, idUsuario, idCohorte, beca) => {
+// Promoción del estudiante: queda en una sola promoción. Si ya estaba en ella conserva su estado, beca
+// y beneficios; al cambiar de promoción los de la anterior se borran (ON DELETE CASCADE).
+const asignarPromocion = async (cliente, idUsuario, idCohorte) => {
   await cliente.query('DELETE FROM cohorte_estudiantes WHERE id_estudiante = $1 AND id_cohorte <> $2', [idUsuario, idCohorte]);
   await cliente.query(
-    `INSERT INTO cohorte_estudiantes (id_cohorte, id_estudiante, beca) VALUES ($1, $2, $3)
-     ON CONFLICT (id_cohorte, id_estudiante) DO UPDATE SET beca = EXCLUDED.beca`,
-    [idCohorte, idUsuario, beca ?? null],
+    `INSERT INTO cohorte_estudiantes (id_cohorte, id_estudiante) VALUES ($1, $2)
+     ON CONFLICT (id_cohorte, id_estudiante) DO NOTHING`,
+    [idCohorte, idUsuario],
   );
 };
 
-// Beneficios del estudiante en cada semestre de su promoción: quedan exactamente los indicados.
-const reemplazarBeneficios = async (cliente, idUsuario, idCohorte, beneficios) => {
-  await cliente.query('DELETE FROM estudiante_beneficios WHERE id_estudiante = $1', [idUsuario]);
+// Estudiantes de una promoción con su beca y sus beneficios por semestre (pestaña «Beneficios»).
+// Con `idUsuario`, solo ese estudiante (vacío si no está en la promoción).
+const estudiantesConBeneficios = async (idCohorte, idUsuario = null, cliente = db) =>
+  (await cliente.query(
+    `SELECT u.id_usuario, u.identificacion, u.nombres, u.apellidos, u.activo, ce.beca, ce.estado AS estado_promocion,
+            COALESCE((SELECT json_agg(json_build_object('semestre', b.semestre, 'tipo', b.tipo) ORDER BY b.semestre, b.tipo)
+                      FROM estudiante_beneficios b
+                      WHERE b.id_cohorte = ce.id_cohorte AND b.id_estudiante = u.id_usuario), '[]') AS beneficios
+     FROM cohorte_estudiantes ce
+     JOIN usuarios u ON u.id_usuario = ce.id_estudiante
+     WHERE ce.id_cohorte = $1 AND ($2::uuid IS NULL OR u.id_usuario = $2) AND u.rol = 'estudiante'
+     ORDER BY u.apellidos, u.nombres`,
+    [idCohorte, idUsuario],
+  )).rows;
+
+// Beneficios del estudiante en cada semestre de UNA promoción: quedan exactamente los indicados y la
+// beca que los resume (cohorte_estudiantes.beca) se actualiza con ellos; las demás promociones no se tocan.
+const reemplazarBeneficios = async (cliente, idUsuario, idCohorte, beneficios, beca) => {
+  await cliente.query('UPDATE cohorte_estudiantes SET beca = $3 WHERE id_cohorte = $1 AND id_estudiante = $2', [idCohorte, idUsuario, beca]);
+  await cliente.query('DELETE FROM estudiante_beneficios WHERE id_estudiante = $1 AND id_cohorte = $2', [idUsuario, idCohorte]);
   if (!beneficios.length) return;
   await cliente.query(
     `INSERT INTO estudiante_beneficios (id_cohorte, id_estudiante, semestre, tipo)
@@ -85,19 +105,24 @@ const perfilPorNombre = async (cliente, nombre) =>
 
 const crearPerfil = async (cliente, idUsuario, p) =>
   (await cliente.query(
-    `INSERT INTO docentes_perfil (id_usuario, nombre_completo, afiliacion, campo_formacion)
-     VALUES ($1, $2, $3, $4) RETURNING id_docente`,
-    [idUsuario, p.nombre_completo, p.afiliacion, p.campo_formacion],
+    `INSERT INTO docentes_perfil (id_usuario, nombre_completo, afiliacion, campo_formacion, departamento, universidad)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_docente`,
+    [idUsuario, p.nombre_completo, p.afiliacion, p.campo_formacion ?? null, p.departamento ?? null, p.universidad ?? null],
   )).rows[0].id_docente;
 
-// Actualiza afiliación y campos del perfil; los valores no enviados se conservan.
-const actualizarPerfil = (cliente, idDocente, p) =>
-  cliente.query(
-    `UPDATE docentes_perfil SET afiliacion = COALESCE($2::tipo_afiliacion, afiliacion),
-            campo_formacion = COALESCE($3, campo_formacion)
-     WHERE id_docente = $1`,
-    [idDocente, p.afiliacion ?? null, p.campo_formacion ?? null],
+// Datos del perfil docente que Coordinación registra desde el formulario de Usuarios (el resto del perfil
+// se edita en la hoja «Docentes» de Información académica).
+const CAMPOS_PERFIL_DESDE_USUARIO = ['afiliacion', 'campo_formacion', 'departamento', 'universidad'];
+
+// Actualiza los datos enviados del perfil; los que llegan como undefined se conservan.
+const actualizarPerfil = async (cliente, idDocente, p) => {
+  const enviados = CAMPOS_PERFIL_DESDE_USUARIO.filter((c) => p[c] !== undefined);
+  if (!enviados.length) return;
+  await cliente.query(
+    `UPDATE docentes_perfil SET ${enviados.map((c, i) => `${c} = $${i + 2}`).join(', ')} WHERE id_docente = $1`,
+    [idDocente, ...enviados.map((c) => p[c])],
   );
+};
 
 // Campos de formación registrados (para el selector con buscador del formulario).
 const camposFormacion = async () =>
@@ -121,6 +146,7 @@ module.exports = {
   update,
   vincularDocente,
   asignarPromocion,
+  estudiantesConBeneficios,
   reemplazarBeneficios,
   quitarPromocion,
   existeCohorte,

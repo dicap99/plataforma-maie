@@ -160,6 +160,13 @@ describe('Validación de filas importadas', () => {
     expect(valores).toEqual({ periodo: '2024-A', valor: 1234567.89, n: 3, fecha: '2025-11-23', afiliacion: 'EXTERNO' });
   });
 
+  it('omite las columnas ausentes del origen y conserva como null las celdas vacías', () => {
+    const { valores, errores } = validarFila(campos, { periodo: '2024-A', valor: 1, n: '' });
+    expect(errores).toEqual([]);
+    expect(valores).toEqual({ periodo: '2024-A', valor: 1, n: null });
+    expect('fecha' in valores).toBe(false);
+  });
+
   it('reporta obligatorios y valores inválidos', () => {
     const { errores } = validarFila(campos, { periodo: '2024-C', n: 2.5 });
     expect(errores).toEqual([

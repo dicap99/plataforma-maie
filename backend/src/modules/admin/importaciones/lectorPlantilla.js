@@ -31,7 +31,8 @@ const aFilas = (filasCrudas, mapa, recurso, primeraFila) =>
       const valores = {};
       let promocion;
       for (const campo of recurso.campos) {
-        const v = mapa[campo.name] === undefined ? null : celdas[mapa[campo.name]];
+        // Columna ausente en el archivo → undefined (se conserva lo guardado); celda vacía → null (se borra).
+        const v = mapa[campo.name] === undefined ? undefined : celdas[mapa[campo.name]] ?? null;
         if (campo.type === 'cohorte') promocion = v === null || v === undefined ? null : String(v).trim();
         else valores[campo.name] = v;
       }

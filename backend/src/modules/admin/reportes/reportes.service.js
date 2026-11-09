@@ -32,6 +32,11 @@ module.exports = {
     return Object.fromEntries(ids.map((id) => [id, combinado[id]]));
   },
 
+  // Hojas financieras con su reflejo: «Contrataciones» calculada con los «Contratos OPS» registrados.
+  async reflejoFinanciero() {
+    return reflejo.aplicarFinanciero({ contrataciones: await repositorios.contrataciones.list() });
+  },
+
   // Consolidado presupuestal por promoción (corte más reciente), comparado con su proyección.
   async resumenPresupuesto() {
     const [filas, parametros, equilibrio] = await Promise.all([

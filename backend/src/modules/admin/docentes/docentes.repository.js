@@ -4,20 +4,23 @@
 const db = require('../../../config/db');
 const { SEMESTRE_REAL } = require('../reportes/reflejo');
 
-// Campos que el propio docente puede mantener; nombre y afiliación los administra Coordinación.
+// Datos del perfil: los mantiene Coordinación; el docente solo los consulta (asesoría del 20-oct-2026).
 // Los cursos y componentes no se escriben: salen de sus asignaciones.
-const CAMPOS_EDITABLES = [
+const CAMPOS_PERFIL = [
+  'departamento',
+  'universidad',
+  'vinculacion_tipo',
+  'grupo_investigacion',
   'formacion_profesional',
   'campo_formacion',
   'enlace_perfil',
-  'titulacion_maxima',
   'linea_investigacion',
 ];
 
 const SELECT_PERFIL = `
   SELECT d.id_docente, d.id_usuario, d.nombre_completo, d.afiliacion,
-         ${CAMPOS_EDITABLES.map((c) => `d.${c}`).join(', ')},
-         u.identificacion, u.email, COALESCE(u.debe_cambiar_password, FALSE) AS debe_cambiar_password
+         ${CAMPOS_PERFIL.map((c) => `d.${c}`).join(', ')},
+         u.identificacion, u.email, u.telefono, COALESCE(u.debe_cambiar_password, FALSE) AS debe_cambiar_password
   FROM docentes_perfil d LEFT JOIN usuarios u ON u.id_usuario = d.id_usuario`;
 
 const findByUsuario = async (idUsuario) =>
@@ -25,18 +28,6 @@ const findByUsuario = async (idUsuario) =>
 
 const findById = async (idDocente) =>
   (await db.query(`${SELECT_PERFIL} WHERE d.id_docente = $1`, [idDocente])).rows[0] ?? null;
-
-// Actualiza solo los campos enviados (un PUT parcial no borra los demás).
-const updateByUsuario = async (idUsuario, datos) => {
-  const enviados = CAMPOS_EDITABLES.filter((c) => datos[c] !== undefined);
-  if (enviados.length) {
-    await db.query(
-      `UPDATE docentes_perfil SET ${enviados.map((c, i) => `${c} = $${i + 2}`).join(', ')} WHERE id_usuario = $1`,
-      [idUsuario, ...enviados.map((c) => datos[c])],
-    );
-  }
-  return findByUsuario(idUsuario);
-};
 
 // Ofertas en las que participa el docente, con el semestre de la promoción en que se dictaron.
 const SELECT_CURSOS = `
@@ -105,10 +96,8 @@ const quitarCurso = (idDocente, idCurso) =>
   });
 
 module.exports = {
-  CAMPOS_EDITABLES,
   findByUsuario,
   findById,
-  updateByUsuario,
   cursosDe,
   cohorte,
   clase,

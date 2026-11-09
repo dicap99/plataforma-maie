@@ -18,9 +18,9 @@ const periodosDe = (inicio) => {
   })
 }
 
-// Cursos en los que participa un docente (RF-ADM-06): registrar uno es elegir promoción, periodo y
-// curso; cuenta de inmediato en «Cursos y docentes por semestre» y define los componentes que apoya.
-// `idDocente` vacío = el docente de la sesión; con id, lo hace Coordinación por ese docente.
+// Cursos en los que participa un docente (RF-ADM-06), registrados por Coordinación: registrar uno es
+// elegir promoción, periodo y curso; cuenta de inmediato en «Cursos y docentes por semestre» y define
+// los componentes que apoya.
 export default function CursosDocente({ cursos = [], idDocente, onCambio }) {
   const cohortes = useApi(() => adminApi.listar('cohortes'))
   const clases = useApi(() => cursosApi.listarClases())
@@ -59,7 +59,7 @@ export default function CursosDocente({ cursos = [], idDocente, onCambio }) {
     <section className="card">
       <h2>Cursos en los que participa</h2>
       <p className="texto-suave">
-        Registre cada curso que dictó o dicta: promoción, periodo y curso. El componente de formación sale del curso
+        Registre cada curso que el docente dictó o dicta: promoción, periodo y curso. El componente de formación sale del curso
         y la tabla «Cursos y docentes por semestre» se actualiza sola.
       </p>
 

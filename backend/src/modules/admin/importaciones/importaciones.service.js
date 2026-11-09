@@ -75,13 +75,14 @@ const guardar = async (lectura, simular) => {
       // Las promociones se guardan primero, así que ya existen al resolver las demás hojas.
       const { rows } = await cliente.query('SELECT id_cohorte, nombre FROM cohortes');
       const idPorPromocion = new Map(rows.map((r) => [r.nombre.toUpperCase(), r.id_cohorte]));
-      const usaCohorte = recurso.campos.some((c) => c.type === 'cohorte');
+      const campoCohorte = recurso.campos.find((c) => c.type === 'cohorte');
 
       for (const { fila, hoja, promocion, valores } of filas) {
         const crudos = { ...valores };
-        if (usaCohorte) {
+        if (campoCohorte) {
+          // Promoción vacía solo es válida si el campo es opcional (p. ej. «Contratos OPS»).
           const idCohorte = promocion ? idPorPromocion.get(promocion.toUpperCase()) : null;
-          if (!idCohorte) {
+          if (!idCohorte && (promocion || campoCohorte.required)) {
             errores.push({ hoja, fila, mensaje: `La promoción "${promocion ?? ''}" no existe en "Promociones y Estudiantes"` });
             continue;
           }

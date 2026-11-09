@@ -74,6 +74,9 @@ const validarFila = (campos, fila) => {
   const errores = [];
   for (const campo of campos) {
     const crudo = fila[campo.name];
+    // Columna ausente en el origen (p. ej. el libro histórico no trae «Departamento»): se omite para
+    // que la importación conserve el valor guardado. Una celda vacía, en cambio, llega como null y lo borra.
+    if (crudo === undefined && !campo.required) continue;
     const vacio = crudo === undefined || crudo === null || String(crudo).trim() === '';
     if (vacio) {
       if (campo.required) errores.push(`${campo.label} es obligatorio`);
