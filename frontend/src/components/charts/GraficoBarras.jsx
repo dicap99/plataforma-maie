@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import LeyendaInteractiva, { useSeriesOcultas } from './LeyendaInteractiva.jsx'
 import { GRILLA, SERIES, SUPERFICIE, TEXTO_SECUNDARIO } from './paleta'
 
@@ -7,9 +7,11 @@ import { GRILLA, SERIES, SUPERFICIE, TEXTO_SECUNDARIO } from './paleta'
 // series: [{ clave, nombre, color? }] — el color se fija por posición en la definición, no por rango.
 // horizontal: categorías en el eje vertical (útil con etiquetas largas).
 // onSeleccionar(fila): clic en una barra (p. ej. para filtrar la tabla de datos).
+// referencia: { valor, etiqueta } dibuja una línea de meta en el eje de valores; dominio: [min, max] del eje.
 // Con más de una serie, la leyenda permite ocultar y mostrar cada serie.
 export default function GraficoBarras({
   datos, ejeX, series, apilado = false, horizontal = false, formato = (v) => v, formatoEje, onSeleccionar, anchoEtiquetas = 160,
+  referencia, dominio,
 }) {
   const { ocultas, alternar } = useSeriesOcultas(series.length)
   const visibles = series.filter((s) => !ocultas.has(s.clave))
@@ -26,8 +28,8 @@ export default function GraficoBarras({
     ? <YAxis type="category" dataKey={ejeX} width={anchoEtiquetas} tickLine={false} axisLine={{ stroke: GRILLA }} tick={ticks} interval={0} />
     : <XAxis dataKey={ejeX} minTickGap={12} tickLine={false} axisLine={{ stroke: GRILLA }} tick={ticks} />
   const ejeValores = horizontal
-    ? <XAxis type="number" tickLine={false} axisLine={false} tick={ticks} tickFormatter={formatoEje ?? formato} allowDecimals={false} />
-    : <YAxis tickLine={false} axisLine={false} width={formatoEje ? 72 : 40} tick={ticks} tickFormatter={formatoEje ?? formato} />
+    ? <XAxis type="number" tickLine={false} axisLine={false} tick={ticks} tickFormatter={formatoEje ?? formato} allowDecimals={false} domain={dominio} />
+    : <YAxis tickLine={false} axisLine={false} width={formatoEje ? 72 : 40} tick={ticks} tickFormatter={formatoEje ?? formato} domain={dominio} />
   // Extremo de dato redondeado (4px), recto en la base; en apiladas solo el segmento final.
   const radio = (i) => {
     if (apilado && i !== ultima) return 0
@@ -38,7 +40,7 @@ export default function GraficoBarras({
     <div className="flex h-full flex-col">
     <div className="min-h-0 flex-1">
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={datos} layout={horizontal ? 'vertical' : 'horizontal'} margin={{ top: 8, right: 16, left: 8, bottom: 0 }} barGap={2}>
+      <BarChart data={datos} layout={horizontal ? 'vertical' : 'horizontal'} margin={{ top: referencia ? 22 : 8, right: 16, left: 8, bottom: 0 }} barGap={2}>
         <CartesianGrid vertical={horizontal} horizontal={!horizontal} stroke={GRILLA} />
         {ejeCategorias}
         {ejeValores}
@@ -59,6 +61,10 @@ export default function GraficoBarras({
             onClick={onSeleccionar ? (d) => onSeleccionar(d.payload ?? d) : undefined}
           />
         ))}
+        {referencia && (
+          <ReferenceLine {...{ [horizontal ? 'x' : 'y']: referencia.valor }} stroke={TEXTO_SECUNDARIO} strokeDasharray="4 4" ifOverflow="extendDomain"
+            label={{ value: referencia.etiqueta, position: horizontal ? 'top' : 'insideTopLeft', fill: TEXTO_SECUNDARIO, fontSize: 12 }} />
+        )}
       </BarChart>
     </ResponsiveContainer>
     </div>

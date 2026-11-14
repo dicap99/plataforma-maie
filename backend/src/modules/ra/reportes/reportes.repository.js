@@ -34,7 +34,7 @@ const resultados = async (filtros) =>
     `SELECT v.id_curso, v.id_estudiante, v.id_ra, v.total, (v.calificados = v.criterios) AS completo,
             r.codigo AS ra, r.descripcion AS ra_descripcion,
             c.periodo, c.grupo, c.id_catalogo, c.id_clase, k.codigo AS curso_codigo, cl.nombre AS curso_nombre,
-            k.semestre, k.orden AS curso_orden, m.id_modulo, m.nombre AS modulo,
+            k.nombre AS curso_catalogo, k.semestre, k.orden AS curso_orden, m.id_modulo, m.nombre AS modulo,
             h.id_cohorte, h.nombre AS cohorte, h.periodo_inicio,
             u.identificacion, u.apellidos || ' ' || u.nombres AS estudiante
      FROM v_ra_resultados v ${JOINS}
@@ -59,10 +59,23 @@ const detalleCriterios = async (filtros) =>
     parametros(filtros),
   )).rows;
 
+// Notas por criterio de las rúbricas COMPLETAS dentro de los filtros (análisis por criterio).
+const notasCompletas = async (filtros) =>
+  (await db.query(
+    `SELECT e.id_criterio, e.calificacion, rc.orden, rc.nombre_criterio, rc.peso_porcentaje, r.id_ra, r.codigo AS ra
+     FROM evaluaciones_ra_estudiante e
+     JOIN rubricas_criterios rc ON rc.id_criterio = e.id_criterio
+     JOIN v_ra_resultados v
+       ON v.id_curso = e.id_curso AND v.id_estudiante = e.id_estudiante AND v.id_ra = rc.id_ra AND v.calificados = v.criterios
+     ${JOINS}
+     WHERE ${FILTROS}`,
+    parametros(filtros),
+  )).rows;
+
 const listRA = async () =>
   (await db.query('SELECT id_ra, codigo, descripcion FROM resultados_aprendizaje ORDER BY id_ra')).rows;
 
 const metaSatisfactorio = async () =>
   (await db.query("SELECT valor FROM parametros_programa WHERE clave = 'meta_ra_satisfactorio_pct'")).rows[0]?.valor ?? null;
 
-module.exports = { resultados, detalleCriterios, listRA, metaSatisfactorio };
+module.exports = { resultados, detalleCriterios, notasCompletas, listRA, metaSatisfactorio };

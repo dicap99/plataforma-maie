@@ -56,4 +56,11 @@ const reemplazar = async (cliente, idRa, criterios) => {
   }
 };
 
-module.exports = { listRA, listCriterios, calificadosFuera, reemplazar };
+const tieneCalificaciones = async (idRa) =>
+  (await db.query(
+    `SELECT 1 FROM evaluaciones_ra_estudiante e JOIN rubricas_criterios rc USING (id_criterio)
+     WHERE rc.id_ra = $1 LIMIT 1`,
+    [idRa],
+  )).rowCount > 0;
+
+module.exports = { listRA, listCriterios, calificadosFuera, tieneCalificaciones, reemplazar };

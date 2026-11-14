@@ -18,6 +18,7 @@ import PlanillaRubricaPage from '../features/ra/PlanillaRubricaPage.jsx'
 import ConsolidadoRAPage from '../features/ra/ConsolidadoRAPage.jsx'
 import MatrizRubricasPage from '../features/ra/MatrizRubricasPage.jsx'
 import AperturaCalificacionPage from '../features/ra/AperturaCalificacionPage.jsx'
+import AnalisisRAPage from '../features/ra/AnalisisRAPage.jsx'
 import FormularioAcuerdo058 from '../features/evalDocente/FormularioAcuerdo058.jsx'
 import DocenteResultadoView from '../features/evalDocente/DocenteResultadoView.jsx'
 
@@ -46,6 +47,7 @@ export default function AppRouter() {
             {/* Rutas anteriores: Usuarios y Cursos y matrícula viven ahora en Gestión académica */}
             <Route path="usuarios" element={<Navigate to="/coordinacion/gestion" replace />} />
             <Route path="ra" element={<ConsolidadoRAPage />} />
+            <Route path="ra/analisis" element={<AnalisisRAPage />} />
             <Route path="ra/rubricas" element={<MatrizRubricasPage />} />
             <Route path="ra/calificacion" element={<AperturaCalificacionPage />} />
             <Route path="ra/cursos" element={<Navigate to="/coordinacion/gestion?pestana=semestre" replace />} />

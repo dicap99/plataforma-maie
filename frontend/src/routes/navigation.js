@@ -30,6 +30,7 @@ export const MENU_POR_ROL = {
       icono: 'fact_check',
       items: [
         { to: '/coordinacion/ra', label: 'Consolidado académico', icono: 'analytics', end: true },
+        { to: '/coordinacion/ra/analisis', label: 'Análisis del programa', icono: 'insights' },
         { to: '/coordinacion/ra/rubricas', label: 'Matriz de rúbricas', icono: 'rule' },
         { to: '/coordinacion/ra/calificacion', label: 'Apertura de calificación', icono: 'lock_clock' },
       ],

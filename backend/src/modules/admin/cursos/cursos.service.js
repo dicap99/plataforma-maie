@@ -37,8 +37,19 @@ const guardar = async (id, body) => {
   if (id) {
     const actual = await repository.get(id);
     if (!actual) throw ApiError.notFound('Curso no encontrado');
-    if (actual.id_catalogo !== clase.id_catalogo && (await repository.contarNotas(id))) {
+    const registros = await repository.contarNotas(id);
+    if (actual.id_catalogo !== clase.id_catalogo && registros) {
       throw ApiError.conflict('No se puede cambiar a una clase de otro curso del plan: la oferta ya tiene calificaciones');
+    }
+    // Las notas pertenecen al semestre en que se registraron (y a su apertura); mover la oferta de
+    // semestre las trasladaría en silencio en los reportes por semestre académico.
+    if (actual.periodo !== body.periodo && registros) {
+      throw ApiError.conflict('No se puede cambiar el semestre académico: la oferta ya tiene calificaciones');
+    }
+    // Los inscritos pertenecen a la promoción de la oferta (la inscripción lo valida); cambiarla
+    // dejaría estudiantes de otra promoción en el curso.
+    if (actual.id_cohorte !== body.id_cohorte && actual.inscritos > 0) {
+      throw ApiError.conflict('No se puede cambiar la promoción: el curso tiene estudiantes inscritos (retírelos primero)');
     }
   }
   const docentes = unicos(body.docentes);

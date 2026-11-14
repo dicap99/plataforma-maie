@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, ReferenceLine, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import LeyendaInteractiva, { useSeriesOcultas } from './LeyendaInteractiva.jsx'
 import { GRILLA, SERIES, SUPERFICIE, TEXTO_SECUNDARIO } from './paleta'
 
 // Series temporales en un solo eje (misma unidad). series: [{ clave, nombre, color? }]
 // Con más de una serie, la leyenda permite ocultar y mostrar cada serie.
-export default function GraficoLineas({ datos, ejeX, series, formato = (v) => v, formatoEje }) {
+// referencia: { valor, etiqueta } dibuja una línea de meta; dominio: [min, max] del eje Y.
+export default function GraficoLineas({ datos, ejeX, series, formato = (v) => v, formatoEje, referencia, dominio, conectarVacios = false }) {
   const { ocultas, alternar } = useSeriesOcultas(series.length)
   // Tooltip en el orden de definición (Recharts ordena alfabéticamente por defecto). Se memoiza:
   // una función nueva en cada render hace que Recharts recalcule el diseño y desalinee los ejes.
@@ -27,6 +28,7 @@ export default function GraficoLineas({ datos, ejeX, series, formato = (v) => v,
           width={formatoEje ? 72 : 40}
           tick={{ fill: TEXTO_SECUNDARIO, fontSize: 12 }}
           tickFormatter={formatoEje ?? formato}
+          domain={dominio}
         />
         <Tooltip itemSorter={orden} formatter={(v, nombre) => [formato(v), nombre]} />
         {series.map((s, i) => (
@@ -41,8 +43,13 @@ export default function GraficoLineas({ datos, ejeX, series, formato = (v) => v,
             strokeLinejoin="round"
             dot={{ r: 4, fill: s.color ?? SERIES[i], stroke: SUPERFICIE, strokeWidth: 2 }}
             activeDot={{ r: 6, stroke: SUPERFICIE, strokeWidth: 2 }}
+            connectNulls={conectarVacios}
           />
         ))}
+        {referencia && (
+          <ReferenceLine y={referencia.valor} stroke={TEXTO_SECUNDARIO} strokeDasharray="4 4" ifOverflow="extendDomain"
+            label={{ value: referencia.etiqueta, position: 'insideBottomLeft', fill: TEXTO_SECUNDARIO, fontSize: 12 }} />
+        )}
       </LineChart>
     </ResponsiveContainer>
     </div>

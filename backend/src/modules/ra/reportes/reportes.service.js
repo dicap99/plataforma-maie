@@ -5,6 +5,7 @@
 const ExcelJS = require('exceljs');
 const { NIVELES, CLAVES_NIVEL, agruparUnidades, distribucion, validacion, nivelDeNota } = require('../rubrica');
 const repository = require('./reportes.repository');
+const { analizar } = require('./analisis');
 
 const META_POR_DEFECTO = 70;
 
@@ -63,7 +64,7 @@ const consultar = async (query) => {
   const [todas, ras, metaBD] = await Promise.all([
     repository.resultados(filtros), repository.listRA(), repository.metaSatisfactorio(),
   ]);
-  const meta = metaBD ?? META_POR_DEFECTO;
+  const meta = Number(metaBD ?? META_POR_DEFECTO);
   const completas = todas.filter((f) => f.completo);
 
   // Matriz por RA (siempre las 7 filas, aunque no tengan datos), como en el mockup del coordinador.
@@ -136,8 +137,24 @@ const COLUMNAS_DISTRIBUCION = [
 ];
 const aplanar = (d) => ({ ...d, ...Object.fromEntries(CLAVES_NIVEL.map((n) => [`pct_${n}`, d.pct[n]])) });
 
+const ETIQUETAS_AGRUPAR = { ra: 'RA', curso: 'curso', catalogo: 'curso del plan', modulo: 'componente', cohorte: 'promoción', estudiante: 'estudiante' };
+
 module.exports = {
   AGRUPACIONES,
+
+  // Análisis del programa (estadísticas agregadas con los mismos filtros del consolidado).
+  async analisis({ query }) {
+    const filtros = filtrosDe(query);
+    const [todas, notas, ras, metaBD] = await Promise.all([
+      repository.resultados(filtros), repository.notasCompletas(filtros), repository.listRA(), repository.metaSatisfactorio(),
+    ]);
+    const meta = Number(metaBD ?? META_POR_DEFECTO);
+    const completas = todas.filter((f) => f.completo);
+    return {
+      meta: { filtros: { ...filtros }, niveles: NIVELES, meta_satisfactorio_pct: meta, rubricas_incompletas: todas.length - completas.length },
+      ...analizar({ filas: completas, notas, ras, meta }),
+    };
+  },
 
   async consolidado({ query }) {
     const { _completas, ...reporte } = await consultar(query);
@@ -153,7 +170,7 @@ module.exports = {
     hoja(libro, 'Distribución por RA', [{ clave: 'descripcion', titulo: 'Resultado de aprendizaje', ancho: 60 }, ...COLUMNAS_DISTRIBUCION],
       reporte.porRA.map((d) => aplanar({ ...d, etiqueta: d.grupo, descripcion: `${d.grupo}. ${d.descripcion}` })));
     if (reporte.meta.agrupar !== 'ra') {
-      hoja(libro, `Por ${reporte.meta.agrupar}`, COLUMNAS_DISTRIBUCION, reporte.filas.map(aplanar));
+      hoja(libro, `Por ${ETIQUETAS_AGRUPAR[reporte.meta.agrupar]}`, COLUMNAS_DISTRIBUCION, reporte.filas.map(aplanar));
     }
 
     // Estudiante × RA: nivel consolidado de cada estudiante en cada RA.

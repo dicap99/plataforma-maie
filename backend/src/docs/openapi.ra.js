@@ -295,7 +295,7 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
       parameters: [entero('idRa', 'id_ra', true)],
       put: {
         tags: [TAG_RA], summary: 'Reemplazar la rúbrica completa de un RA',
-        description: `Los pesos deben sumar 100 % (400). No se pueden quitar criterios con notas (409). ${roles(['coordinador'])}`,
+        description: `Los pesos deben sumar 100 % (400). No se pueden quitar criterios con notas (409); si el RA ya tiene calificaciones, tampoco añadir criterios ni cambiar pesos (409), solo corregir redacción y orden. ${roles(['coordinador'])}`,
         requestBody: cuerpo({ type: 'object', required: ['criterios'], properties: { criterios: { type: 'array', minItems: 1, items: ref('Criterio') } } }),
         responses: { 200: exito(ref('Rubrica')), ...errores(400, 401, 403, 404, 409) },
       },
@@ -354,9 +354,21 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
         responses: { 200: exito(ref('ReporteRA')), ...errores(400, 401, 403) },
       },
     },
+    '/ra/reportes/analisis': {
+      get: {
+        tags: [TAG_RA], summary: 'Análisis del programa',
+        description: 'Estadísticas agregadas con los mismos filtros del consolidado: histograma de notas estudiante–RA (intervalos de 0,5), ' +
+          '% satisfactorio (Alto + Medio) frente a la meta por RA, evolución por promoción y por semestre académico, desempeño por curso del plan, ' +
+          'y desempeño de cada criterio de rúbrica ordenado del promedio más bajo al más alto. Sin conclusiones automáticas. ' +
+          roles(['coordinador']),
+        parameters: filtrosReporte,
+        responses: { 200: exito({ type: 'object' }), ...errores(400, 401, 403) },
+      },
+    },
     '/ra/reportes/exportar': {
       get: {
-        tags: [TAG_RA], summary: 'Exportar el reporte a Excel', description: roles(['coordinador']),
+        tags: [TAG_RA], summary: 'Exportar el reporte a Excel',
+        description: `Hojas: distribución por RA, agrupación elegida, estudiante × RA y detalle por criterio. ${roles(['coordinador'])}`,
         parameters: filtrosReporte,
         responses: {
           200: { description: 'Libro Excel', content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: { type: 'string', format: 'binary' } } } },

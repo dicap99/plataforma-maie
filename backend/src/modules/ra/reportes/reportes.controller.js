@@ -8,6 +8,11 @@ const consolidado = asyncHandler(async (req, res) => {
   success(res, await service.consolidado(requestContext(req)));
 });
 
+// GET /api/v1/ra/reportes/analisis — estadísticas agregadas del programa
+const analisis = asyncHandler(async (req, res) => {
+  success(res, await service.analisis(requestContext(req)));
+});
+
 // GET /api/v1/ra/reportes/exportar — descarga binaria (no usa el DTO JSON)
 const exportar = asyncHandler(async (req, res) => {
   const { nombreArchivo, buffer } = await service.exportar(requestContext(req));
@@ -21,4 +26,4 @@ const exportar = asyncHandler(async (req, res) => {
     .send(Buffer.from(buffer));
 });
 
-module.exports = { consolidado, exportar };
+module.exports = { consolidado, analisis, exportar };

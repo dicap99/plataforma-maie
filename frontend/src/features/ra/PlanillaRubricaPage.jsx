@@ -62,6 +62,7 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
   }, [ediciones, planilla])
   const invalidas = cambios.filter((c) => c.calificacion === undefined)
 
+
   useEffect(() => {
     if (!cambios.length) return undefined
     const avisar = (e) => {
@@ -77,6 +78,13 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
   if (!planilla) return null
 
   const { curso, niveles, ras, estudiantes } = planilla
+  if (!ras.length) {
+    return (
+      <div className="card">
+        <p>El curso {curso.codigo} · {curso.nombre} no tiene resultados de aprendizaje asociados en el plan; no hay rúbricas que calificar.</p>
+      </div>
+    )
+  }
   // Con la calificación del semestre cerrada, el docente solo consulta.
   const cerrada = !soloLectura && !curso.calificacion_abierta
   const lectura = soloLectura || cerrada
@@ -86,7 +94,9 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
   const infos = new Map(estudiantes.map((e) => [e.id_estudiante, estadoEstudiante(niveles, ediciones, e, ra.criterios)]))
   const completos = estudiantes.filter((e) => infos.get(e.id_estudiante).completo)
   const promedio = completos.length ? completos.reduce((s, e) => s + infos.get(e.id_estudiante).total, 0) / completos.length : null
-  const avance = estudiantes.length ? completos.length / estudiantes.length : 0
+  // Un estudiante retirado sin notas no queda pendiente: no cuenta en el avance.
+  const esperados = estudiantes.filter((e) => e.estado !== 'retirado' || infos.get(e.id_estudiante).registradas > 0)
+  const avance = esperados.length ? completos.length / esperados.length : 0
   const q = busqueda.trim().toLowerCase()
   const regla = FILTROS.find((f) => f.valor === filtro)
   const visibles = estudiantes.filter((e) => regla.incluye(infos.get(e.id_estudiante))
@@ -98,7 +108,6 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
     setEdiciones((ed) => ({ ...ed, [clave(e.id_estudiante, c.id_criterio)]: texto }))
   }
   const cambiosDe = (id) => cambios.filter((c) => c.id_estudiante === id)
-
   // Guarda los cambios (de un estudiante o todos); devuelve true si se guardó.
   const guardar = async (soloEstudiante = null) => {
     const lote = soloEstudiante ? cambiosDe(soloEstudiante) : cambios
@@ -182,7 +191,7 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
           <div className="grid grid-cols-2 gap-space-sm sm:grid-cols-4">
             <Kpi etiqueta="Estrategias sugeridas" valor={ra.estrategias.join(', ')} />
             <Kpi etiqueta="Dominio esperado" valor={ra.nivel_dominio} acento="text-tertiary-fixed" />
-            <Kpi etiqueta="Progreso" valor={`${completos.length} / ${estudiantes.length} evaluados`} />
+            <Kpi etiqueta="Progreso" valor={`${completos.length} / ${esperados.length} evaluados`} />
             <Kpi etiqueta="Promedio del curso" valor={promedio === null ? '—' : `${promedio.toFixed(2)} / 5.0`} acento="text-secondary-fixed" />
           </div>
         </div>
@@ -221,7 +230,8 @@ export default function PlanillaRubricaPage({ soloLectura = false }) {
                 </span>
               </div>
               <span className="text-body-sm text-on-surface-variant">
-                {estudiantes.length - completos.length} pendiente(s) de completar · {completos.length} rúbrica(s) completas
+                {Math.max(0, esperados.length - completos.length)} pendiente(s) de completar · {completos.length} rúbrica(s) completas
+                {esperados.length < estudiantes.length && ` · ${estudiantes.length - esperados.length} retirado(s) sin notas`}
               </span>
             </div>
           </div>

@@ -117,6 +117,23 @@ describe('Catálogo y rúbricas (RF-RA-01)', () => {
     expect(ok.body.data.criterios[0].id_criterio).toBe(actual.criterios[3].id_criterio);
     expect((await coord.put('/ra/rubricas/2', { criterios: actual.criterios })).status).toBe(200);
   });
+
+  it('con calificaciones registradas no se cambian pesos ni se añaden criterios (los totales históricos no cambian)', async () => {
+    const actual = (await coord.get('/ra/rubricas?ra=2')).body.data.ras[0];
+    const pesos = actual.criterios.map((c) => Number(c.peso_porcentaje));
+    expect(new Set(pesos).size).toBeGreaterThan(1);
+    // Intercambia dos pesos distintos: la suma sigue en 100, pero cambia la ponderación.
+    const i = pesos.findIndex((p) => p !== pesos[0]);
+    const cambiados = actual.criterios.map((c, k) => ({ ...c, peso_porcentaje: k === 0 ? pesos[i] : k === i ? pesos[0] : pesos[k] }));
+    const r1 = await coord.put('/ra/rubricas/2', { criterios: cambiados });
+    expect(r1.status).toBe(409);
+    expect(r1.body.error.message).toMatch(/ya tiene calificaciones/);
+
+    const nuevo = { ...actual.criterios[0], id_criterio: null, orden: 9, nombre_criterio: 'Nuevo', peso_porcentaje: 10 };
+    const conNuevo = [{ ...actual.criterios[0], peso_porcentaje: pesos[0] - 10 }, ...actual.criterios.slice(1), nuevo];
+    expect((await coord.put('/ra/rubricas/2', { criterios: conNuevo })).status).toBe(409);
+    expect((await coord.get('/ra/rubricas?ra=2')).body.data.ras[0].criterios).toEqual(actual.criterios);
+  });
 });
 
 describe('Reportes consolidados (RF-RA-03, RF-RA-04)', () => {
@@ -188,8 +205,37 @@ describe('Reportes consolidados (RF-RA-03, RF-RA-04)', () => {
     const libro = new ExcelJS.Workbook();
     await libro.xlsx.load(res.body);
     expect(libro.worksheets.map((h) => h.name))
-      .toEqual(['Distribución por RA', 'Por cohorte', 'Estudiante × RA', 'Detalle por criterio']);
+      .toEqual(['Distribución por RA', 'Por promoción', 'Estudiante × RA', 'Detalle por criterio']);
     expect(libro.getWorksheet('Detalle por criterio').rowCount - 1).toBe(datos.calificaciones.length);
+  });
+
+  it('el análisis del programa reproduce el cálculo independiente (sin conclusiones automáticas)', async () => {
+    const res = await coord.get('/ra/reportes/analisis');
+    expect(res.status).toBe(200);
+    const d = res.body.data;
+    const esperado = oraculo({}, catalogo);
+    const total = esperado.reduce((s, u) => s + u.evaluados, 0);
+    expect(d.global.evaluados).toBe(total);
+    expect(d.global.satisfactorio).toBe(esperado.reduce((s, u) => s + u.Alto + u.Medio, 0));
+    expect(d.histograma.reduce((s, b) => s + b.estudiantes, 0)).toBe(total);
+    for (const e of esperado) {
+      expect(d.porRA.find((r) => r.grupo === e.grupo)).toMatchObject({ evaluados: e.evaluados, satisfactorio: e.Alto + e.Medio, promedio: e.promedio });
+    }
+    // Cada estudiante pertenece a una promoción: la suma por promoción es el total.
+    expect(d.porCohorte.length).toBeGreaterThan(1);
+    expect(d.porCohorte.reduce((s, c) => s + c.evaluados, 0)).toBe(total);
+    expect(d.porPeriodo.map((p) => p.grupo)).toEqual([...d.porPeriodo.map((p) => p.grupo)].sort());
+    expect(d.porCurso.length).toBeGreaterThan(0);
+    expect(d.criterios.length).toBeGreaterThan(0);
+    expect(d.criterios.map((c) => c.promedio)).toEqual([...d.criterios.map((c) => c.promedio)].sort((a, b) => a - b));
+    expect(d.criterios.reduce((s, c) => s + c.notas, 0)).toBeGreaterThan(0);
+    expect(d.meta.rubricas_incompletas).toBeGreaterThan(0);
+    expect(d).not.toHaveProperty('conclusiones');
+
+    const semestre = (await coord.get('/ra/reportes/analisis?periodo=2024-B')).body.data;
+    expect(semestre.global.evaluados).toBe(oraculo({ periodo: '2024-B' }, catalogo).reduce((s, u) => s + u.evaluados, 0));
+    const docente = conToken(await login(datos.docentes[0].email));
+    expect((await docente.get('/ra/reportes/analisis')).status).toBe(403);
   });
 });
 
@@ -342,6 +388,13 @@ describe('Ofertas de curso, matrícula y calificación (RF-RA-02)', () => {
   it('no se desmatricula a un estudiante calificado ni se elimina una oferta con notas', async () => {
     expect((await coord.put(`/admin/cursos/${oferta.id_curso}/estudiantes`, { estudiantes: [] })).status).toBe(409);
     expect((await coord.delete(`/admin/cursos/${oferta.id_curso}`)).status).toBe(409);
+  });
+
+  it('una oferta con calificaciones no cambia de semestre académico', async () => {
+    const { periodo_inicio: inicio } = await idDe('SELECT periodo_inicio FROM cohortes WHERE id_cohorte = $1', [idCohorte]);
+    const res = await coord.put(`/admin/cursos/${oferta.id_curso}`, { id_clase: oferta.id_clase, id_cohorte: idCohorte, periodo: inicio });
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/semestre académico/);
   });
 });
 

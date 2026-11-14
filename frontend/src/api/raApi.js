@@ -19,4 +19,6 @@ export const cambiarPeriodo = (periodo, abierto) => client.put(`/ra/periodos/${p
 
 // Reportes: agrupar = ra | curso | catalogo | modulo | cohorte | estudiante, más filtros combinables
 export const reporteRA = (params) => client.get('/ra/reportes', { params })
+// Análisis y conclusiones del programa (mismos filtros que el consolidado)
+export const analisisRA = (params) => client.get('/ra/reportes/analisis', { params })
 export const exportarRA = (params) => descargar('/ra/reportes/exportar', params)

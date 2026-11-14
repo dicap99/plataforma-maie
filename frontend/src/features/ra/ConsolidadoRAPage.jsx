@@ -368,6 +368,7 @@ export default function ConsolidadoRAPage() {
   const [agrupar, setAgrupar] = useState('')
   const [f, setF] = useState(FILTROS_VACIOS)
   const [exportando, setExportando] = useState(false)
+  const [errorExportar, setErrorExportar] = useState(null)
 
   const general = useApi(() => raApi.reporteRA({}))
   const catalogo = useApi(cursosApi.catalogo)
@@ -481,8 +482,11 @@ export default function ConsolidadoRAPage() {
 
   const exportar = async () => {
     setExportando(true)
+    setErrorExportar(null)
     try {
       await raApi.exportarRA(params)
+    } catch (err) {
+      setErrorExportar(err)
     } finally {
       setExportando(false)
     }
@@ -506,6 +510,9 @@ export default function ConsolidadoRAPage() {
           </p>
         </div>
         <div className="flex gap-space-sm">
+          <Link to="analisis" className="btn btn-secundario no-underline">
+            <Icono nombre="insights" className="text-[18px]" /> Análisis del programa
+          </Link>
           <Link to="rubricas" className="btn btn-secundario no-underline">
             <Icono nombre="rule" className="text-[18px]" /> Matriz de rúbricas
           </Link>
@@ -517,6 +524,7 @@ export default function ConsolidadoRAPage() {
         </div>
       </header>
 
+      <ErrorApi error={errorExportar} />
       <section className="grid grid-cols-1 gap-gutter sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores del programa">
         <TarjetaKpi etiqueta="Cumplimiento RA del programa" valor={meta.cumplimiento === null ? '—' : porcentaje(meta.cumplimiento)} icono="military_tech" destacado>
           <BarraProgreso fraccion={meta.cumplimiento} />

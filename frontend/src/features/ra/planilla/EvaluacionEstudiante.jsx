@@ -26,7 +26,9 @@ function TarjetaEstudiante({ e, info, activo, onClick }) {
             </span>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-label-sm font-bold ${estado.clase}`}>{estado.etiqueta}</span>
           </div>
-          <span className="block text-body-sm text-on-surface-variant">Cód. {e.identificacion}</span>
+          <span className="block text-body-sm text-on-surface-variant">
+            Cód. {e.identificacion}{e.estado === 'retirado' && ' · Retirado de la promoción'}
+          </span>
           <div className="mt-1.5 flex items-center justify-between rounded-lg bg-surface-container-lowest/60 px-2 py-1">
             <span className="text-label-sm text-on-surface-variant">
               {info.completo ? 'Nota del RA' : `${info.registradas} criterio(s) con nota`}
@@ -176,6 +178,11 @@ export default function EvaluacionEstudiante({
               <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-label-sm font-bold ${ESTADOS[info.estado].clase}`}>
                 {ESTADOS[info.estado].etiqueta}
               </span>
+              {e.estado === 'retirado' && (
+                <span className="ml-2 mt-1 inline-block rounded-full bg-surface-container-high px-2 py-0.5 text-label-sm font-bold text-on-surface-variant">
+                  Retirado de la promoción
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 self-end md:self-center">
