@@ -6,6 +6,7 @@ const path = require('path');
 const ExcelJS = require('exceljs');
 const db = require('../../../config/db');
 const ApiError = require('../../../utils/ApiError');
+const { ROLES } = require('../../../utils/roles');
 const { validarFila } = require('../../../shared/crud/campos');
 const { RECURSOS, porId } = require('../recursos/recursos.definicion');
 const repositorios = require('../recursos/recursos.repository');
@@ -34,6 +35,11 @@ const leerArchivo = async (file, query) => {
     const recurso = porId[query.recurso];
     if (!recurso || recurso.id === 'parametros') {
       throw ApiError.badRequest('Para un CSV indique el recurso destino (?recurso=cohortes, beneficios, …)');
+    }
+    // Un CSV es una edición directa de la hoja: solo las que Coordinación puede editar. «Cursos y docentes
+    // por semestre» se calcula de las ofertas; su histórico entra con el libro «Estadísticas MaIE» o la plantilla.
+    if (!recurso.rolesEscritura.includes(ROLES.COORDINADOR)) {
+      throw ApiError.badRequest(`La hoja «${recurso.hoja}» no se edita: se calcula en la plataforma`);
     }
     return { formato: 'csv', ...leerCsv(file.buffer, recurso) };
   }

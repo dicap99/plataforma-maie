@@ -85,7 +85,8 @@ export default function CsvUploaderModal({ recursos = [], soloPdf = false, onClo
       {esCsv && (
         <div className="campo" style={{ marginTop: '1rem' }}>
           <label htmlFor="recurso-csv">Hoja destino del CSV</label>
-          <select id="recurso-csv" value={recursoCsv} onChange={(e) => setRecursoCsv(e.target.value)} required>
+          {/* Cambiar la hoja destino invalida la validación anterior: hay que volver a simular. */}
+          <select id="recurso-csv" value={recursoCsv} onChange={(e) => { setRecursoCsv(e.target.value); setResultado(null) }} required>
             <option value="">Seleccione…</option>
             {recursos.filter((r) => r.editable && r.id !== 'parametros').map((r) => (
               <option key={r.id} value={r.id}>{r.titulo}</option>
@@ -95,7 +96,7 @@ export default function CsvUploaderModal({ recursos = [], soloPdf = false, onClo
       )}
 
       {resultado && (
-        <div className="resultado-importacion" role="status">
+        <div className="resultado-importacion" role={resultado.ok ? 'status' : 'alert'}>
           <p className={resultado.ok ? 'texto-exito' : 'alerta-error'}>
             {resultado.ok
               ? resultado.simulacion

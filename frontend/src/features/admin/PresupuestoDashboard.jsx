@@ -79,7 +79,8 @@ export default function PresupuestoDashboard() {
   const [cargandoPdf, setCargandoPdf] = useState(false)
   const resumen = useApi(adminApi.resumenPresupuesto)
   const recursos = useApi(adminApi.listarRecursos)
-  const cohortes = useApi(() => adminApi.listar('cohortes'))
+  // Promociones con el reflejo de Gestión académica (mismas cifras que el Panel general e Información académica).
+  const cohortes = useApi(() => adminApi.reflejoAcademico().then((r) => ({ data: r.data?.cohortes ?? [] })))
   const hojas = useApi(cargarHojas)
 
   const apis = [resumen, recursos, cohortes, hojas]
@@ -123,6 +124,7 @@ export default function PresupuestoDashboard() {
   const recargar = () => {
     resumen.recargar()
     hojas.recargar()
+    cohortes.recargar()
   }
 
   return (

@@ -163,6 +163,14 @@ export default function TablaPromociones({
                         >
                           {fila.origen === 'gestion' ? 'Gestión' : 'Registro'}
                         </span>
+                        {fila.registro_parcial && (
+                          <span
+                            className="mt-1 block text-[10px] font-semibold text-amber-700"
+                            title="Las cifras de la promoción salen de los estudiantes registrados en Gestión académica, que aún son menos que los de la hoja."
+                          >
+                            Incompleto: {fila.registro_parcial.registrados} de {fila.registro_parcial.en_hoja}
+                          </span>
+                        )}
                       </td>
                     )}
                     {editable && (

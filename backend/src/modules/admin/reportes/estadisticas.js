@@ -66,9 +66,11 @@ const promociones = (cohortes) => {
       pct_graduados: razon(suma(egresadas.map((f) => f.graduados)), suma(egresadas.map((f) => f.egresados))),
       pct_retiros: pctEgresados === null ? null : 1 - pctEgresados,
       pct_titulacion: razon(suma(egresadas.map((f) => f.graduados)), suma(egresadas.map((f) => f.matriculados))),
-      // Deserción de las promociones que ya egresaron (las en curso aún pueden cambiar).
+      // Deserción de las promociones que ya egresaron (las en curso aún pueden cambiar). `retirados` es el
+      // numerador de esa tasa; `retirados_en_curso`, la deserción parcial de las promociones en curso.
       pct_desercion: razon(suma(egresadas.map((f) => f.retirados)), suma(egresadas.map((f) => f.matriculados))),
-      retirados: suma(filas.map((f) => f.retirados)),
+      retirados: suma(egresadas.map((f) => f.retirados)),
+      retirados_en_curso: suma(filas.filter((f) => f.egresados === null).map((f) => f.retirados)),
       promedio_pct_egresados: promedio(egresadas.map((f) => f.pct_egresados)),
       poblacion_total: suma(filas.map((f) => f.poblacion_referencia)),
     },

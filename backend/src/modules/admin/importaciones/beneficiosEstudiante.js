@@ -75,20 +75,28 @@ const guardar = async (cliente, filas, errores) => {
       continue;
     }
     const unicos = [...new Map(e.beneficios.map((b) => [`${b.semestre}|${b.tipo}`, b])).values()];
-    const { rowCount: anteriores } = await cliente.query(
-      'DELETE FROM estudiante_beneficios WHERE id_cohorte = $1 AND id_estudiante = $2', [e.id_cohorte, e.id_estudiante],
-    );
-    await cliente.query(
-      `INSERT INTO estudiante_beneficios (id_cohorte, id_estudiante, semestre, tipo)
-       SELECT $1, $2, x.semestre, x.tipo FROM unnest($3::smallint[], $4::varchar[]) AS x(semestre, tipo)`,
-      [e.id_cohorte, e.id_estudiante, unicos.map((b) => b.semestre), unicos.map((b) => b.tipo)],
-    );
-    await cliente.query(
-      'UPDATE cohorte_estudiantes SET beca = $3 WHERE id_cohorte = $1 AND id_estudiante = $2',
-      [e.id_cohorte, e.id_estudiante, becaPrincipal(unicos)],
-    );
-    if (anteriores) cuenta.actualizados += unicos.length;
-    else cuenta.insertados += unicos.length;
+    // SAVEPOINT por estudiante: un error de la BD se reporta en su fila sin abortar la transacción.
+    await cliente.query('SAVEPOINT beneficios');
+    try {
+      const { rowCount: anteriores } = await cliente.query(
+        'DELETE FROM estudiante_beneficios WHERE id_cohorte = $1 AND id_estudiante = $2', [e.id_cohorte, e.id_estudiante],
+      );
+      await cliente.query(
+        `INSERT INTO estudiante_beneficios (id_cohorte, id_estudiante, semestre, tipo)
+         SELECT $1, $2, x.semestre, x.tipo FROM unnest($3::smallint[], $4::varchar[]) AS x(semestre, tipo)`,
+        [e.id_cohorte, e.id_estudiante, unicos.map((b) => b.semestre), unicos.map((b) => b.tipo)],
+      );
+      await cliente.query(
+        'UPDATE cohorte_estudiantes SET beca = $3 WHERE id_cohorte = $1 AND id_estudiante = $2',
+        [e.id_cohorte, e.id_estudiante, becaPrincipal(unicos)],
+      );
+      await cliente.query('RELEASE SAVEPOINT beneficios');
+      if (anteriores) cuenta.actualizados += unicos.length;
+      else cuenta.insertados += unicos.length;
+    } catch (err) {
+      await cliente.query('ROLLBACK TO SAVEPOINT beneficios');
+      errores.push({ hoja: e.hoja, fila: e.fila, mensaje: `${e.identificacion}: ${err.detail || err.message}` });
+    }
   }
   return cuenta;
 };

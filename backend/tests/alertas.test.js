@@ -64,6 +64,14 @@ describe('Alertas del Panel general', () => {
     expect(d.detalle).toMatch(/falta el de 2026/);
   });
 
+  it('datos por actualizar: promoción con el registro de estudiantes incompleto en Gestión académica', () => {
+    const datos = base({
+      promociones: { filas: [{ nombre: 'VI', periodo_fin: '2027-A', egresados: null, graduados: 0, registro_parcial: { registrados: 3, en_hoja: 6 } }] },
+    });
+    expect(tipo(calcular(datos, [], HOY), 'datos').detalle).toMatch(/Promoción VI: 3 estudiantes matriculados registrados en Gestión académica de 6/);
+    expect(tipo(calcular(base(), [], HOY), 'datos')).toBeUndefined();
+  });
+
   it('ordenadas de la más grave a la menos grave', () => {
     const niveles = calcular(base({ presupuesto: { fecha_corte: null } }), [], HOY).map((a) => a.nivel);
     expect(niveles).toEqual([...niveles].sort((a, b) => ['critico', 'atencion', 'info'].indexOf(a) - ['critico', 'atencion', 'info'].indexOf(b)));

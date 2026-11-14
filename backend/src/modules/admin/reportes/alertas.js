@@ -115,13 +115,17 @@ const cortePresupuestal = (fechaCorte, hoy) => {
   };
 };
 
-// Datos por actualizar: promociones que ya terminaron sin egresados registrados y SMMLV de un año anterior.
+// Datos por actualizar: promociones que ya terminaron sin egresados registrados, promociones con el
+// registro de estudiantes incompleto en Gestión académica y SMMLV de un año anterior.
 const datosPorActualizar = (cohortes, parametros, hoy) => {
   const actual = periodoDe(hoy);
   const sinCerrar = cohortes.filter((c) => c.egresados === null && c.periodo_fin && c.periodo_fin < actual);
   const anioSmmlv = Object.keys(parametros).filter((k) => /^smmlv_\d{4}$/.test(k)).map((k) => Number(k.slice(6))).sort().at(-1);
+  // Registro incompleto en Gestión académica: las cifras de la promoción salen de menos estudiantes que la hoja.
+  const parciales = cohortes.filter((c) => c.registro_parcial);
   const pendientes = [
     ...sinCerrar.map((c) => `Promoción ${c.nombre ?? c.cohorte}: terminó en ${c.periodo_fin} y no tiene egresados registrados.`),
+    ...parciales.map((c) => `Promoción ${c.nombre ?? c.cohorte}: ${plural(c.registro_parcial.registrados, 'estudiante matriculado registrado', 'estudiantes matriculados registrados')} en Gestión académica de ${c.registro_parcial.en_hoja} en la hoja; sus cifras se calculan con el registro incompleto.`),
     ...(anioSmmlv && anioSmmlv < hoy.getFullYear() ? [`SMMLV registrado hasta ${anioSmmlv}; falta el de ${hoy.getFullYear()}.`] : []),
   ];
   if (pendientes.length === 0) return null;

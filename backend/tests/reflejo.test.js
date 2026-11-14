@@ -12,6 +12,14 @@ describe('Reflejo de Gestión académica en Información académica', () => {
     ]);
     expect(i).toMatchObject({ inscritos: 12, matriculados: 11, egresados: 9, origen: 'registro' });
     expect(ii).toMatchObject({ inscritos: 9, matriculados: 7, egresados: null, graduados: 0, aprobados_sem1: 8, origen: 'gestion' });
+    // 7 matriculados registrados de 8 en la hoja: registro incompleto, que se avisa.
+    expect(ii.registro_parcial).toEqual({ registrados: 7, en_hoja: 8 });
+    expect(i.registro_parcial).toBeUndefined();
+  });
+
+  it('con todos los matriculados registrados no hay aviso de registro incompleto', () => {
+    const [, ii] = combinarCohortes(hojaCohortes, [{ id_cohorte: 2, inscritos: 8, matriculados: 8, egresados: 0, graduados: 0 }]);
+    expect(ii.registro_parcial).toBeUndefined();
   });
 
   it('las becas por tipo salen de los estudiantes y el resto de beneficios de la hoja', () => {

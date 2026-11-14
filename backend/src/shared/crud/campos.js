@@ -17,13 +17,18 @@ const TIPOS = {
   enum: (v, m, campo) => v.isIn(campo.options).withMessage(`${m} debe ser uno de: ${campo.options.join(', ')}`),
 };
 
-const validadorCampo = (campo) => {
+// `omitible`: el campo puede no venir en el cuerpo (se conserva lo guardado); si viene, se valida igual.
+const validadorCampo = (campo, { omitible = false } = {}) => {
   const aplicar = TIPOS[campo.type];
   if (!aplicar) throw new Error(`Tipo de campo desconocido: ${campo.type}`);
   const base = body(campo.name);
-  const v = campo.required
-    ? base.exists({ values: 'null' }).withMessage(`${campo.label} es obligatorio`).bail()
-    : base.optional({ values: 'null' });
+  let v;
+  if (campo.required) {
+    // Omitible: solo `undefined` se salta; un null explícito sigue siendo «obligatorio».
+    v = (omitible ? base.optional() : base).exists({ values: 'null' }).withMessage(`${campo.label} es obligatorio`).bail();
+  } else {
+    v = base.optional({ values: 'null' });
+  }
   const cadena = aplicar(v, campo.label, campo);
   return campo.required && campo.type === 'texto'
     ? cadena.notEmpty().withMessage(`${campo.label} es obligatorio`)
@@ -31,8 +36,12 @@ const validadorCampo = (campo) => {
 };
 
 // Validadores para crear/actualizar (PUT reemplaza el registro completo, sin tocar la llave).
-const validadores = (campos, { excluir = [] } = {}) =>
-  campos.filter((c) => !excluir.includes(c.name)).map(validadorCampo);
+// `omitibles`: columnas que el PUT puede omitir (p. ej. las `reflejados`, que se calculan desde Gestión
+// académica y no deben sobrescribir el histórico guardado).
+const validadores = (campos, { excluir = [], omitibles = [] } = {}) =>
+  campos
+    .filter((c) => !excluir.includes(c.name))
+    .map((c) => validadorCampo(c, { omitible: omitibles.includes(c.name) }));
 
 // ---------------------------------------------------------------------------
 // Validación de filas importadas (Excel/CSV): mismas reglas que la API, pero aceptando
@@ -41,8 +50,11 @@ const validadores = (campos, { excluir = [] } = {}) =>
 const aNumero = (v) => {
   if (typeof v === 'number') return v;
   const s = String(v).trim().replace(/\s|\$/g, '');
-  // "1.234.567,89" (formato colombiano) → 1234567.89
-  const normal = /,\d{1,2}$/.test(s) ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  // "1.234.567,89" (formato colombiano) → 1234567.89; "1.500" o "1.400.000" (solo miles) → 1500, 1400000
+  let normal;
+  if (/,\d{1,2}$/.test(s)) normal = s.replace(/\./g, '').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) normal = s.replace(/\./g, '');
+  else normal = s.replace(/,/g, '');
   return normal === '' ? NaN : Number(normal);
 };
 

@@ -23,7 +23,9 @@ const crudRouter = (recurso, service) => {
   router.put(
     rutaLlave,
     ...escritura,
-    validadores(recurso.campos, { excluir: recurso.llave }),
+    // Las columnas reflejadas pueden omitirse: así editar una fila calculada desde Gestión académica
+    // no sobrescribe el histórico del libro (el repositorio conserva lo guardado).
+    validadores(recurso.campos, { excluir: recurso.llave, omitibles: recurso.omitibles ?? recurso.reflejados ?? [] }),
     validate,
     handler(service.actualizar),
   );

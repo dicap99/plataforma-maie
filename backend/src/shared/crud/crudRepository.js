@@ -6,7 +6,7 @@ const db = require('../../config/db');
 const id = (nombre) => `"${nombre.replace(/"/g, '""')}"`;
 
 const crudRepository = (recurso) => {
-  const { tabla, llave, campos, conflicto = llave, ordenarPor, unirCohorte, calculados = [] } = recurso;
+  const { tabla, llave, campos, conflicto = llave, ordenarPor, unirCohorte, calculados = [], reflejados = [], omitibles = reflejados } = recurso;
   const columnas = campos.map((c) => c.name);
   const noLlave = columnas.filter((c) => !llave.includes(c));
   const whereLlave = llave.map((k, i) => `t.${id(k)} = $${i + 1}`).join(' AND ');
@@ -45,12 +45,21 @@ const crudRepository = (recurso) => {
       return recargar(rows[0], cliente);
     },
 
+    // PUT reemplaza el registro, salvo las columnas `omitibles` (por defecto, `reflejados`) que no vengan:
+    // se conservan, porque son el histórico de las filas que se calculan desde Gestión académica.
     async update(llaves, datos) {
-      const sets = noLlave.map((c, i) => `${id(c)} = $${llave.length + i + 1}`).join(', ');
+      const cols = noLlave.filter((c) => !(omitibles.includes(c) && datos[c] === undefined));
+      // Todas las columnas omitidas (p. ej. una fila de «Contrataciones» calculada desde Contratos OPS):
+      // no hay nada que actualizar; se devuelve el registro tal como está (o null si no existe).
+      if (!cols.length) {
+        const { rows } = await db.query(`${select} WHERE ${whereLlave}`, llaves);
+        return rows[0] ?? null;
+      }
+      const sets = cols.map((c, i) => `${id(c)} = $${llave.length + i + 1}`).join(', ');
       const where = llave.map((k, i) => `${id(k)} = $${i + 1}`).join(' AND ');
       const { rows } = await db.query(
         `UPDATE ${id(tabla)} SET ${sets} WHERE ${where} RETURNING *`,
-        [...llaves, ...valores(datos, noLlave)],
+        [...llaves, ...valores(datos, cols)],
       );
       return rows[0] ? recargar(rows[0]) : null;
     },

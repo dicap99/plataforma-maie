@@ -20,8 +20,14 @@ export default function RecursoFormulario({ recurso, fila, cohortes, bloqueados 
     e.preventDefault()
     setGuardando(true)
     setErrores([])
-    // Vacíos → null; el backend valida y convierte tipos.
-    const datos = Object.fromEntries(Object.entries(valores).map(([k, v]) => [k, v === '' ? null : v]))
+    // Vacíos → null; el backend valida y convierte tipos. Las columnas bloqueadas (calculadas desde
+    // Gestión académica) no se envían: el backend conserva el histórico guardado de esas columnas.
+    const datos = Object.fromEntries(
+      Object.entries(valores)
+        // Una fila sin registro en la hoja (`sin_registro`) se crea, así que lleva todas sus columnas.
+        .filter(([k]) => !(editando && !fila.sin_registro && bloqueados.includes(k)))
+        .map(([k, v]) => [k, v === '' ? null : v]),
+    )
     try {
       await onGuardar(datos)
       onClose()
@@ -83,8 +89,8 @@ export default function RecursoFormulario({ recurso, fila, cohortes, bloqueados 
         </div>
         {bloqueados.length > 0 && (
           <p className="texto-suave">
-            Los campos deshabilitados se calculan con los estudiantes registrados en Gestión académica (Usuarios y
-            Beneficios: promoción, estado y beneficios por semestre).
+            Los campos deshabilitados se calculan desde Gestión académica (o desde «Contratos OPS» y «Productos de
+            investigación»); al guardar se conserva su valor histórico del libro.
           </p>
         )}
         {errores.length > 0 && (

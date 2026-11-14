@@ -76,6 +76,9 @@ describe('Estadísticas administrativas (RF-ADM-05)', () => {
     expect(VI.pct_desercion).toBe(0); // 6 matriculados y 6 aprobaron el I semestre
     cerca(r.promociones.indicadores.pct_titulacion, 16 / 27);
     cerca(r.promociones.indicadores.pct_desercion, 9 / 27);
+    // El número de retirados es el numerador de esa tasa (promociones egresadas); las en curso, aparte.
+    expect(r.promociones.indicadores.retirados).toBe(9);
+    expect(r.promociones.indicadores.retirados_en_curso).toBe(0);
   });
 
   it('globales solo con promociones egresadas', () => {
@@ -160,6 +163,18 @@ describe('Validación de filas importadas', () => {
     expect(valores).toEqual({ periodo: '2024-A', valor: 1234567.89, n: 3, fecha: '2025-11-23', afiliacion: 'EXTERNO' });
   });
 
+  it('interpreta el punto como separador de miles cuando no hay decimales (formato colombiano)', () => {
+    const valor = (v) => validarFila(campos, { periodo: '2024-A', valor: v }).valores.valor;
+    expect(valor('1.500')).toBe(1500);
+    expect(valor('$ 1.500')).toBe(1500);
+    expect(valor('1.400.000')).toBe(1400000);
+    expect(valor('-5.311.847')).toBe(-5311847);
+    expect(valor('1.234,5')).toBe(1234.5);
+    expect(valor('1,500')).toBe(1500);
+    expect(valor('1234.56')).toBe(1234.56);
+    expect(valor('6.5')).toBe(6.5);
+  });
+
   it('omite las columnas ausentes del origen y conserva como null las celdas vacías', () => {
     const { valores, errores } = validarFila(campos, { periodo: '2024-A', valor: 1, n: '' });
     expect(errores).toEqual([]);
@@ -174,5 +189,27 @@ describe('Validación de filas importadas', () => {
       'Valor es obligatorio',
       'N: valor inválido "2.5"',
     ]);
+  });
+});
+
+describe('Validación del PUT de recursos con columnas reflejadas', () => {
+  const { validationResult } = require('express-validator');
+  const { validadores } = require('../src/shared/crud/campos');
+  const campos = [
+    { name: 'nombre', label: 'Promoción', type: 'texto', required: true },
+    { name: 'inscritos', label: 'Inscritos', type: 'entero', required: true },
+  ];
+  const errores = async (body, opciones) => {
+    const req = { body };
+    for (const v of validadores(campos, opciones)) await v.run(req);
+    return validationResult(req).array().map((e) => e.msg);
+  };
+
+  it('una columna reflejada puede omitirse, pero no enviarse vacía ni inválida', async () => {
+    const opciones = { omitibles: ['inscritos'] };
+    expect(await errores({ nombre: 'I' }, opciones)).toEqual([]);
+    expect(await errores({ nombre: 'I', inscritos: null }, opciones)).toEqual(['Inscritos es obligatorio']);
+    expect(await errores({ nombre: 'I', inscritos: -1 }, opciones)).toEqual(['Inscritos debe ser un entero mayor o igual a 0']);
+    expect(await errores({ nombre: 'I' })).toEqual(['Inscritos es obligatorio']);
   });
 });

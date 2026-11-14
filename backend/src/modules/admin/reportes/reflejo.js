@@ -74,11 +74,15 @@ const contratosOps = async () =>
 // --- Combinación (funciones puras) -------------------------------------------------------
 // Promociones: inscritos, matriculados, egresados y graduados desde los estudiantes registrados.
 // Los aprobados por semestre siguen saliendo de la hoja.
+// Sin egresados registrados la promoción queda en curso (null); si ya terminó, las alertas lo señalan.
+// `registro_parcial`: hay menos matriculados registrados en Gestión que en la hoja; las cifras salen de
+//   Gestión (registro incompleto) y se avisa en la tabla y en las alertas del Panel general.
 const combinarCohortes = (hoja, estudiantes) => {
   const est = new Map(estudiantes.map((e) => [e.id_cohorte, e]));
   return hoja.map((c) => {
     const e = est.get(c.id_cohorte);
     if (!e) return { ...c, origen: 'registro' };
+    const parcial = typeof c.matriculados === 'number' && e.matriculados < c.matriculados;
     return {
       ...c,
       inscritos: e.inscritos,
@@ -86,6 +90,7 @@ const combinarCohortes = (hoja, estudiantes) => {
       egresados: e.egresados > 0 ? e.egresados : null, // sin egresados aún: promoción en curso
       graduados: e.graduados,
       origen: 'gestion',
+      ...(parcial ? { registro_parcial: { registrados: e.matriculados, en_hoja: c.matriculados } } : {}),
     };
   });
 };

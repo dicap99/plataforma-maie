@@ -451,6 +451,13 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     const informe = (await coord.get('/admin/reportes/estadisticas')).body.data;
     expect(informe.contrataciones.filas.find((c) => c.periodo === '2031-A')).toMatchObject({ n_ops: 2, valor: 1500000 });
 
+    // Editar la fila calculada envía las columnas reflejadas omitidas (todas): se conserva el histórico.
+    expect((await coord.post('/admin/contrataciones', { periodo: '2031-A', n_ops: 9, valor: 9 })).status).toBe(201);
+    const editada = await coord.put('/admin/contrataciones/2031-A', {});
+    expect(editada.status).toBe(200);
+    expect(editada.body.data).toMatchObject({ periodo: '2031-A', n_ops: 9, valor: 9 });
+    await coord.delete('/admin/contrataciones/2031-A');
+
     await coord.delete(`/admin/contratos-ops/${a.body.data.id_contrato}`);
     await coord.delete(`/admin/contratos-ops/${b.body.data.id_contrato}`);
   });
@@ -469,6 +476,47 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     expect((await coord.delete(`/admin/productos/${creado.body.data.id_producto}`)).status).toBe(200);
     expect((await coord.get('/admin/academico/reflejo')).body.data.produccion.find((p) => p.cohorte === 'II')?.origen ?? 'registro')
       .toBe('registro');
+  });
+
+  it('editar una fila calculada desde Gestión conserva el histórico y avisa del registro incompleto', async () => {
+    const { rows: [ii] } = await db.query("SELECT * FROM cohortes WHERE nombre = 'II'");
+    const estudiante = (await coord.post('/usuarios', {
+      identificacion: '444', nombres: 'Parcial', apellidos: 'Prueba', email: 'parcial@udenar.edu.co',
+      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte,
+    })).body.data;
+
+    // Un solo estudiante registrado de los matriculados de la hoja: cifras de Gestión, con aviso.
+    const reflejada = (await coord.get('/admin/academico/reflejo')).body.data.cohortes.find((c) => c.nombre === 'II');
+    expect(reflejada).toMatchObject({ origen: 'gestion', matriculados: 1, registro_parcial: { registrados: 1, en_hoja: ii.matriculados } });
+    const alertas = (await coord.get('/admin/reportes/estadisticas')).body.data.alertas;
+    expect(alertas.find((a) => a.tipo === 'datos').detalle).toMatch(/Promoción II: 1 estudiante matriculado registrado/);
+
+    // El formulario no envía las columnas reflejadas: el PUT las conserva y actualiza las demás.
+    const put = await coord.put(`/admin/cohortes/${ii.id_cohorte}`, {
+      nombre: 'II', periodo_inicio: ii.periodo_inicio, periodo_fin: ii.periodo_fin,
+      aprobados_sem1: 11, aprobados_sem2: ii.aprobados_sem2, aprobados_sem3: ii.aprobados_sem3,
+    });
+    expect(put.status).toBe(200);
+    const { rows: [despues] } = await db.query('SELECT * FROM cohortes WHERE id_cohorte = $1', [ii.id_cohorte]);
+    expect(despues).toMatchObject({ aprobados_sem1: 11, inscritos: ii.inscritos, matriculados: ii.matriculados, egresados: ii.egresados, graduados: ii.graduados });
+    // Enviarlas vacías sigue siendo un error.
+    expect((await coord.put(`/admin/cohortes/${ii.id_cohorte}`, { nombre: 'II', periodo_inicio: ii.periodo_inicio, periodo_fin: ii.periodo_fin, graduados: null })).status).toBe(400);
+
+    await coord.put(`/admin/cohortes/${ii.id_cohorte}`, { ...ii, aprobados_sem1: ii.aprobados_sem1 });
+    await coord.delete(`/usuarios/${estudiante.id_usuario}`);
+  });
+
+  it('la hoja calculada «Cursos y docentes por semestre» no se importa por CSV y las ofertas caen en la promoción', async () => {
+    const csv = 'Promoción;Semestre;N.° cursos;Docentes invitados UDENAR;Docentes invitados externos\nII;1;3;1;1\n';
+    const res = await coord.subir('/admin/importaciones?recurso=cohorte-semestres', Buffer.from(csv), 'cursos.csv');
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/no se edita/);
+
+    const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
+    const { rows: [clase] } = await db.query("SELECT id_clase FROM clases WHERE codigo = 'CE2-01'");
+    const fuera = await coord.post('/admin/cursos', { id_clase: clase.id_clase, id_cohorte: ii.id_cohorte, periodo: '2030-A' });
+    expect(fuera.status).toBe(400);
+    expect(fuera.body.error.message).toMatch(/cuatro semestres/);
   });
 
   it('CSV de un recurso', async () => {

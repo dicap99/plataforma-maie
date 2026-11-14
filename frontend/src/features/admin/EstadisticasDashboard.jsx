@@ -57,7 +57,9 @@ export default function EstadisticasDashboard() {
     .reduce((s, [, v]) => s + Number(v), 0)
   const creditosObligatorios = parametros.creditos_obligatorios ?? null
 
+  // Punto de equilibrio de la promoción más reciente que lo tenga registrado, con sus propios matriculados.
   const equilibrio = puntoEquilibrio.filas.at(-1)
+  const promocionEquilibrio = promociones.filas.find((f) => f.id_cohorte === equilibrio?.id_cohorte)
   const matriculaSmmlv = equilibrio?.valor_matricula_smmlv ?? null
 
   // Serie temporal unificada de contrataciones y transferencias (misma unidad: pesos).
@@ -163,7 +165,10 @@ export default function EstadisticasDashboard() {
         <TarjetaKpi etiqueta="Deserción" valor={porcentaje(promociones.indicadores.pct_desercion)} icono="person_remove">
           <div className="flex items-center justify-between gap-2">
             <Insignia>{numero(promociones.indicadores.retirados)} retirados</Insignia>
-            <span className="text-label-sm text-on-surface-variant">desde el I semestre</span>
+            <span className="text-label-sm text-on-surface-variant">
+              promociones egresadas
+              {promociones.indicadores.retirados_en_curso ? ` · ${numero(promociones.indicadores.retirados_en_curso)} en curso` : ''}
+            </span>
           </div>
         </TarjetaKpi>
       </section>
@@ -229,8 +234,8 @@ export default function EstadisticasDashboard() {
                   <span className="text-body-sm font-normal text-on-surface-variant">estudiantes</span>
                 </div>
                 <p className="mt-1 text-body-sm text-on-surface-variant">
-                  Mínimo para sostener la promoción {equilibrio.cohorte}, que hoy tiene{' '}
-                  {numero(ultima.matriculados)} matriculados.
+                  Mínimo para sostener la promoción {equilibrio.cohorte}
+                  {promocionEquilibrio ? `, que tiene ${numero(promocionEquilibrio.matriculados)} matriculados.` : '.'}
                 </p>
                 <div className="mt-3 rounded-xl bg-surface-container-low p-space-sm">
                   <Renglon etiqueta="Ingresos proyectados:" valor={pesosCompactos(equilibrio.ingresos_proyectados)} />

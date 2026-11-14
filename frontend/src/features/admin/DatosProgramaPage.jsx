@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
@@ -53,6 +54,8 @@ const PESTANAS = [
 ]
 
 export default function DatosProgramaPage() {
+  // Coordinación exporta y lee los parámetros; el docente solo consulta (evita peticiones que el API le niega).
+  const esCoordinacion = useAuth()?.usuario?.rol === 'coordinador'
   const recursos = useApi(adminApi.listarRecursos)
   const reflejo = useApi(adminApi.reflejoAcademico)
   const docentesApi = useApi(() => adminApi.listar('docentes'))
@@ -60,7 +63,10 @@ export default function DatosProgramaPage() {
   const productosApi = useApi(() => adminApi.listar('productos'))
   const pasantiasApi = useApi(() => adminApi.listar('pasantias'))
   // Solo Coordinación lee los parámetros; si no hay acceso, la gráfica de créditos no se muestra.
-  const parametrosApi = useApi(() => adminApi.listar('parametros'))
+  const parametrosApi = useApi(
+    () => (esCoordinacion ? adminApi.listar('parametros') : Promise.resolve({ data: [] })),
+    [esCoordinacion],
+  )
 
   const [activo, setActivo] = useState('cohortes')
   const [subActivo, setSubActivo] = useState({
@@ -71,6 +77,16 @@ export default function DatosProgramaPage() {
   const [rango, setRango] = useState({ desde: '', hasta: '' })
   const [filtro, setFiltro] = useState(null)
   const [importando, setImportando] = useState(false)
+  const [errorExportar, setErrorExportar] = useState(null)
+
+  const exportar = async () => {
+    setErrorExportar(null)
+    try {
+      await adminApi.descargarPlantilla(true)
+    } catch (err) {
+      setErrorExportar(err)
+    }
+  }
 
   const cargando =
     (recursos.cargando && !recursos.data) ||
@@ -137,39 +153,21 @@ export default function DatosProgramaPage() {
     setVista('datos')
   }
 
-  // Conteo de registros para la barra secundaria
-  const conteoFilas = (() => {
-    switch (recursoActivoId) {
-      case 'cohortes':
-        return enRango.length
-      case 'cohorte-semestres':
-        return (reflejo.data?.['cohorte-semestres'] ?? []).length
-      case 'docentes':
-        return (docentesApi.data ?? []).length
-      case 'beneficios':
-        return (reflejo.data?.beneficios ?? []).length
-      case 'productos':
-        return (productosApi.data ?? []).length
-      case 'produccion':
-        return (reflejo.data?.produccion ?? []).length
-      case 'pasantias':
-        return (pasantiasApi.data ?? []).length
-      default:
-        return 0
-    }
-  })()
-
-  // Determinar si el recurso activo en la tabla proviene de un reflejo
+  // Filas de la tabla «Datos»: las hojas por promoción se limitan al rango elegido (como las gráficas).
+  const idsEnRango = new Set(enRango.map((c) => c.id_cohorte))
+  const delRango = (filas) => filas?.filter((f) => idsEnRango.has(f.id_cohorte))
   const filasExternas = (() => {
     if (recursoActivoId === 'cohortes') return enRango
-    if (recursoActivoId === 'cohorte-semestres') return reflejo.data?.['cohorte-semestres']
-    if (recursoActivoId === 'beneficios') return reflejo.data?.beneficios
+    if (recursoActivoId === 'cohorte-semestres') return delRango(reflejo.data?.['cohorte-semestres'])
+    if (recursoActivoId === 'beneficios') return delRango(reflejo.data?.beneficios)
     if (recursoActivoId === 'docentes') return docentesApi.data
-    if (recursoActivoId === 'productos') return productosApi.data
-    if (recursoActivoId === 'produccion') return reflejo.data?.produccion
-    if (recursoActivoId === 'pasantias') return pasantiasApi.data
+    if (recursoActivoId === 'productos') return delRango(productosApi.data)
+    if (recursoActivoId === 'produccion') return delRango(reflejo.data?.produccion)
+    if (recursoActivoId === 'pasantias') return delRango(pasantiasApi.data)
     return undefined
   })()
+  // Conteo de registros para la barra secundaria
+  const conteoFilas = filasExternas?.length ?? 0
 
   return (
     <div className="flex flex-col gap-6">
@@ -246,14 +244,16 @@ export default function DatosProgramaPage() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => adminApi.descargarPlantilla(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg transition-colors cursor-pointer"
-            >
-              <Icono nombre="table_view" className="text-emerald-600 text-[16px]" />
-              <span>Exportar Excel</span>
-            </button>
+            {esCoordinacion && (
+              <button
+                type="button"
+                onClick={exportar}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg transition-colors cursor-pointer"
+              >
+                <Icono nombre="table_view" className="text-emerald-600 text-[16px]" />
+                <span>Exportar Excel</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => window.print()}
@@ -264,6 +264,7 @@ export default function DatosProgramaPage() {
             </button>
           </div>
         </div>
+        <ErrorApi error={errorExportar} />
       </section>
 
       {/* Pestañas de Navegación por las 4 Dimensiones Estratégicas */}

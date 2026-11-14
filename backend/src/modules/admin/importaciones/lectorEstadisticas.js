@@ -146,8 +146,7 @@ const LECTORES = {
             formacion_profesional: celda(n, 3),
             campo_formacion: celda(n, 4),
             afiliacion: celda(n, 5),
-            componentes: celda(n, 6),
-            cursos_participa: celda(n, 7),
+            // Las columnas 6 y 7 (componentes y cursos) no se importan: salen de las asignaciones del docente.
             enlace_perfil: celda(n, 8),
           },
         });

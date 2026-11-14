@@ -41,8 +41,20 @@ export default function RecursoTabla({
     onCambio?.()
   }
 
+  // Nombre legible de una fila (confirmaciones y etiquetas accesibles de sus botones). Combina los datos que
+  // la distinguen de otras filas de la misma promoción o periodo (p. ej. un contrato o un corte).
+  const nombreFila = (fila) =>
+    [
+      fila.nombre_completo ?? fila.nombre ?? (fila.cohorte && `Promoción ${fila.cohorte}`),
+      fila.contratista,
+      fila.tipo,
+      fila.semestre && `semestre ${fila.semestre}`,
+      fila.periodo ?? fila.fecha_corte,
+      fila.clave,
+    ].filter(Boolean).join(' · ')
+
   const eliminar = async (fila) => {
-    const nombre = fila.cohorte ?? fila.nombre ?? fila.nombre_completo ?? fila.periodo ?? fila.clave
+    const nombre = nombreFila(fila)
     if (!window.confirm(`¿Eliminar el registro "${nombre}"? Esta acción no se puede deshacer.`)) return
     setErrorAccion(null)
     try {
@@ -292,6 +304,7 @@ export default function RecursoTabla({
                               <button
                                 type="button"
                                 className="px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50/70 hover:bg-indigo-100 border border-indigo-200/60 rounded-md transition-colors cursor-pointer"
+                                aria-label={`Detalles de ${nombreFila(fila)}`}
                                 onClick={() => setViendoDetalles(fila)}
                               >
                                 Detalles
@@ -302,17 +315,22 @@ export default function RecursoTabla({
                                 <button
                                   type="button"
                                   className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
+                                  aria-label={`Editar ${nombreFila(fila)}`}
                                   onClick={() => setEditando(fila)}
                                 >
                                   Editar
                                 </button>
-                                <button
-                                  type="button"
-                                  className="px-2.5 py-1 text-xs font-medium text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200/50 rounded-md transition-colors cursor-pointer"
-                                  onClick={() => eliminar(fila)}
-                                >
-                                  Eliminar
-                                </button>
+                                {/* Una fila que solo existe en el reflejo no tiene registro que eliminar. */}
+                                {!fila.sin_registro && (
+                                  <button
+                                    type="button"
+                                    className="px-2.5 py-1 text-xs font-medium text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200/50 rounded-md transition-colors cursor-pointer"
+                                    aria-label={`Eliminar ${nombreFila(fila)}`}
+                                    onClick={() => eliminar(fila)}
+                                  >
+                                    Eliminar
+                                  </button>
+                                )}
                               </>
                             )}
                           </td>

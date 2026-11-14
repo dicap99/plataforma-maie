@@ -14,11 +14,6 @@ export function Alternador({ opciones, valor, onChange, etiqueta }) {
   )
 }
 
-// Fila de tarjetas de indicadores.
-export function FilaIndicadores({ children }) {
-  return <section className="grid grid-cols-1 gap-gutter sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores">{children}</section>
-}
-
 // Rejilla de gráficas (dos columnas en pantallas anchas).
 export function RejillaGraficas({ children }) {
   return <div className="grid grid-cols-1 gap-gutter xl:grid-cols-2">{children}</div>
@@ -31,8 +26,4 @@ export function Controles({ children }) {
 
 export function SinDatos({ texto = 'No hay datos para mostrar con este rango de promociones.' }) {
   return <p className="grid h-full place-items-center text-body-sm text-on-surface-variant">{texto}</p>
-}
-
-export function Pista({ children }) {
-  return <p className="mt-2 text-body-sm text-on-surface-variant">{children}</p>
 }

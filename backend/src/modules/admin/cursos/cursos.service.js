@@ -6,6 +6,8 @@ const ApiError = require('../../../utils/ApiError');
 const { ROLES } = require('../../../utils/roles');
 const { asegurarAccesoCurso, docenteFiltro } = require('../../ra/propiedad');
 const repository = require('./cursos.repository');
+const docentesRepository = require('../docentes/docentes.repository');
+const { semestreDe } = require('../docentes/docentes.service');
 
 const unicos = (lista = []) => [...new Set(lista)];
 
@@ -24,6 +26,14 @@ const guardar = async (id, body) => {
   const clase = await repository.clase(body.id_clase);
   if (!clase) throw ApiError.badRequest('La clase no existe');
   if (!clase.activa && !id) throw ApiError.badRequest('La clase está inactiva; actívela para ofertarla');
+  // El periodo debe ser uno de los cuatro semestres de la promoción; si no, la oferta no contaría en
+  // «Cursos y docentes por semestre» (reflejo.js) sin que nadie lo note.
+  const cohorte = await docentesRepository.cohorte(body.id_cohorte);
+  if (!cohorte) throw ApiError.badRequest('La promoción no existe');
+  const semestre = semestreDe(body.periodo, cohorte.periodo_inicio);
+  if (semestre < 1 || semestre > 4) {
+    throw ApiError.badRequest(`El periodo ${body.periodo} no es uno de los cuatro semestres de la promoción ${cohorte.nombre} (inicia en ${cohorte.periodo_inicio})`);
+  }
   if (id) {
     const actual = await repository.get(id);
     if (!actual) throw ApiError.notFound('Curso no encontrado');

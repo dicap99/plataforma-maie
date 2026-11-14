@@ -8,6 +8,7 @@
 // - nota: aviso que el frontend muestra sobre la tabla
 // - reflejados: columnas que, en las promociones con registros en Gestión académica, se calculan desde ahí
 //   (reportes/reflejo.js) y por eso no se editan en esas filas
+// - omitibles: columnas que el PUT puede omitir para conservar lo guardado (por defecto, `reflejados`)
 // - calculados: columnas de solo lectura que se derivan de otras tablas ({ name, label, sql } con alias t).
 const { ROLES } = require('../../../utils/roles');
 
@@ -255,6 +256,9 @@ const RECURSOS = [
     unirCohorte: true,
     ordenarPor: ORDEN_COHORTE,
     reflejados: ['becas_100', 'becas_hora_catedra', 'becas_sintraunicol'],
+    // Si la promoción registra beneficios por semestre, asistentes y ayudantes también se calculan (reflejo.js),
+    // así que el PUT también puede omitirlos para conservar su histórico.
+    omitibles: ['becas_100', 'becas_hora_catedra', 'becas_sintraunicol', 'asistentes_investigacion', 'ayudantes_docencia'],
     rolesLectura: ACADEMICO,
     rolesEscritura: SOLO_COORD,
     campos: [

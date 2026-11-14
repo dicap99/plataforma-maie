@@ -6,6 +6,7 @@ const repositorios = require('../recursos/recursos.repository');
 const { HOJA_INSTRUCCIONES } = require('../importaciones/lectorPlantilla');
 const asignacion = require('../importaciones/asignacionDocente');
 const beneficiosEstudiante = require('../importaciones/beneficiosEstudiante');
+const reflejo = require('../reportes/reflejo');
 
 const IMPORTABLES = RECURSOS.filter((r) => r.id !== 'parametros');
 const COLOR_ENCABEZADO = 'FF0B3D6B';
@@ -45,6 +46,9 @@ const hojaInstrucciones = (libro) => {
     ['   En "Asignación docente" cada fila es un docente en un curso; el semestre es el de la promoción (1 a 4) y el curso es el código o nombre de la clase (Gestión académica › Clases).'],
     ['   En "Beneficios por estudiante" cada fila es un beneficio de un estudiante en un semestre (una sola beca por semestre); el estudiante debe estar registrado en su promoción y queda con exactamente los beneficios de sus filas.'],
     ['6. Puede dejar hojas vacías; solo se importan las filas diligenciadas. Si hay errores no se guarda nada y se listan por hoja y fila.'],
+    ['7. En la exportación con datos, las hojas que la plataforma calcula desde Gestión académica (promociones, beneficios, cursos y'],
+    ['   docentes, producción científica y contrataciones) traen el registro histórico guardado; la columna «Origen (informativo)»'],
+    ['   indica qué filas se calculan y con qué cifras las muestra la plataforma. Esa columna no se importa.'],
     [''],
     ['Hojas:', { bold: true }],
     ...[...IMPORTABLES, asignacion.ASIGNACION, beneficiosEstudiante.BENEFICIOS_ESTUDIANTE].map((r) => [`• ${r.hoja} (${r.requisito}): ${r.titulo}`]),
@@ -56,14 +60,20 @@ const hojaInstrucciones = (libro) => {
   });
 };
 
-const hojaRecurso = (libro, recurso, filas) => {
+// `origenDe(fila)`: texto de la columna informativa «Origen» (solo hojas con reflejo, en la exportación).
+const COLUMNA_ORIGEN = 'Origen (informativo)';
+
+const hojaRecurso = (libro, recurso, filas, origenDe = null) => {
   const h = libro.addWorksheet(recurso.hoja, { views: [{ state: 'frozen', ySplit: 1 }] });
-  h.columns = recurso.campos.map((c) => ({
-    header: c.label,
-    key: c.name,
-    width: Math.min(Math.max(c.label.length + 4, c.multilinea ? 45 : 14), 60),
-    style: c.type === 'dinero' ? { numFmt: '#,##0.00' } : c.type === 'fecha' ? { numFmt: 'yyyy-mm-dd' } : {},
-  }));
+  h.columns = [
+    ...recurso.campos.map((c) => ({
+      header: c.label,
+      key: c.name,
+      width: Math.min(Math.max(c.label.length + 4, c.multilinea ? 45 : 14), 60),
+      style: c.type === 'dinero' ? { numFmt: '#,##0.00' } : c.type === 'fecha' ? { numFmt: 'yyyy-mm-dd' } : {},
+    })),
+    ...(origenDe ? [{ header: COLUMNA_ORIGEN, key: '__origen', width: 60 }] : []),
+  ];
 
   const encabezado = h.getRow(1);
   recurso.campos.forEach((campo, i) => {
@@ -94,16 +104,39 @@ const hojaRecurso = (libro, recurso, filas) => {
   });
 
   for (const fila of filas) {
-    h.addRow(
-      Object.fromEntries(
+    h.addRow({
+      ...Object.fromEntries(
         recurso.campos.map((c) => {
           if (c.type === 'cohorte') return [c.name, fila.cohorte];
           if (c.type === 'fecha' && fila[c.name]) return [c.name, new Date(`${fila[c.name]}T00:00:00Z`)];
           return [c.name, fila[c.name]];
         }),
       ),
-    );
+      ...(origenDe ? { __origen: origenDe(fila) } : {}),
+    });
   }
+};
+
+// Para cada hoja con reflejo, una función fila → texto de origen con las cifras que muestra la plataforma.
+const origenesDeReflejo = async (datos) => {
+  const combinado = await reflejo.aplicar(datos);
+  const clave = (recurso, fila) => recurso.llave.map((k) => fila[k]).join('|');
+  return Object.fromEntries(
+    IMPORTABLES.filter((r) => r.reflejados?.length).map((recurso) => {
+      const calculadas = new Map((combinado[recurso.id] ?? []).map((f) => [clave(recurso, f), f]));
+      const origenDe = (fila) => {
+        const f = calculadas.get(clave(recurso, fila));
+        if (!f || f.origen !== 'gestion') return 'Registro histórico (la plataforma muestra estas cifras)';
+        const columnas = f.reflejados ?? recurso.reflejados;
+        const cifras = recurso.campos
+          .filter((c) => columnas.includes(c.name) && !c.multilinea)
+          .map((c) => `${c.label}: ${f[c.name] ?? '—'}`)
+          .join('; ');
+        return `Calculado desde Gestión académica; la plataforma muestra ${cifras}`;
+      };
+      return [recurso.id, origenDe];
+    }),
+  );
 };
 
 module.exports = {
@@ -114,9 +147,12 @@ module.exports = {
     libro.creator = 'Plataforma MaIE';
     libro.created = new Date();
     hojaInstrucciones(libro);
+    const datos = conDatos
+      ? Object.fromEntries(await Promise.all(IMPORTABLES.map(async (r) => [r.id, await repositorios[r.id].list()])))
+      : {};
+    const origenes = conDatos ? await origenesDeReflejo(datos) : {};
     for (const recurso of IMPORTABLES) {
-      const filas = conDatos ? await repositorios[recurso.id].list() : [];
-      hojaRecurso(libro, recurso, filas);
+      hojaRecurso(libro, recurso, datos[recurso.id] ?? [], origenes[recurso.id] ?? null);
     }
     hojaRecurso(libro, await asignacion.definicion(), conDatos ? await asignacion.listar() : []);
     hojaRecurso(libro, beneficiosEstudiante.BENEFICIOS_ESTUDIANTE, conDatos ? await beneficiosEstudiante.listar() : []);

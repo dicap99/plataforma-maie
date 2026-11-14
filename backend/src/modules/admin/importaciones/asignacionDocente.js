@@ -59,13 +59,12 @@ const texto = (v) => (v === null || v === undefined ? '' : String(v).trim());
 const guardar = async (cliente, filas, errores, advertencias) => {
   const cuenta = { hoja: ASIGNACION.hoja, filas: filas.length, insertados: 0, actualizados: 0 };
   const consulta = async (sql) => (await cliente.query(sql)).rows;
-  const [cohortes, docentes, clases] = await Promise.all([
-    consulta('SELECT id_cohorte, nombre, periodo_inicio FROM cohortes'),
-    consulta('SELECT id_docente, nombre_completo FROM docentes_perfil'),
-    consulta(`SELECT cl.id_clase, cl.id_catalogo, cl.codigo, cl.nombre, m.nombre AS componente
+  // En serie: un mismo cliente de la transacción no admite consultas simultáneas.
+  const cohortes = await consulta('SELECT id_cohorte, nombre, periodo_inicio FROM cohortes');
+  const docentes = await consulta('SELECT id_docente, nombre_completo FROM docentes_perfil');
+  const clases = await consulta(`SELECT cl.id_clase, cl.id_catalogo, cl.codigo, cl.nombre, m.nombre AS componente
               FROM clases cl JOIN cursos_catalogo k ON k.id_catalogo = cl.id_catalogo
-              JOIN modulos_curriculares m ON m.id_modulo = k.id_modulo`),
-  ]);
+              JOIN modulos_curriculares m ON m.id_modulo = k.id_modulo`);
   const cohortePor = new Map(cohortes.map((c) => [normalizar(c.nombre), c]));
   const docentePor = new Map(docentes.map((d) => [normalizar(d.nombre_completo), d]));
   const clasePor = new Map(clases.flatMap((c) => [[normalizar(c.codigo), c], [normalizar(c.nombre), c]]));
@@ -101,18 +100,26 @@ const guardar = async (cliente, filas, errores, advertencias) => {
     }
 
     const periodo = periodoDelSemestre(cohorte.periodo_inicio, semestre);
-    const { rows: [oferta] } = await cliente.query(
-      `INSERT INTO cursos (id_clase, id_catalogo, id_cohorte, periodo) VALUES ($1, $2, $3, $4)
-       ON CONFLICT (id_clase, id_cohorte, periodo, grupo) DO UPDATE SET periodo = EXCLUDED.periodo
-       RETURNING id_curso`,
-      [clase.id_clase, clase.id_catalogo, cohorte.id_cohorte, periodo],
-    );
-    const { rowCount } = await cliente.query(
-      'INSERT INTO curso_docentes (id_curso, id_docente) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [oferta.id_curso, docente.id_docente],
-    );
-    if (rowCount) cuenta.insertados++;
-    else cuenta.actualizados++;
+    // SAVEPOINT por fila: un error de la BD se reporta en su fila y la importación sigue validando las demás.
+    await cliente.query('SAVEPOINT asignacion');
+    try {
+      const { rows: [oferta] } = await cliente.query(
+        `INSERT INTO cursos (id_clase, id_catalogo, id_cohorte, periodo) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id_clase, id_cohorte, periodo, grupo) DO UPDATE SET periodo = EXCLUDED.periodo
+         RETURNING id_curso`,
+        [clase.id_clase, clase.id_catalogo, cohorte.id_cohorte, periodo],
+      );
+      const { rowCount } = await cliente.query(
+        'INSERT INTO curso_docentes (id_curso, id_docente) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [oferta.id_curso, docente.id_docente],
+      );
+      await cliente.query('RELEASE SAVEPOINT asignacion');
+      if (rowCount) cuenta.insertados++;
+      else cuenta.actualizados++;
+    } catch (err) {
+      await cliente.query('ROLLBACK TO SAVEPOINT asignacion');
+      error(err.detail || err.message);
+    }
   }
   return cuenta;
 };
