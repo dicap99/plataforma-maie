@@ -386,6 +386,9 @@ td.acciones {
 
 .tabla-scroll {
   overflow-x: auto;
+  /* Contiene a los descendientes con position: absolute (p. ej. los .sr-only de los encabezados):
+     sin un ancestro posicionado escapan del recorte y ensanchan toda la página. */
+  position: relative;
 }
 
 table {
