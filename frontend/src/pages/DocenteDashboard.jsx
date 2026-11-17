@@ -17,12 +17,12 @@ export default function DocenteDashboard() {
         </article>
         <article className="card">
           <h2>Autoevaluación (AE)</h2>
-          <p className="texto-suave">Formulario del Acuerdo 058 para el periodo abierto.</p>
+          <p className="texto-suave">Formulario del Acuerdo 058 para el semestre habilitado.</p>
           <Link to="autoevaluacion">Diligenciar</Link>
         </article>
         <article className="card">
           <h2>Mis resultados</h2>
-          <p className="texto-suave">Consolidado EE, AE y EC una vez publicado el periodo.</p>
+          <p className="texto-suave">Evaluación de estudiantes, de Coordinación y autoevaluación, por separado, cuando Coordinación publica el semestre.</p>
           <Link to="resultados">Consultar</Link>
         </article>
       </div>

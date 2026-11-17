@@ -29,6 +29,8 @@ const peor = (niveles) => NIVELES.find((n) => niveles.includes(n)) ?? 'info';
 const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 
 // Evaluación docente: periodo activo en curso o próximo a abrir; si el semestre no tiene periodo, se recuerda.
+const ENLACE_EVALUACION = { a: 'evaluacion', texto: 'Habilitación y seguimiento' }; // Módulo 3
+
 const evaluacionDocente = (periodos, hoy) => {
   const activos = periodos.filter((p) => p.activo !== false);
   const enCurso = activos.find((p) => new Date(p.fecha_apertura) <= hoy && hoy <= new Date(p.fecha_cierre));
@@ -39,6 +41,7 @@ const evaluacionDocente = (periodos, hoy) => {
       tipo: 'evaluacion_docente',
       titulo: `Evaluación docente ${enCurso.codigo_periodo} en curso`,
       detalle: `Cierra en ${plural(restan, 'día', 'días')} (${iso(new Date(enCurso.fecha_cierre))}).`,
+      enlace: ENLACE_EVALUACION,
     };
   }
   const proxima = activos
@@ -50,6 +53,7 @@ const evaluacionDocente = (periodos, hoy) => {
       tipo: 'evaluacion_docente',
       titulo: `Se acerca la evaluación docente ${proxima.codigo_periodo}`,
       detalle: `Abre en ${plural(dias(hoy, new Date(proxima.fecha_apertura)), 'día', 'días')}. Verifique la asignación de docentes y cursos del semestre.`,
+      enlace: ENLACE_EVALUACION,
     };
   }
   const actual = periodoDe(hoy);
@@ -59,6 +63,7 @@ const evaluacionDocente = (periodos, hoy) => {
       tipo: 'evaluacion_docente',
       titulo: `Evaluación docente ${actual} sin programar`,
       detalle: `El semestre termina el ${iso(finDePeriodo(actual))}. Defina las fechas de apertura y cierre de la evaluación (Acuerdo 058).`,
+      enlace: ENLACE_EVALUACION,
     };
   }
   return null;

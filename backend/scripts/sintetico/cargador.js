@@ -5,6 +5,8 @@
 const bcrypt = require('bcryptjs');
 const { nivelDeNota } = require('../../src/modules/ra/rubrica');
 const { DOMINIO, PREFIJO_COHORTE } = require('./generador');
+const { huella } = require('../../src/modules/evalDocente/anonimato');
+const env = require('../../src/config/env');
 
 const PASSWORD_POR_DEFECTO = 'MaIE-Sintetico-2026';
 
@@ -18,6 +20,13 @@ const limpiar = async (cliente) => {
     `DELETE FROM evaluaciones_ra_estudiante e USING usuarios u
      WHERE u.id_usuario = e.id_estudiante AND u.email LIKE $1`,
     [correo],
+  );
+  // Módulo 3: las respuestas restringen el borrado de docentes y promociones (conservan el histórico).
+  await cliente.query(
+    `DELETE FROM evaluacion_respuestas r
+     WHERE r.id_docente IN (SELECT d.id_docente FROM docentes_perfil d JOIN usuarios u ON u.id_usuario = d.id_usuario WHERE u.email LIKE $1)
+        OR r.id_cohorte IN (SELECT id_cohorte FROM cohortes WHERE nombre LIKE $2)`,
+    [correo, cohorte],
   );
   await cliente.query(
     'DELETE FROM docentes_perfil d USING usuarios u WHERE u.id_usuario = d.id_usuario AND u.email LIKE $1',
@@ -35,7 +44,60 @@ const limpiar = async (cliente) => {
   return { usuarios: usuarios.rowCount, cohortes: cohortes.rowCount };
 };
 
-const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) => {
+// Módulo 3: habilitación por semestre (sin sobrescribir semestres ya configurados), lista de pregrado,
+// respuestas EE anónimas con su constancia aparte, y EC/AE. Las preguntas se resuelven por código.
+const cargarModulo3 = async (cliente, m3, { usuarios, cohortes, cursos, hash }) => {
+  await cliente.query(
+    `INSERT INTO evaluacion_periodos (periodo, habilitada, incluye_pregrado, publicado, publicado_en)
+     SELECT p, h, i, pub, CASE WHEN pub THEN CURRENT_TIMESTAMP END FROM unnest($1::varchar[], $2::bool[], $3::bool[], $4::bool[]) AS x(p, h, i, pub)
+     ON CONFLICT (periodo) DO NOTHING`,
+    [m3.periodos.map((x) => x.periodo), m3.periodos.map((x) => x.habilitada), m3.periodos.map((x) => x.incluye_pregrado), m3.periodos.map((x) => x.publicado)],
+  );
+  await cliente.query(
+    `INSERT INTO usuarios (identificacion, nombres, apellidos, email, password_hash, rol)
+     SELECT x.a, x.b, x.c, x.d, $5, 'estudiante' FROM unnest($1::varchar[], $2::varchar[], $3::varchar[], $4::varchar[]) AS x(a, b, c, d)
+     ON CONFLICT (email) DO NOTHING`,
+    [...['identificacion', 'nombres', 'apellidos', 'email'].map((k) => m3.pregrado.map((p) => p[k])), hash],
+  );
+  const pre = new Map((await cliente.query('SELECT id_usuario, email FROM usuarios WHERE email = ANY($1::varchar[])', [m3.pregrado.map((p) => p.email)]))
+    .rows.map((r) => [r.email, r.id_usuario]));
+  const filasPre = m3.pregrado.flatMap((p) => p.cursos.map((c) => [cursos.get(c), pre.get(p.email), p.programa]));
+  await cliente.query(
+    'INSERT INTO curso_estudiantes_pregrado (id_curso, id_estudiante, programa) SELECT * FROM unnest($1::int[], $2::uuid[], $3::varchar[])',
+    [filasPre.map((x) => x[0]), filasPre.map((x) => x[1]), filasPre.map((x) => x[2])],
+  );
+  const persona = (email) => usuarios.get(email) ?? pre.get(email);
+  const perfiles = new Map((await cliente.query('SELECT id_docente, id_usuario FROM docentes_perfil WHERE id_usuario IS NOT NULL')).rows.map((r) => [r.id_usuario, r.id_docente]));
+  const docente = (email) => perfiles.get(usuarios.get(email));
+  const preguntas = new Map((await cliente.query('SELECT id_pregunta, tipo_formulario, codigo FROM evaluacion_preguntas')).rows
+    .map((r) => [`${r.tipo_formulario}|${r.codigo}`, r.id_pregunta]));
+
+  // Constancias con huella (anonimato.js), con la misma clave que usa la API.
+  await cliente.query(
+    'INSERT INTO evaluacion_constancias (periodo, huella) SELECT * FROM unnest($1::varchar[], $2::text[])',
+    [m3.constancias.map((c) => c.periodo),
+      m3.constancias.map((c) => huella(env.evalSecreto, c.periodo, persona(c.estudiante), docente(c.docente)))],
+  );
+  const todas = [...m3.respuestas.map((r) => ({ ...r, tipo: 'EE' })), ...m3.nominales];
+  const coordinador = (await cliente.query(`SELECT id_usuario FROM usuarios WHERE rol = 'coordinador' ORDER BY creado_en LIMIT 1`)).rows[0]?.id_usuario ?? null;
+  for (const r of todas) {
+    const evaluador = r.tipo === 'EE' ? null : r.tipo === 'EC' ? coordinador : usuarios.get(r.docente);
+    const { rows: [x] } = await cliente.query(
+      `INSERT INTO evaluacion_respuestas (periodo, tipo_formulario, id_docente, id_cohorte, poblacion, id_evaluador, comentario, actualizado_en)
+       VALUES ($1, $2::tipo_formulario_eval, $3, $4, $5, $6, $7, CASE WHEN $2::tipo_formulario_eval = 'EE' THEN NULL ELSE CURRENT_TIMESTAMP END) RETURNING id_respuesta`,
+      [r.periodo, r.tipo, docente(r.docente), cohortes.get(r.cohorte), r.tipo === 'EE' ? r.poblacion : null, evaluador, r.comentario],
+    );
+    const codigos = Object.keys(r.items);
+    await cliente.query(
+      `INSERT INTO evaluacion_respuesta_items (id_respuesta, id_pregunta, valor)
+       SELECT $1, i, v::tipo_valoracion_058 FROM unnest($2::int[], $3::text[]) AS x(i, v)`,
+      [x.id_respuesta, codigos.map((c) => preguntas.get(`${r.tipo}|${c}`)), codigos.map((c) => r.items[c])],
+    );
+  }
+  return { pregrado: m3.pregrado.length, respuestas_ee: m3.respuestas.length, ec_ae: m3.nominales.length };
+};
+
+const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO, modulo3 = false } = {}) => {
   const hash = await bcrypt.hash(password, 10);
 
   const cohortes = mapa((await cliente.query(
@@ -171,7 +233,10 @@ const cargar = async (cliente, datos, { password = PASSWORD_POR_DEFECTO } = {}) 
     }
   }
 
+  const evaluacion = modulo3 && datos.modulo3 ? await cargarModulo3(cliente, datos.modulo3, { usuarios, cohortes, cursos, hash }) : null;
+
   return {
+    ...(evaluacion ? { evaluacion_docente: evaluacion } : {}),
     cohortes: cohortes.size,
     docentes: datos.docentes.length,
     estudiantes: datos.estudiantes.length,

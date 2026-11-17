@@ -17,7 +17,9 @@ module.exports = {
   async estadisticas() {
     const [datos, periodos] = await Promise.all([
       cargarTodo().then(reflejo.aplicar),
-      db.query('SELECT codigo_periodo, fecha_apertura, fecha_cierre, activo FROM evaluacion_periodos').then((r) => r.rows),
+      // Cronograma de la evaluación docente (Módulo 3): un semestre publicado ya no genera alertas.
+      db.query(`SELECT periodo AS codigo_periodo, fecha_apertura, fecha_cierre, NOT publicado AS activo
+                FROM evaluacion_periodos`).then((r) => r.rows),
     ]);
     const resultado = estadisticas.calcular(datos);
     return { ...resultado, alertas: alertas.calcular(resultado, periodos) };

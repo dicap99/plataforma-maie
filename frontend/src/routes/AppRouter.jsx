@@ -19,8 +19,11 @@ import ConsolidadoRAPage from '../features/ra/ConsolidadoRAPage.jsx'
 import MatrizRubricasPage from '../features/ra/MatrizRubricasPage.jsx'
 import AperturaCalificacionPage from '../features/ra/AperturaCalificacionPage.jsx'
 import AnalisisRAPage from '../features/ra/AnalisisRAPage.jsx'
-import FormularioAcuerdo058 from '../features/evalDocente/FormularioAcuerdo058.jsx'
-import DocenteResultadoView from '../features/evalDocente/DocenteResultadoView.jsx'
+import MisEvaluacionesPage from '../features/evalDocente/MisEvaluacionesPage.jsx'
+import HabilitacionEvaluacionPage from '../features/evalDocente/HabilitacionEvaluacionPage.jsx'
+import PregradoEvaluacionPage from '../features/evalDocente/PregradoEvaluacionPage.jsx'
+import ResultadosEvaluacionPage from '../features/evalDocente/ResultadosEvaluacionPage.jsx'
+import MisResultadosEvaluacionPage from '../features/evalDocente/MisResultadosEvaluacionPage.jsx'
 
 function Inicio() {
   const { usuario } = useAuth()
@@ -52,7 +55,12 @@ export default function AppRouter() {
             <Route path="ra/calificacion" element={<AperturaCalificacionPage />} />
             <Route path="ra/cursos" element={<Navigate to="/coordinacion/gestion?pestana=semestre" replace />} />
             <Route path="ra/cursos/:idCurso" element={<PlanillaRubricaPage soloLectura />} />
-            <Route path="evaluacion-coordinacion" element={<FormularioAcuerdo058 tipo="EC" />} />
+            {/* Módulo 3: evaluación docente (Acuerdo 058) */}
+            <Route path="evaluacion" element={<HabilitacionEvaluacionPage />} />
+            <Route path="evaluacion/pregrado" element={<PregradoEvaluacionPage />} />
+            <Route path="evaluacion/coordinacion" element={<MisEvaluacionesPage tipo="EC" />} />
+            <Route path="evaluacion/resultados" element={<ResultadosEvaluacionPage />} />
+            <Route path="evaluacion-coordinacion" element={<Navigate to="/coordinacion/evaluacion/coordinacion" replace />} />
           </Route>
 
           <Route path="docente" element={<ProtectedRoute roles={['docente']} />}>
@@ -61,13 +69,13 @@ export default function AppRouter() {
             <Route path="datos" element={<DatosProgramaPage />} />
             <Route path="rubricas" element={<MisCursosPage />} />
             <Route path="rubricas/:idCurso" element={<PlanillaRubricaPage />} />
-            <Route path="autoevaluacion" element={<FormularioAcuerdo058 tipo="AE" />} />
-            <Route path="resultados" element={<DocenteResultadoView />} />
+            <Route path="autoevaluacion" element={<MisEvaluacionesPage tipo="AE" />} />
+            <Route path="resultados" element={<MisResultadosEvaluacionPage />} />
           </Route>
 
           <Route path="estudiante" element={<ProtectedRoute roles={['estudiante']} />}>
             <Route index element={<EstudianteDashboard />} />
-            <Route path="evaluacion" element={<FormularioAcuerdo058 tipo="EE" />} />
+            <Route path="evaluacion" element={<MisEvaluacionesPage tipo="EE" />} />
           </Route>
         </Route>
       </Route>

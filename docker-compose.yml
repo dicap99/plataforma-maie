@@ -37,6 +37,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-maie_admin}:${POSTGRES_PASSWORD:-SecretPassword2026}@db:5432/${POSTGRES_DB:-maie_db}
       JWT_SECRET: ${JWT_SECRET:-SuperSecretJwtKey2026}
       JWT_EXPIRES_IN: 8h
+      EVAL_SECRETO: ${EVAL_SECRETO:-${JWT_SECRET:-SuperSecretJwtKey2026}}
     ports:
       - "5000:5000"
     volumes:

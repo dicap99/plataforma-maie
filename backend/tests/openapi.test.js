@@ -36,6 +36,18 @@ describe('Documentación OpenAPI', () => {
     expect(openapi.paths['/ra/evaluaciones'].post.responses[501]).toBeUndefined();
   });
 
+  it('documenta el Módulo 3 implementado (ya no como pendiente)', () => {
+    for (const ruta of ['/eval-docente/periodos', '/eval-docente/periodos/{periodo}', '/eval-docente/periodos/{periodo}/publicacion',
+      '/eval-docente/formularios/{tipo}', '/eval-docente/categorizacion', '/eval-docente/pendientes', '/eval-docente/respuestas',
+      '/eval-docente/resultados', '/eval-docente/resultados/me', '/eval-docente/resultados/exportar', '/eval-docente/resultados/informe.pdf',
+      '/eval-docente/resultados/docentes/{idDocente}/informe.pdf', '/eval-docente/pregrado', '/eval-docente/pregrado/importar']) {
+      expect(openapi.paths[ruta]).toBeDefined();
+    }
+    const tags = Object.values(openapi.paths).flatMap((r) => Object.values(r).flatMap((op) => op.tags ?? []));
+    expect(tags.some((t) => t.includes('(pendiente)'))).toBe(false);
+    expect(openapi.paths['/eval-docente/respuestas'].post.responses[501]).toBeUndefined();
+  });
+
   it('sirve Swagger UI y el JSON', async () => {
     expect((await request(app).get('/api/docs/openapi.json')).body.openapi).toBe('3.0.3');
     const ui = await request(app).get('/api/docs/');

@@ -413,48 +413,96 @@ GROUP BY e.id_curso, e.id_estudiante, rc.id_ra;
 
 -- =====================================================================
 -- MÓDULO 3: EVALUACIÓN DOCENTE (ACUERDO 058 DE 2022)
+-- La evaluación no se vincula a materias (decisión del 17-oct-2026): la unidad evaluada es el docente
+-- en una promoción y un semestre académico, como en «Estadísticas Evaluación Docente MaIE.xlsx». Las
+-- ofertas (cursos + curso_docentes) solo sirven para saber qué estudiantes evalúan a qué docente.
+-- Reglas de quién evalúa a quién: backend/src/modules/evalDocente/categorizacion.js.
+-- Fórmulas (%IP, %IN, categorías, IDST-D, IDSC): backend/src/modules/evalDocente/acuerdo058.js.
 -- =====================================================================
+CREATE TYPE tipo_valoracion_058 AS ENUM ('MA', 'A', 'I', 'MI', 'NA'); -- Art. 1: NA = No aplica / No responde
+
+-- Habilitación por semestre académico (dentro del Módulo 3, separada de la apertura de rúbricas del
+-- Módulo 2). Un semestre sin fila no está habilitado. Las fechas son el cronograma que Coordinación
+-- informa (Art. 10); si están, las respuestas solo se reciben entre ellas.
 CREATE TABLE evaluacion_periodos (
-    id_periodo SERIAL PRIMARY KEY,
-    codigo_periodo VARCHAR(20) NOT NULL,
-    fecha_apertura TIMESTAMP NOT NULL,
-    fecha_cierre TIMESTAMP NOT NULL,
-    activo BOOLEAN DEFAULT TRUE,
-    publicado BOOLEAN DEFAULT FALSE
+    periodo periodo_academico PRIMARY KEY,
+    habilitada BOOLEAN NOT NULL DEFAULT FALSE,
+    incluye_pregrado BOOLEAN NOT NULL DEFAULT FALSE,   -- también evalúan los estudiantes de pregrado
+    fecha_apertura DATE,
+    fecha_cierre DATE,
+    -- Parágrafo 2 del Art. 12: excluir respuestas extremas (todo MA o todo MI) si la unidad tiene más de
+    -- 10 respuestas. Opción de Coordinación, no automática.
+    excluir_extremas BOOLEAN NOT NULL DEFAULT FALSE,
+    publicado BOOLEAN NOT NULL DEFAULT FALSE,           -- RF-EVAL-05: el docente ve sus resultados
+    publicado_en TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_por UUID REFERENCES usuarios(id_usuario) ON DELETE SET NULL,
+    CONSTRAINT chk_fechas_evaluacion CHECK (fecha_cierre IS NULL OR fecha_apertura IS NULL OR fecha_cierre >= fecha_apertura),
+    CONSTRAINT chk_publicada_cerrada CHECK (NOT (publicado AND habilitada))
 );
 
+-- Instrumentos de los Art. 4 (EE), 5 (EC) y 6 (AE). `caracteristica` 0 = «Autoevaluación del estudiante»
+-- (preguntas 0.1–0.4 del EE): evalúa al estudiante, se recoge pero no entra en los indicadores del docente.
 CREATE TABLE evaluacion_preguntas (
     id_pregunta SERIAL PRIMARY KEY,
     tipo_formulario tipo_formulario_eval NOT NULL,
-    orden INT NOT NULL,
+    caracteristica SMALLINT NOT NULL CHECK (caracteristica BETWEEN 0 AND 9),
+    nombre_caracteristica VARCHAR(120) NOT NULL,
+    codigo VARCHAR(10) NOT NULL,          -- numeración del Acuerdo: '1.1', '0.3'…
+    orden SMALLINT NOT NULL,
     texto TEXT NOT NULL,
-    activo BOOLEAN DEFAULT TRUE,
+    escala TEXT,                          -- rangos MA/A/I/MI propios de la pregunta (solo 0.x)
+    activa BOOLEAN NOT NULL DEFAULT TRUE,
+    CONSTRAINT unq_pregunta_codigo UNIQUE (tipo_formulario, codigo),
     CONSTRAINT unq_pregunta_orden UNIQUE (tipo_formulario, orden)
 );
 
-CREATE TABLE evaluacion_respuestas (
-    id_respuesta BIGSERIAL PRIMARY KEY,
-    id_periodo INT REFERENCES evaluacion_periodos(id_periodo),
-    id_docente_evaluado UUID REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
-    id_evaluador UUID REFERENCES usuarios(id_usuario),
-    tipo_formulario tipo_formulario_eval NOT NULL,
-    id_curso INT REFERENCES cursos(id_curso),
-    frecuencias_ma INT DEFAULT 0, -- Muy Adecuada (Peso 1.5)
-    frecuencias_a INT DEFAULT 0, -- Adecuada (Peso 1.0)
-    frecuencias_i INT DEFAULT 0, -- Inadecuada (Peso 1.0)
-    frecuencias_mi INT DEFAULT 0, -- Muy Inadecuada (Peso 1.5)
-    frecuencias_na INT DEFAULT 0, -- No Aplica / No Responde
-    observaciones_sugerencias TEXT
+-- Estudiantes de pregrado que toman cursos de la maestría (lista por semestre, promoción y curso: la
+-- oferta ya fija los tres). Van aparte de curso_estudiantes para no entrar en las rúbricas de RA.
+CREATE TABLE curso_estudiantes_pregrado (
+    id_curso INT REFERENCES cursos(id_curso) ON DELETE CASCADE,
+    id_estudiante UUID REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    programa VARCHAR(150),                -- programa de pregrado de origen
+    estado VARCHAR(20) NOT NULL DEFAULT 'inscrito' CHECK (estado IN ('inscrito', 'retirado')),
+    PRIMARY KEY (id_curso, id_estudiante)
 );
 
-CREATE TABLE evaluacion_resultados_docente (
-    id_resultado SERIAL PRIMARY KEY,
-    id_periodo INT REFERENCES evaluacion_periodos(id_periodo),
-    id_docente UUID REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
-    indicador_positivo_ip DECIMAL(6,2) NOT NULL,
-    indicador_negativo_in DECIMAL(6,2) NOT NULL,
-    porcentaje_ip DECIMAL(5,2) NOT NULL,
-    categorizacion VARCHAR(30) NOT NULL,
-    idst_d DECIMAL(5,2) NOT NULL,
-    fecha_calculo TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Respuestas. Las del EE son ANÓNIMAS: no guardan evaluador, ni fecha, ni un identificador ordenable
+-- (UUID aleatorio), solo la unidad evaluada y la población (posgrado/pregrado). Las de EC y AE sí guardan
+-- quién respondió (Coordinación y el propio docente) y se pueden corregir mientras el semestre está abierto.
+CREATE TABLE evaluacion_respuestas (
+    id_respuesta UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    periodo periodo_academico NOT NULL REFERENCES evaluacion_periodos(periodo) ON DELETE RESTRICT,
+    tipo_formulario tipo_formulario_eval NOT NULL,
+    id_docente UUID NOT NULL REFERENCES docentes_perfil(id_docente) ON DELETE RESTRICT, -- conserva el histórico
+    id_cohorte INT NOT NULL REFERENCES cohortes(id_cohorte) ON DELETE RESTRICT,
+    poblacion VARCHAR(10) CHECK (poblacion IN ('posgrado', 'pregrado')),
+    id_evaluador UUID REFERENCES usuarios(id_usuario) ON DELETE SET NULL,
+    comentario TEXT,                      -- Art. 7: opiniones, sugerencias y recomendaciones
+    actualizado_en TIMESTAMP,             -- solo EC y AE
+    CONSTRAINT chk_anonimato_ee CHECK (
+        (tipo_formulario = 'EE' AND id_evaluador IS NULL AND actualizado_en IS NULL AND poblacion IS NOT NULL)
+        OR (tipo_formulario <> 'EE' AND poblacion IS NULL))
+);
+-- Una EC y una AE por unidad evaluada y semestre.
+CREATE UNIQUE INDEX unq_respuesta_ec_ae ON evaluacion_respuestas (periodo, tipo_formulario, id_docente, id_cohorte)
+    WHERE tipo_formulario <> 'EE';
+CREATE INDEX idx_respuestas_periodo ON evaluacion_respuestas (periodo, tipo_formulario);
+
+CREATE TABLE evaluacion_respuesta_items (
+    id_respuesta UUID REFERENCES evaluacion_respuestas(id_respuesta) ON DELETE CASCADE,
+    id_pregunta INT REFERENCES evaluacion_preguntas(id_pregunta) ON DELETE RESTRICT,
+    valor tipo_valoracion_058 NOT NULL,
+    PRIMARY KEY (id_respuesta, id_pregunta)
+);
+
+-- Constancia de que un estudiante ya evaluó a un docente en el semestre: solo impide responder dos veces
+-- y alimenta el avance. No guarda al estudiante ni al docente, sino una HUELLA = HMAC-SHA256(EVAL_SECRETO,
+-- 'periodo|id_estudiante|id_docente') (modules/evalDocente/anonimato.js): sin la clave del servidor no
+-- revela quién evaluó a quién. Al cerrar o publicar el semestre, las respuestas EE se reescriben en orden
+-- aleatorio (barajarEE) para que tampoco compartan transacción ni orden físico con su constancia.
+CREATE TABLE evaluacion_constancias (
+    periodo periodo_academico NOT NULL REFERENCES evaluacion_periodos(periodo) ON DELETE RESTRICT,
+    huella CHAR(64) NOT NULL CHECK (huella ~ '^[0-9a-f]{64}$'),
+    PRIMARY KEY (periodo, huella)
 );

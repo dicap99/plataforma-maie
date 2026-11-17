@@ -5,6 +5,7 @@ const { RECURSOS } = require('../modules/admin/recursos/recursos.definicion');
 const { TODOS } = require('../utils/roles');
 const { VALORES_BENEFICIO } = require('../utils/beneficios');
 const moduloRA = require('./openapi.ra');
+const moduloEval = require('./openapi.evalDocente');
 
 const PERIODO = { type: 'string', pattern: '^\\d{4}-[AB]$', example: '2024-A' };
 
@@ -198,34 +199,11 @@ const UsuarioEntrada = {
   },
 };
 
-const PENDIENTES = [
-  ['/eval-docente/periodos', 'get', 'Periodos de evaluación docente'],
-  ['/eval-docente/formularios/{tipo}', 'get', 'Formulario EE/EC/AE del Acuerdo 058'],
-  ['/eval-docente/respuestas', 'post', 'Enviar un formulario de evaluación'],
-  ['/eval-docente/resultados/me', 'get', 'Resultados propios del docente'],
-];
-
-const rutasPendientes = () => {
-  const rutas = {};
-  for (const [ruta, metodo, resumen] of PENDIENTES) {
-    const tag = 'Módulo 3 · Evaluación Docente (pendiente)';
-    rutas[ruta] = {
-      ...(ruta.includes('{tipo}')
-        ? { parameters: [{ name: 'tipo', in: 'path', required: true, schema: { type: 'string', enum: ['EE', 'EC', 'AE'] } }] }
-        : {}),
-      [metodo]: {
-        tags: [tag], summary: resumen, description: 'Pendiente de implementación: responde 501.',
-        responses: { 501: { $ref: '#/components/responses/E501' }, ...errores(401, 403) },
-      },
-    };
-  }
-  return rutas;
-};
-
 const construir = () => {
   const esquemasRecursos = Object.assign({}, ...RECURSOS.map(esquemasRecurso));
   const rutasRecursos = Object.assign({}, ...RECURSOS.map(rutasRecurso));
   const ra = moduloRA({ exito, errores, cuerpo, roles, ref, PERIODO });
+  const ed = moduloEval({ exito, errores, cuerpo, roles, ref, PERIODO });
   const respuestaError = (descripcion) => ({ description: descripcion, content: { 'application/json': { schema: ref('Error') } } });
 
   return {
@@ -245,6 +223,7 @@ const construir = () => {
       { name: 'Usuarios' },
       { name: 'Módulo 1 · General', description: 'Metadatos, importación, plantilla y estadísticas' },
       ...ra.tags,
+      ...ed.tags,
     ],
     paths: {
       '/auth/login': {
@@ -417,7 +396,7 @@ const construir = () => {
         },
       },
       ...ra.paths,
-      ...rutasPendientes(),
+      ...ed.paths,
     },
     components: {
       securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
@@ -468,6 +447,7 @@ const construir = () => {
         },
         ...esquemasRecursos,
         ...ra.schemas,
+        ...ed.schemas,
       },
       responses: {
         E400: respuestaError('Datos inválidos'),

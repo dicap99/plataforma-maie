@@ -3,6 +3,7 @@
 // y devuelve claves lógicas (código del curso, correo, código de RA + orden del criterio) que
 // resuelve el cargador. Con la misma semilla devuelve exactamente los mismos datos.
 const { crearPrng } = require('./prng');
+const { asignacionesEstudiantes, unidadesDelPeriodo } = require('../../src/modules/evalDocente/categorizacion');
 const { NOMBRES, APELLIDOS, TEMAS } = require('./nombres');
 
 const DOMINIO = 'sintetico.maie.local';
@@ -197,6 +198,86 @@ const generarFinanzas = (azar, { cohortes, actual }) => {
   return { puntoEquilibrio, presupuesto, pregrado, transferencias, contrataciones };
 };
 
+
+// ---- Módulo 3: evaluación docente (Acuerdo 058) -------------------------------------------------
+// Estructura de los instrumentos sembrados en seed.sql: preguntas por característica de cada formulario.
+const PREGUNTAS_058 = {
+  EE: { 0: 4, 1: 4, 2: 4, 3: 6, 4: 4, 5: 5, 6: 3 },
+  EC: { 1: 5, 2: 5 },
+  AE: { 1: 3, 2: 3, 3: 6, 4: 4, 5: 5, 6: 3 },
+};
+const COMENTARIOS = ['Buen curso, bien organizado.', 'Sería útil más práctica de laboratorio.', 'Excelente disposición del docente.',
+  'Las evaluaciones fueron coherentes con lo visto.', 'Convendría entregar el plan del curso más temprano.'];
+const PROGRAMAS_PREGRADO = ['Ingeniería Electrónica', 'Ingeniería de Sistemas', 'Ingeniería Civil'];
+
+// Valoración según la calidad latente del docente (q) y ruido; NA ocasional.
+const valoracion = (azar, q) => {
+  if (azar.probabilidad(0.03)) return 'NA';
+  const x = 0.9 + 0.55 * q + 0.45 * azar.normal();
+  if (x > 0.75) return 'MA';
+  if (x > 0.05) return 'A';
+  if (x > -0.6) return 'I';
+  return 'MI';
+};
+const llenar = (azar, tipo, q) => Object.fromEntries(Object.entries(PREGUNTAS_058[tipo])
+  .flatMap(([c, n]) => Array.from({ length: n }, (_, j) => [`${c}.${j + 1}`, valoracion(azar, q)])));
+
+// Semestres anteriores: evaluación cerrada y publicada; el actual: habilitada (también para pregrado), en curso.
+// Quién evalúa a quién lo decide la misma función pura que usa la API (categorizacion.js).
+const generarModulo3 = (azar, { cohortes, docentes, estudiantes, cursos, inscripciones, periodoActual, persona }) => {
+  const calidad = new Map(docentes.map((d, i) => [d.email, i === 0 ? -1.2 : azar.normal() * 0.6]));
+  const inicio = new Map(cohortes.map((h) => [h.nombre, h.periodo_inicio]));
+  const estado = new Map(estudiantes.map((e) => [e.email, e]));
+
+  // Pregrado: algunos estudiantes externos inscritos en ofertas de la maestría.
+  const pregrado = Array.from({ length: 8 }, (_, i) => ({ ...persona('P', i + 1), programa: azar.elegir(PROGRAMAS_PREGRADO), cursos: [] }));
+  for (const c of cursos) {
+    if (!azar.probabilidad(0.3)) continue;
+    for (const p of azar.barajar(pregrado).slice(0, azar.entero(1, 2))) p.cursos.push(c.clave);
+  }
+
+  const periodos = [...new Set(cursos.map((c) => c.periodo))].sort();
+  const configuracion = [];
+  const respuestas = [];
+  const constancias = [];
+  const nominales = [];
+  for (const periodo of periodos) {
+    const actual = periodo === periodoActual;
+    configuracion.push({ periodo, habilitada: actual, incluye_pregrado: actual || azar.probabilidad(0.5), publicado: !actual });
+    const incluyePregrado = configuracion.at(-1).incluye_pregrado;
+    const ofertas = cursos.filter((c) => c.periodo === periodo).map((c) => ({
+      id_curso: c.clave, id_cohorte: c.cohorte, cohorte: c.cohorte, cohorte_inicio: inicio.get(c.cohorte), clase: c.clase,
+      docentes: c.docentes.map((d) => ({ id_docente: d, id_usuario: d, nombre: d })),
+    }));
+    const claves = new Set(ofertas.map((o) => o.id_curso));
+    const posgrado = inscripciones.filter((i) => claves.has(i.curso)).map((i) => ({
+      id_curso: i.curso, id_estudiante: i.estudiante, activo: true,
+      id_cohorte_estudiante: estado.get(i.estudiante).cohorte, estado_promocion: estado.get(i.estudiante).estado,
+    }));
+    const pre = pregrado.flatMap((p) => p.cursos.filter((c) => claves.has(c)).map((c) => ({ id_curso: c, id_estudiante: p.email, estado: 'inscrito', activo: true })));
+    const asignaciones = asignacionesEstudiantes({ ofertas, posgrado, pregrado: pre, incluyePregrado });
+    const participacion = actual ? 0.6 : 0.85;
+    for (const [estudiante, lista] of asignaciones) {
+      for (const a of lista) {
+        if (!azar.probabilidad(participacion)) continue;
+        constancias.push({ periodo, estudiante, docente: a.id_docente });
+        respuestas.push({
+          periodo, docente: a.id_docente, cohorte: a.id_cohorte, poblacion: a.poblacion,
+          items: llenar(azar, 'EE', calidad.get(a.id_docente)), comentario: azar.probabilidad(0.3) ? azar.elegir(COMENTARIOS) : null,
+        });
+      }
+    }
+    for (const u of unidadesDelPeriodo(ofertas)) {
+      const q = calidad.get(u.id_docente);
+      if (!actual) nominales.push({ periodo, tipo: 'EC', docente: u.id_docente, cohorte: u.id_cohorte, items: llenar(azar, 'EC', q + 0.3), comentario: null });
+      if (azar.probabilidad(actual ? 0.4 : 0.8)) {
+        nominales.push({ periodo, tipo: 'AE', docente: u.id_docente, cohorte: u.id_cohorte, items: llenar(azar, 'AE', q + 0.8), comentario: null });
+      }
+    }
+  }
+  return { periodos: configuracion, pregrado, respuestas, constancias, nominales };
+};
+
 const generar = ({
   semilla = 2026,
   nCohortes = 5,
@@ -286,8 +367,19 @@ const generar = ({
   const periodosAbiertos = [periodoActual];
 
   const modulo1 = generarModulo1(azar, { cohortes, docentes, estudiantes, cursos, actual });
+  // Módulo 3 con su propio generador (otra semilla derivada) para no alterar los datos de los módulos 1 y 2.
+  const azar3 = crearPrng(semilla * 31 + 3);
+  const persona3 = (tipo, i) => {
+    const nombres = azar3.elegir(NOMBRES);
+    const apellidos = `${azar3.elegir(APELLIDOS)} ${azar3.elegir(APELLIDOS)}`;
+    return {
+      identificacion: `SIN-${tipo}${String(i).padStart(4, '0')}`, nombres, apellidos,
+      email: `${sinTildes(nombres)}.${sinTildes(apellidos.split(' ')[0])}.${tipo.toLowerCase()}${i}@${DOMINIO}`,
+    };
+  };
+  const modulo3 = generarModulo3(azar3, { cohortes, docentes, estudiantes, cursos, inscripciones, periodoActual, persona: persona3 });
 
-  return { semilla, cohortes, docentes, estudiantes, cursos, inscripciones, calificaciones, periodosAbiertos, modulo1 };
+  return { semilla, cohortes, docentes, estudiantes, cursos, inscripciones, calificaciones, periodosAbiertos, modulo1, modulo3 };
 };
 
-module.exports = { generar, CATALOGO, CLASE_UNICA, CRITERIOS_POR_RA, DOMINIO, PREFIJO_COHORTE, aIndice, aPeriodo };
+module.exports = { generar, PREGUNTAS_058, CATALOGO, CLASE_UNICA, CRITERIOS_POR_RA, DOMINIO, PREFIJO_COHORTE, aIndice, aPeriodo };

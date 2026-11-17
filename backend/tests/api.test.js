@@ -32,11 +32,24 @@ describe('API MaIE — esqueleto', () => {
     expect(res.status).toBe(403);
   });
 
-  it('rol permitido sobre endpoint pendiente (módulo 3) → 501', async () => {
-    const res = await request(app)
-      .get('/api/v1/eval-docente/periodos')
-      .set('Authorization', `Bearer ${tokenPara('coordinador')}`);
-    expect(res.status).toBe(501);
+  // Módulo 3 (antes respondía 501 como pendiente): roles y validación antes de tocar la base de datos.
+  it.each([
+    ['estudiante', '/api/v1/eval-docente/periodos'],
+    ['docente', '/api/v1/eval-docente/periodos'],
+    ['docente', '/api/v1/eval-docente/resultados?periodo=2026-B'],
+    ['estudiante', '/api/v1/eval-docente/resultados/me'],
+    ['docente', '/api/v1/eval-docente/pregrado'],
+  ])('evaluación docente: %s sobre %s → 403', async (rol, ruta) => {
+    const res = await request(app).get(ruta).set('Authorization', `Bearer ${tokenPara(rol)}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('evaluación docente: semestre mal formado o formulario desconocido → 400', async () => {
+    const coord = `Bearer ${tokenPara('coordinador')}`;
+    expect((await request(app).get('/api/v1/eval-docente/resultados?periodo=2026-C').set('Authorization', coord)).status).toBe(400);
+    expect((await request(app).get('/api/v1/eval-docente/formularios/XX').set('Authorization', coord)).status).toBe(400);
+    const r = await request(app).post('/api/v1/eval-docente/respuestas').set('Authorization', coord).send({ periodo: '2026-B', tipo: 'EE', id_docente: 'x' });
+    expect(r.status).toBe(400);
   });
 
   it.each(['/api/v1/ra/rubricas', '/api/v1/ra/evaluaciones?curso=1', '/api/v1/ra/reportes', '/api/v1/admin/cursos'])(

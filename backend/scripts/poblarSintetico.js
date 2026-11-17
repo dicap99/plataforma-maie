@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Puebla la base de desarrollo con datos sintéticos del Módulo 2 para ver los tableros de RA.
+// Puebla la base de desarrollo con datos sintéticos (módulos 1, 2 y 3) para ver los tableros.
+// Módulo 3: la habilitación de cada semestre solo se crea si ese semestre aún no está configurado.
 //   npm run datos:sinteticos                  → borra los sintéticos anteriores y carga la semilla 2026
 //   npm run datos:sinteticos -- --semilla 7   → otra semilla
 //   npm run datos:sinteticos -- --limpiar     → solo borra los datos sintéticos
@@ -25,7 +26,7 @@ const main = async () => {
   const resumen = await db.withTransaction(async (cliente) => {
     const borrados = await limpiar(cliente);
     if (soloLimpiar) return { borrados };
-    return { borrados, cargados: await cargar(cliente, generar({ semilla }), { password }) };
+    return { borrados, cargados: await cargar(cliente, generar({ semilla }), { password, modulo3: true }) };
   });
 
   console.log('Datos sintéticos eliminados:', resumen.borrados);

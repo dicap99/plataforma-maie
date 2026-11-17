@@ -38,7 +38,12 @@ export const MENU_POR_ROL = {
     {
       grupo: 'Evaluación docente',
       icono: 'rate_review',
-      items: [{ to: '/coordinacion/evaluacion-coordinacion', label: 'Evaluación (EC)', icono: 'assignment_ind' }],
+      items: [
+        { to: '/coordinacion/evaluacion', label: 'Habilitación y seguimiento', icono: 'event_available', end: true },
+        { to: '/coordinacion/evaluacion/pregrado', label: 'Estudiantes de pregrado', icono: 'school' },
+        { to: '/coordinacion/evaluacion/coordinacion', label: 'Evaluación al docente (EC)', icono: 'assignment_ind' },
+        { to: '/coordinacion/evaluacion/resultados', label: 'Resultados de desempeño', icono: 'insights' },
+      ],
     },
   ],
   docente: [

@@ -1,21 +1,12 @@
-const asyncHandler = require('../../../utils/asyncHandler');
-const requestContext = require('../../../utils/requestContext');
-const { success } = require('../../../utils/apiResponse');
+const { responder, descargar } = require('../controlador');
 const service = require('./resultados.service');
 
-// GET /api/v1/eval-docente/resultados/me
-const obtenerPropios = asyncHandler(async (req, res) => {
-  success(res, await service.obtenerPropios(requestContext(req)));
-});
-
-// GET /api/v1/eval-docente/resultados/:docenteId
-const obtenerPorDocente = asyncHandler(async (req, res) => {
-  success(res, await service.obtenerPorDocente(requestContext(req)));
-});
-
-// GET /api/v1/eval-docente/resultados/:docenteId/informe.pdf
-const informePdf = asyncHandler(async (req, res) => {
-  success(res, await service.informePdf(requestContext(req)));
-});
-
-module.exports = { obtenerPropios, obtenerPorDocente, informePdf };
+module.exports = {
+  consolidado: responder(service.consolidado), // GET /eval-docente/resultados
+  propios: responder(service.propios), // GET /eval-docente/resultados/me
+  porDocente: responder(service.porDocente), // GET /eval-docente/resultados/docentes/:idDocente
+  exportar: descargar(service.exportar), // GET /eval-docente/resultados/exportar
+  informePdf: descargar(service.informePdf), // GET /eval-docente/resultados/informe.pdf
+  informeDocentePdf: descargar(service.informeDocentePdf), // GET /eval-docente/resultados/docentes/:idDocente/informe.pdf
+  informePropioPdf: descargar(service.informePropioPdf), // GET /eval-docente/resultados/me/informe.pdf
+};

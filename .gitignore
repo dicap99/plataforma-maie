@@ -3,3 +3,6 @@ dist/
 coverage/
 .env
 *.log
+
+# Resultados reales de la evaluación docente (fixture local de pruebas): no se publican
+backend/tests/fixtures/evaluacionDocenteExcel.json
