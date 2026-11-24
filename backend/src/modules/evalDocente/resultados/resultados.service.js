@@ -21,7 +21,7 @@ const consolidadoPeriodo = async (config, poblacion = 'todas') => {
   const [ofertas, extra, preguntas, respuestas] = await Promise.all([
     repository.ofertas(config.periodo),
     repository.unidadesConRespuestas({ periodo: config.periodo }),
-    repository.preguntas(),
+    repository.preguntasDelPeriodo(config.periodo),
     repository.respuestas({ periodo: config.periodo }),
   ]);
   return consolidar({ preguntas, unidades: unidadesDe(ofertas, extra), respuestas, config, poblacion });

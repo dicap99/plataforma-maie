@@ -54,14 +54,14 @@ describe('Alertas del Panel general', () => {
     expect(tipo(calcular(base({ presupuesto: { fecha_corte: null } }), [], HOY), 'presupuesto').nivel).toBe('critico');
   });
 
-  it('datos por actualizar: promoción terminada sin egresados y SMMLV de un año anterior', () => {
+  it('datos por actualizar: promoción terminada sin egresados; el SMMLV ya no genera alerta', () => {
     const datos = base({
       parametros: { smmlv_2025: 1423500 },
       promociones: { filas: [{ nombre: 'IV', periodo_fin: '2025-B', egresados: null, graduados: 0 }] },
     });
     const d = tipo(calcular(datos, [], HOY), 'datos');
     expect(d.detalle).toMatch(/Promoción IV/);
-    expect(d.detalle).toMatch(/falta el de 2026/);
+    expect(d.detalle).not.toMatch(/SMMLV/);
   });
 
   it('datos por actualizar: promoción con el registro de estudiantes incompleto en Gestión académica', () => {

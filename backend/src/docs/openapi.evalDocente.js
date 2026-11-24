@@ -122,6 +122,26 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
       parameters: [{ name: 'tipo', in: 'path', required: true, schema: { type: 'string', enum: FORMULARIOS } }],
       get: { tags: [TAG], summary: 'Instrumento EE, EC o AE (Art. 4, 5 y 6)', description: roles(['coordinador', 'docente', 'estudiante']), responses: { 200: exito(ref('Formulario058')), ...errores(400, 401) } },
     },
+    '/eval-docente/formularios/{tipo}/preguntas': {
+      parameters: [{ name: 'tipo', in: 'path', required: true, schema: { type: 'string', enum: FORMULARIOS } }],
+      get: { tags: [TAG], summary: 'Preguntas del formulario (activas e inactivas) con su número de respuestas (Art. 8)', description: roles(['coordinador']), responses: { 200: exito({ type: 'array', items: { type: 'object' } }), ...errores(400, 401, 403) } },
+      post: {
+        tags: [TAG], summary: 'Agregar una pregunta al final de su característica (código generado)',
+        description: 'Una característica nueva exige `nombre_caracteristica`. Aplica a las evaluaciones que se diligencien desde ese momento. ' + roles(['coordinador']),
+        requestBody: cuerpo({ type: 'object', required: ['caracteristica', 'texto'], properties: { caracteristica: { type: 'integer', minimum: 0, maximum: 9 }, nombre_caracteristica: { type: 'string' }, texto: { type: 'string' }, escala: { type: 'string', nullable: true } } }),
+        responses: { 201: exito({ type: 'object' }), ...errores(400, 401, 403) },
+      },
+    },
+    '/eval-docente/formularios/preguntas/{id}': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      put: {
+        tags: [TAG], summary: 'Editar redacción o escala, o activar/desactivar una pregunta',
+        description: 'Una pregunta con respuestas no cambia de redacción ni de escala (409): se desactiva y se agrega otra. Los resultados de cada semestre conservan las preguntas respondidas en él. ' + roles(['coordinador']),
+        requestBody: cuerpo({ type: 'object', properties: { texto: { type: 'string' }, escala: { type: 'string', nullable: true }, activa: { type: 'boolean' } } }),
+        responses: { 200: exito({ type: 'object' }), ...errores(400, 401, 403, 404, 409) },
+      },
+      delete: { tags: [TAG], summary: 'Eliminar una pregunta sin respuestas (409 si tiene)', description: roles(['coordinador']), responses: { 200: exito({ type: 'object' }), ...errores(401, 403, 404, 409) } },
+    },
     '/eval-docente/categorizacion': {
       get: { tags: [TAG], summary: 'Matriz de quién evalúa a quién y casos borde', description: roles(['coordinador', 'docente', 'estudiante']), responses: { 200: exito({ type: 'object' }), ...errores(401) } },
     },

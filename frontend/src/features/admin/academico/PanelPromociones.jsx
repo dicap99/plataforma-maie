@@ -15,8 +15,8 @@ const MODOS = [{ valor: 'cantidad', etiqueta: 'Estudiantes' }, { valor: 'pct', e
 export default function PanelPromociones({ cohortes, onFiltrar }) {
   const [modo, setModo] = useState('cantidad')
   const terminadas = cohortes.filter((c) => typeof c.egresados === 'number')
-  const [idEmbudo, setIdEmbudo] = useState(null)
-  const embudo = cohortes.find((c) => c.id_cohorte === idEmbudo) ?? terminadas.at(-1) ?? cohortes.at(-1)
+  // Sin selector propio: la última promoción culminada del rango general (o la única elegida).
+  const embudo = cohortes.length === 1 ? cohortes[0] : (terminadas.at(-1) ?? cohortes.at(-1))
 
   if (!cohortes.length) return <SinDatos texto="No hay promociones registradas en este rango." />
 
@@ -53,28 +53,22 @@ export default function PanelPromociones({ cohortes, onFiltrar }) {
         >
           <GraficoAprobadosSemestre cohortes={cohortes} />
         </ChartCard>
-      </RejillaGraficas>
 
-      <ChartCard
-        titulo="Curva de permanencia"
-        subtitulo="Estudiantes de cada promoción en cada etapa de su recorrido; las etapas sin dato aún no se han cursado."
-        acciones={<Alternador etiqueta="Unidad" opciones={MODOS} valor={modo} onChange={setModo} />}
-        tabla={{ columnas: [{ clave: 'etapa', titulo: 'Etapa' }, ...series.map((s) => ({ clave: s.clave, titulo: s.nombre, formato }))], filas: curva }}
-        altura="h-80"
-      >
-        <GraficoLineas datos={curva} ejeX="etapa" series={series} formato={formato} />
-      </ChartCard>
-
-      <RejillaGraficas>
         <ChartCard
-          titulo="Embudo de una promoción"
-          subtitulo={embudo ? `Promoción ${embudo.nombre} · ${embudo.periodo_inicio} a ${embudo.periodo_fin}` : ''}
-          acciones={(
-            <select aria-label="Promoción del embudo" value={embudo?.id_cohorte ?? ''} onChange={(e) => setIdEmbudo(Number(e.target.value))}
-              className="rounded-lg px-2 py-1 text-label-sm">
-              {cohortes.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>Promoción {c.nombre}</option>)}
-            </select>
-          )}
+          titulo="Curva de permanencia"
+          subtitulo="Estudiantes de cada promoción en cada etapa de su recorrido; las etapas sin dato aún no se han cursado."
+          acciones={<Alternador etiqueta="Unidad" opciones={MODOS} valor={modo} onChange={setModo} />}
+          tabla={{ columnas: [{ clave: 'etapa', titulo: 'Etapa' }, ...series.map((s) => ({ clave: s.clave, titulo: s.nombre, formato }))], filas: curva }}
+          altura="h-80"
+        >
+          <GraficoLineas datos={curva} ejeX="etapa" series={series} formato={formato} />
+        </ChartCard>
+
+        <ChartCard
+          titulo="Detalle de la promoción"
+          subtitulo={embudo
+            ? `Promoción ${embudo.nombre} · ${embudo.periodo_inicio} a ${embudo.periodo_fin ?? 'en curso'}${cohortes.length > 1 ? ' (la más reciente culminada del rango; elija una sola promoción arriba para ver otra)' : ''}`
+            : ''}
           tabla={{ columnas: [{ clave: 'etapa', titulo: 'Etapa' }, { clave: 'estudiantes', titulo: 'Estudiantes', formato: numero }], filas: datosEmbudo }}
         >
           <GraficoBarras datos={datosEmbudo} ejeX="etapa" horizontal anchoEtiquetas={100} series={[{ clave: 'estudiantes', nombre: 'Estudiantes', color: SERIES[0] }]} formato={numero} />

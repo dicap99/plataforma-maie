@@ -152,7 +152,16 @@ const combinarContrataciones = (hoja, contratos) => {
     promociones: [...new Set(lista.map((c) => c.cohorte).filter(Boolean))].join(', ') || null,
     origen: 'gestion',
   });
-  const filas = hoja.map((f) => (porPeriodo.has(f.periodo) ? { ...f, ...calcular(porPeriodo.get(f.periodo)) } : { ...f, origen: 'registro' }));
+  // Mientras no estén registrados todos los contratos reportados en la hoja para el periodo, se conserva el
+  // total reportado (registrar uno solo no debe bajar el valor del semestre) y se informa el avance.
+  const filas = hoja.map((f) => {
+    const lista = porPeriodo.get(f.periodo);
+    if (!lista) return { ...f, origen: 'registro' };
+    if (lista.length < Number(f.n_ops ?? 0)) {
+      return { ...f, origen: 'registro', registro_parcial: { registrados: lista.length, reportados: Number(f.n_ops) } };
+    }
+    return { ...f, ...calcular(lista) };
+  });
   for (const [periodo, lista] of porPeriodo) {
     if (!filas.some((f) => f.periodo === periodo)) filas.push({ periodo, ...calcular(lista), sin_registro: true });
   }

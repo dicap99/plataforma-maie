@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { GRILLA, SERIES, TEXTO_SECUNDARIO } from '../../../components/charts/paleta'
 import { porcentaje } from '../../../utils/formato'
@@ -27,10 +26,9 @@ export const metricasTitulacion = (cohortes) => {
   }
 }
 
+// Usa las promociones del rango general de Información académica (sin selector propio).
 export default function DiagramaTriangular({ cohortes = [] }) {
-  const [seleccion, setSeleccion] = useState('todas')
-  const elegidas = seleccion === 'todas' ? cohortes : cohortes.filter((c) => String(c.id_cohorte) === seleccion)
-  const m = metricasTitulacion(elegidas)
+  const m = metricasTitulacion(cohortes)
   // Escala en pasos de 20 % (como el libro), hasta el valor más alto.
   const tope = Math.max(0.2, Math.ceil(Math.max(...m.datos.map((d) => d.valor ?? 0)) * 5) / 5)
   const ticks = Array.from({ length: Math.round(tope * 5) + 1 }, (_, i) => i / 5)
@@ -41,14 +39,6 @@ export default function DiagramaTriangular({ cohortes = [] }) {
         <span className="text-xs text-slate-500 font-medium">
           {m.culminadas ? `${m.culminadas} promoción(es) culminada(s) · ${m.matriculados} matriculados` : 'Sin promociones culminadas'}
         </span>
-        <div className="flex items-center space-x-2">
-          <label htmlFor="select-titulacion" className="text-xs text-slate-500 font-medium">Promoción:</label>
-          <select id="select-titulacion" value={seleccion} onChange={(e) => setSeleccion(e.target.value)}
-            className="text-xs py-1.5 px-3 rounded-lg border-slate-300 bg-white text-slate-700 font-medium shadow-2xs">
-            <option value="todas">Todas las promociones</option>
-            {cohortes.map((c) => <option key={c.id_cohorte} value={c.id_cohorte}>Promoción {c.nombre}</option>)}
-          </select>
-        </div>
       </div>
 
       {m.culminadas ? (

@@ -105,4 +105,12 @@ describe('Reflejo de «Contratos OPS» en «Contrataciones»', () => {
     expect(filas[1]).toMatchObject({ n_ops: 3, valor: 4500000, promociones: 'IV, V', origen: 'gestion' });
     expect(filas[2]).toMatchObject({ n_ops: 1, valor: 800000, promociones: null, origen: 'gestion', sin_registro: true });
   });
+
+  it('con menos contratos registrados que los reportados, conserva el total reportado e informa el avance', () => {
+    const [f] = combinarContrataciones(
+      [{ periodo: '2022-B', promociones: 'III', n_ops: 5, valor: 68500000 }],
+      [{ periodo: '2022-B', valor: 12000000, cohorte: 'III' }, { periodo: '2022-B', valor: 10000000, cohorte: 'III' }],
+    );
+    expect(f).toMatchObject({ n_ops: 5, valor: 68500000, origen: 'registro', registro_parcial: { registrados: 2, reportados: 5 } });
+  });
 });

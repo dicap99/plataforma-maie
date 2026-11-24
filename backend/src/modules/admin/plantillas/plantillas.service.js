@@ -43,7 +43,7 @@ const hojaInstrucciones = (libro) => {
     ['3. Deje vacías las celdas que aún no aplican (p. ej. semestres no cursados). Los encabezados en negrita con * son obligatorios.'],
     ['4. No agregue filas de totales, promedios ni porcentajes: la plataforma los calcula.'],
     ['5. Si una fila ya existe (misma promoción/periodo), la importación la actualiza.'],
-    ['   En "Asignación docente" cada fila es un docente en un curso; el semestre es el de la promoción (1 a 4) y el curso es el código o nombre de la clase (Gestión académica › Clases).'],
+    ['   En "Asignación docente" cada fila es un docente en un curso; el semestre es el de la promoción (1 a 4) y el curso es el código o nombre de la materia (Gestión académica › Materias).'],
     ['   En "Beneficios por estudiante" cada fila es un beneficio de un estudiante en un semestre (una sola beca por semestre); el estudiante debe estar registrado en su promoción y queda con exactamente los beneficios de sus filas.'],
     ['6. Puede dejar hojas vacías; solo se importan las filas diligenciadas. Si hay errores no se guarda nada y se listan por hoja y fila.'],
     ['7. En la exportación con datos, las hojas que la plataforma calcula desde Gestión académica (promociones, beneficios, cursos y'],

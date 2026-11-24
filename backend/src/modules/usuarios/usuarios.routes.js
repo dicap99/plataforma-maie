@@ -49,6 +49,7 @@ router.get('/campos-formacion', ...soloCoord, controller.camposFormacion);
 router.get('/beneficios', ...soloCoord, query('id_cohorte').isInt({ min: 1 }).withMessage('Indique la promoción (id_cohorte)').toInt(), validate,
   controller.listarBeneficios);
 router.put('/:id/beneficios', ...soloCoord, ...idValido, ...reglasBeneficios, controller.reemplazarBeneficios);
+router.get('/:id/ficha', ...soloCoord, ...idValido, controller.ficha);
 router.get('/:id', ...soloCoord, ...idValido, controller.obtener);
 router.post('/', ...soloCoord, ...reglas(true), controller.crear);
 router.put('/:id', ...soloCoord, ...idValido, ...reglas(false), controller.actualizar);

@@ -3,6 +3,12 @@ const requestContext = require('../../utils/requestContext');
 const { success } = require('../../utils/apiResponse');
 const service = require('./usuarios.service');
 const beneficios = require('./beneficios.service');
+const fichas = require('./ficha.service');
+
+// GET /api/v1/usuarios/:id/ficha — detalle según el rol
+const ficha = asyncHandler(async (req, res) => {
+  success(res, await fichas.ficha(requestContext(req)));
+});
 
 // GET /api/v1/usuarios
 const listar = asyncHandler(async (req, res) => {
@@ -44,4 +50,4 @@ const reemplazarBeneficios = asyncHandler(async (req, res) => {
   success(res, await beneficios.reemplazar(requestContext(req)));
 });
 
-module.exports = { listar, camposFormacion, obtener, crear, actualizar, eliminar, listarBeneficios, reemplazarBeneficios };
+module.exports = { listar, camposFormacion, obtener, crear, actualizar, eliminar, listarBeneficios, reemplazarBeneficios, ficha };

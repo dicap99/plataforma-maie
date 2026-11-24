@@ -37,3 +37,8 @@ export const importarPregrado = (archivo, simular) => {
 }
 export const estadoPregrado = (idCurso, idEstudiante, estado) => client.put(`/eval-docente/pregrado/${idCurso}/${idEstudiante}`, { estado })
 export const quitarPregrado = (idCurso, idEstudiante) => client.delete(`/eval-docente/pregrado/${idCurso}/${idEstudiante}`)
+// «Formularios»: preguntas de cada formulario (Art. 8), editables por Coordinación.
+export const preguntasFormulario = (tipo) => client.get(`/eval-docente/formularios/${tipo}/preguntas`)
+export const crearPregunta = (tipo, datos) => client.post(`/eval-docente/formularios/${tipo}/preguntas`, datos)
+export const actualizarPregunta = (id, datos) => client.put(`/eval-docente/formularios/preguntas/${id}`, datos)
+export const eliminarPregunta = (id) => client.delete(`/eval-docente/formularios/preguntas/${id}`)

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import * as usuariosApi from '../../api/usuariosApi'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
@@ -9,7 +10,8 @@ import Icono from '../../components/common/Icono.jsx'
 import { ETIQUETA_ROL } from '../../routes/navigation'
 import SelectorCampos from './SelectorCampos.jsx'
 import CursosDocente from './CursosDocente.jsx'
-import { etiquetaBeca } from './beneficios/tipos'
+import FichaUsuario from './FichaUsuario.jsx'
+import PregradoEvaluacionPage from '../evalDocente/PregradoEvaluacionPage.jsx'
 
 const ROLES = ['coordinador', 'docente', 'estudiante']
 const VACIO = {
@@ -39,6 +41,17 @@ function CursosDeDocente({ usuario, onClose }) {
 // (correo y teléfono) y lo propio de cada rol: el estudiante con su promoción, y el docente con su afiliación
 // y campos de formación (perfil de la hoja «Docentes», RF-ADM-06). Los beneficios del estudiante por
 // semestre se editan en la pestaña «Beneficios». Información académica refleja estos datos.
+// Usuarios por rol (decisión del usuario, 2026-11-24), con el mismo tratamiento que las OPS: por cada promoción
+// se muestran los estudiantes registrados y, hasta completar los matriculados que reporta el libro, renglones
+// «por registrar»; cada usuario tiene su ficha de detalle (materias, beneficios, producción o perfil docente).
+const VISTAS = [
+  { id: 'posgrado', titulo: 'Estudiantes de posgrado' },
+  { id: 'pregrado', titulo: 'Estudiantes de pregrado' },
+  { id: 'docentes', titulo: 'Docentes' },
+  { id: 'coordinacion', titulo: 'Coordinación' },
+]
+const ordenNombre = (a, b) => `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`)
+
 export default function UsuariosPage({ embebido = false }) {
   const { usuario: sesion } = useAuth()
   const usuarios = useApi(usuariosApi.listarUsuarios)
@@ -47,7 +60,9 @@ export default function UsuariosPage({ embebido = false }) {
   const campos = useApi(usuariosApi.camposFormacion)
   const [editando, setEditando] = useState(null) // null | VACIO | usuario
   const [cursosDe, setCursosDe] = useState(null) // usuario docente cuyos cursos se editan
-  const [rol, setRol] = useState('')
+  const [fichaDe, setFichaDe] = useState(null)
+  const [parametros] = useSearchParams()
+  const [vista, setVista] = useState(() => (VISTAS.some((v) => v.id === parametros.get('vista')) ? parametros.get('vista') : 'posgrado'))
   const [busqueda, setBusqueda] = useState('')
   const [errorAccion, setErrorAccion] = useState(null)
 
@@ -67,22 +82,138 @@ export default function UsuariosPage({ embebido = false }) {
   })
 
   const q = busqueda.trim().toLowerCase()
-  const visibles = (usuarios.data ?? []).filter((u) => (!rol || u.rol === rol)
-    && (!q || `${u.nombres} ${u.apellidos} ${u.email} ${u.identificacion}`.toLowerCase().includes(q)))
-  const detalleRol = (u) => {
-    if (u.rol === 'estudiante') {
-      if (!u.cohorte) return 'Sin promoción'
-      const semestres = new Set((u.beneficios ?? []).map((b) => b.semestre)).size
-      return [`Promoción ${u.cohorte}`, u.beca && etiquetaBeca(u.beca), semestres && `beneficios en ${semestres} semestre(s)`]
-        .filter(Boolean).join(' · ')
-    }
-    if (u.rol === 'docente') {
-      if (!u.id_docente) return 'Sin perfil docente'
-      const afiliacion = u.afiliacion === 'EXTERNO' ? ['Externo', u.universidad].filter(Boolean).join(', ') : 'UDENAR'
-      return [afiliacion, separarCampos(u.campo_formacion).join(', ')].filter(Boolean).join(' · ')
-    }
-    return '—'
+  const coincide = (u) => !q || `${u.nombres} ${u.apellidos} ${u.email} ${u.identificacion}`.toLowerCase().includes(q)
+  const todos = usuarios.data ?? []
+  const estudiantes = todos.filter((u) => u.rol === 'estudiante')
+  const promociones = [...(cohortes.data ?? [])].sort((a, b) => (a.periodo_inicio < b.periodo_inicio ? -1 : 1))
+
+  const acciones = (u) => (
+    <td className="acciones whitespace-nowrap">
+      <button type="button" className="btn-enlace" onClick={() => setFichaDe(u)}>Ficha</button>
+      <button type="button" className="btn-enlace" onClick={() => editar(u)}>Editar</button>
+      {u.rol === 'docente' && u.id_docente && <button type="button" className="btn-enlace" onClick={() => setCursosDe(u)}>Cursos</button>}
+      {u.id_usuario !== sesion.id && <button type="button" className="btn-enlace peligro" onClick={() => eliminar(u)}>Eliminar</button>}
+    </td>
+  )
+  const estado = (u) => `${u.activo ? 'Activo' : 'Inactivo'}${u.debe_cambiar_password ? ' · credenciales temporales' : ''}`
+  const pendiente = (clave, texto, onRegistrar, columnas) => (
+    <tr key={clave} className="text-slate-400">
+      <td colSpan={columnas - 1} className="italic">{texto}</td>
+      <td className="acciones"><button type="button" className="btn-enlace" onClick={onRegistrar}>Registrar</button></td>
+    </tr>
+  )
+
+  // ---- Estudiantes de posgrado por promoción ----
+  const tablaPosgrado = () => {
+    let reportados = 0
+    let registradosTotal = 0
+    return (
+      <table>
+        <thead>
+          <tr><th>Estudiante</th><th>Identificación</th><th>Correo</th><th>Teléfono</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
+        </thead>
+        <tbody>
+          {promociones.map((c) => {
+            const registrados = estudiantes.filter((u) => u.id_cohorte === c.id_cohorte).sort(ordenNombre)
+            const n = Number(c.matriculados ?? c.inscritos ?? 0)
+            reportados += n
+            registradosTotal += registrados.length
+            const faltan = q ? 0 : Math.max(0, n - registrados.length)
+            const visibles = registrados.filter(coincide)
+            if (q && !visibles.length) return null
+            return [
+              ...visibles.map((u) => (
+                <tr key={u.id_usuario}>
+                  <td>{u.apellidos} {u.nombres}</td><td>{u.identificacion}</td><td>{u.email}</td>
+                  <td className="nowrap">{u.telefono ?? <span className="texto-suave">—</span>}</td><td>{estado(u)}</td>{acciones(u)}
+                </tr>
+              )),
+              ...Array.from({ length: faltan }, (_, i) => pendiente(`p-${c.id_cohorte}-${i}`,
+                `Promoción ${c.nombre} · estudiante ${registrados.length + i + 1} de ${n} · por registrar`,
+                () => setEditando({ ...VACIO, rol: 'estudiante', id_cohorte: String(c.id_cohorte) }), 6)),
+              <tr key={`t-${c.id_cohorte}`} className="bg-slate-50 font-semibold">
+                <td colSpan={6}>Promoción {c.nombre} ({c.periodo_inicio} a {c.periodo_fin ?? 'en curso'}) · {n} matriculado(s) reportado(s) · {registrados.length} registrado(s)</td>
+              </tr>,
+            ]
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="font-bold"><td colSpan={6}>Total: {reportados} matriculados reportados · {registradosTotal} registrados en la plataforma</td></tr>
+        </tfoot>
+      </table>
+    )
   }
+
+  // ---- Estudiantes de pregrado (sin promoción de la maestría) ----
+  const tablaPregrado = () => {
+    const lista = estudiantes.filter((u) => !u.id_cohorte && coincide(u)).sort(ordenNombre)
+    return (
+      <table>
+        <thead><tr><th>Estudiante</th><th>Identificación</th><th>Correo</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>
+        <tbody>
+          {lista.map((u) => <tr key={u.id_usuario}><td>{u.apellidos} {u.nombres}</td><td>{u.identificacion}</td><td>{u.email}</td><td>{estado(u)}</td>{acciones(u)}</tr>)}
+          {lista.length === 0 && (
+            <tr><td colSpan={5} className="texto-suave">
+              No hay cuentas de estudiantes de pregrado. Se crean al cargar la plantilla de arriba.
+            </td></tr>
+          )}
+        </tbody>
+      </table>
+    )
+  }
+
+  // ---- Docentes: con cuenta y perfiles del directorio aún sin cuenta ----
+  // Docentes: un solo rol, presentados en dos grupos (decisión del usuario, 2026-11-24).
+  const GRUPOS_DOCENTES = [
+    { id: 'externos', titulo: 'Docentes externos', de: (a) => a === 'EXTERNO' },
+    { id: 'udenar', titulo: 'Docentes UDENAR', de: (a) => a === 'UDENAR' },
+    { id: 'sin', titulo: 'Sin afiliación registrada', de: (a) => !a },
+  ]
+  const tablaDocentes = () => {
+    const conCuenta = todos.filter((u) => u.rol === 'docente' && coincide(u)).sort(ordenNombre)
+    const sinCuenta = q ? [] : (docentes.data ?? []).filter((d) => !d.id_usuario)
+    const afiliacion = (u) => (u.afiliacion === 'EXTERNO' ? ['Externo', u.universidad].filter(Boolean).join(', ') : u.afiliacion ? 'UDENAR' : '—')
+    return (
+      <table>
+        <thead><tr><th>Docente</th><th>Correo</th><th>Afiliación</th><th>Campos de formación</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>
+        <tbody>
+          {/* Un solo rol: solo se presentan agrupados, primero los externos y debajo los de UDENAR. */}
+          {GRUPOS_DOCENTES.map((g) => {
+            const usuariosGrupo = conCuenta.filter((u) => g.de(u.afiliacion))
+            const perfilesGrupo = sinCuenta.filter((d) => g.de(d.afiliacion))
+            if (!usuariosGrupo.length && !perfilesGrupo.length) return null
+            return [
+              <tr key={`g-${g.id}`} className="bg-slate-50 font-semibold">
+                <td colSpan={6}>{g.titulo} · {usuariosGrupo.length + perfilesGrupo.length}</td>
+              </tr>,
+              ...usuariosGrupo.map((u) => (
+                <tr key={u.id_usuario}>
+                  <td>{u.apellidos} {u.nombres}</td><td>{u.email}</td><td>{afiliacion(u)}</td>
+                  <td>{separarCampos(u.campo_formacion).join(', ') || <span className="texto-suave">—</span>}</td><td>{estado(u)}</td>{acciones(u)}
+                </tr>
+              )),
+              ...perfilesGrupo.map((d) => pendiente(`d-${d.id_docente}`, `${d.nombre_completo} · perfil del directorio sin cuenta · por registrar`,
+                () => setEditando({ ...VACIO, rol: 'docente', id_docente: d.id_docente }), 6)),
+            ]
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="font-bold"><td colSpan={6}>Total: {conCuenta.length} con cuenta · {sinCuenta.length} perfil(es) sin cuenta</td></tr>
+        </tfoot>
+      </table>
+    )
+  }
+
+  const tablaCoordinacion = () => {
+    const lista = todos.filter((u) => u.rol === 'coordinador' && coincide(u))
+    return (
+      <table>
+        <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr></thead>
+        <tbody>{lista.map((u) => <tr key={u.id_usuario}><td>{u.nombres} {u.apellidos}</td><td>{u.email}</td><td>{u.telefono ?? '—'}</td><td>{estado(u)}</td>{acciones(u)}</tr>)}</tbody>
+      </table>
+    )
+  }
+  const TABLAS = { posgrado: tablaPosgrado, pregrado: tablaPregrado, docentes: tablaDocentes, coordinacion: tablaCoordinacion }
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -92,56 +223,38 @@ export default function UsuariosPage({ embebido = false }) {
         </header>
       )}
       <div className="flex flex-wrap items-end justify-between gap-space-sm">
+        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Usuarios por rol">
+          {VISTAS.map((v) => (
+            <button key={v.id} type="button" role="tab" aria-selected={v.id === vista} onClick={() => setVista(v.id)}
+              className={`rounded-lg border px-3 py-1 text-label-md transition-colors ${
+                v.id === vista ? 'border-secondary bg-secondary/10 font-semibold text-secondary' : 'border-outline-variant text-on-surface-variant hover:bg-surface-container'}`}>
+              {v.titulo}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-end gap-space-sm">
-          <div className="campo">
-            <label htmlFor="u-filtro-rol">Rol</label>
-            <select id="u-filtro-rol" value={rol} onChange={(e) => setRol(e.target.value)}>
-              <option value="">Todos</option>
-              {ROLES.map((r) => <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>)}
-            </select>
-          </div>
           <div className="campo">
             <label htmlFor="u-buscar">Buscar</label>
             <input id="u-buscar" type="search" placeholder="Nombre, correo o identificación" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
           </div>
+          <button type="button" className="btn btn-primario" onClick={() => setEditando(VACIO)}>
+            <Icono nombre="person_add" className="text-[18px]" /> Nuevo usuario
+          </button>
         </div>
-        <button type="button" className="btn btn-primario" onClick={() => setEditando(VACIO)}>
-          <Icono nombre="person_add" className="text-[18px]" /> Nuevo usuario
-        </button>
       </div>
+      {vista === 'posgrado' && (
+        <p className="m-0 max-w-4xl texto-suave">
+          Aquí se registra la información básica de cada usuario. Por cada promoción, los renglones «por registrar» completan
+          los matriculados que reporta el libro. La ficha consulta sus materias por semestre (con las electivas), beneficios y
+          producción, que se registran en su sección (Asignación por semestre y Datos del programa).
+        </p>
+      )}
       <ErrorApi error={usuarios.error} onReintentar={usuarios.recargar} />
       <ErrorApi error={errorAccion} />
-      {usuarios.cargando && !usuarios.data ? <Cargando /> : usuarios.data && (
-        <div className="card tabla-scroll">
-          <table>
-            <thead>
-              <tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Rol</th><th>Promoción / perfil</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
-            </thead>
-            <tbody>
-              {visibles.map((u) => (
-                <tr key={u.id_usuario}>
-                  <td>{u.nombres} {u.apellidos}</td>
-                  <td>{u.email}</td>
-                  <td className="nowrap">{u.telefono ?? <span className="texto-suave">—</span>}</td>
-                  <td>{ETIQUETA_ROL[u.rol] ?? u.rol}</td>
-                  <td>{detalleRol(u)}</td>
-                  <td>{u.activo ? 'Activo' : 'Inactivo'}{u.debe_cambiar_password ? ' · credenciales temporales' : ''}</td>
-                  <td className="acciones">
-                    <button type="button" className="btn-enlace" onClick={() => editar(u)}>Editar</button>
-                    {u.rol === 'docente' && u.id_docente && (
-                      <button type="button" className="btn-enlace" onClick={() => setCursosDe(u)}>Cursos</button>
-                    )}
-                    {u.id_usuario !== sesion.id && (
-                      <button type="button" className="btn-enlace peligro" onClick={() => eliminar(u)}>Eliminar</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {visibles.length === 0 && <tr><td colSpan={7} className="texto-suave">Ningún usuario coincide con el filtro.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {vista === 'pregrado' && <PregradoEvaluacionPage embebido />}
+      {vista === 'pregrado' && <h2 className="m-0 font-display text-headline-sm text-primary">Cuentas de estudiantes de pregrado</h2>}
+      {usuarios.cargando && !usuarios.data ? <Cargando /> : usuarios.data && <div className="card tabla-scroll">{TABLAS[vista]()}</div>}
+      {fichaDe && <FichaUsuario usuario={fichaDe} onClose={() => setFichaDe(null)} />}
       {cursosDe && <CursosDeDocente usuario={cursosDe} onClose={() => { setCursosDe(null); docentes.recargar() }} />}
       {editando && (
         <FormularioUsuario

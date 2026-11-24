@@ -1,16 +1,16 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
-import CsvUploaderModal from './CsvUploaderModal.jsx'
 import { ordenarCohortes, suma } from './academico/estadisticas'
 import { PanelEjecucion, PanelOperacion, PanelSostenibilidad } from './finanzas/PanelesFinanzas.jsx'
 
-// Presupuesto y finanzas (RF-ADM-03): 3 pestañas por propósito. La vista «Datos» edita las hojas de cada
-// pestaña y «Cargar informe de corte» actualiza el presupuesto de una promoción con el PDF de la universidad.
+// Presupuesto y finanzas (RF-ADM-03): 3 pestañas por propósito. Solo consulta: la vista «Datos» muestra las
+// hojas de cada pestaña y su botón «Editar» lleva a Gestión académica › Datos del programa, donde también se
+// carga el informe de corte en PDF de la Oficina de Presupuesto.
 const PESTANAS = [
   {
     id: 'ejecucion',
@@ -37,7 +37,6 @@ const PESTANAS = [
     hojas: [
       { id: 'transferencias', etiqueta: 'Transferencias Vicerrectoría Académica', icono: 'swap_horiz' },
       { id: 'contrataciones', etiqueta: 'Contrataciones OPS', icono: 'contract' },
-      { id: 'contratos-ops', etiqueta: 'Contratos OPS (detalle)', icono: 'badge' },
     ],
   },
 ]
@@ -76,7 +75,6 @@ export default function PresupuestoDashboard() {
   const [rango, setRango] = useState({ desde: '', hasta: '' })
   const [rangoPeriodos, setRangoPeriodos] = useState({ desde: '', hasta: '' })
   const [filtro, setFiltro] = useState(null)
-  const [cargandoPdf, setCargandoPdf] = useState(false)
   const resumen = useApi(adminApi.resumenPresupuesto)
   const recursos = useApi(adminApi.listarRecursos)
   // Promociones con el reflejo de Gestión académica (mismas cifras que el Panel general e Información académica).
@@ -104,9 +102,11 @@ export default function PresupuestoDashboard() {
   const enPeriodos = (f) => (!rangoPeriodos.desde || f.periodo >= rangoPeriodos.desde) && (!rangoPeriodos.hasta || f.periodo <= rangoPeriodos.hasta)
   const periodosEnRango = periodos.filter((p) => enPeriodos({ periodo: p }))
 
+  // Cada pestaña abre en «Gráficas».
   const cambiarPestana = (id) => {
     setActivo(id)
     setFiltro(null)
+    setVista('graficas')
   }
   const cambiarHoja = (id) => {
     setHojaActiva((h) => ({ ...h, [pestana.id]: id }))
@@ -143,16 +143,6 @@ export default function PresupuestoDashboard() {
             Información confidencial de Coordinación.
           </p>
         </div>
-        {porId.presupuesto?.editable && (
-          <button
-            type="button"
-            onClick={() => setCargandoPdf(true)}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 hover:border-violet-400 hover:text-violet-700 rounded-lg shadow-sm text-xs font-semibold transition-all group cursor-pointer"
-          >
-            <Icono nombre="picture_as_pdf" className="text-violet-500 group-hover:scale-110 transition-transform text-[16px]" />
-            <span>Cargar informe de corte (PDF)</span>
-          </button>
-        )}
       </div>
 
       <section className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs" aria-label="Filtro">
@@ -225,7 +215,15 @@ export default function PresupuestoDashboard() {
             </div>
           )}
         </div>
-        <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-2xs ml-auto shrink-0">
+        {/* «Datos» es solo consulta: la edición vive en Gestión académica › Datos del programa. */}
+        {vista === 'datos' && recurso?.editable && (
+          <Link to={`/coordinacion/gestion?pestana=datos&hoja=${recurso.id === 'contrataciones' ? 'contratos-ops' : recurso.id}`}
+            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white no-underline shadow-xs hover:bg-violet-700">
+            <Icono nombre="edit" className="text-[14px]" />
+            <span>Editar</span>
+          </Link>
+        )}
+        <div className={`inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-2xs shrink-0 ${vista === 'datos' && recurso?.editable ? '' : 'ml-auto'}`}>
           {[{ valor: 'graficas', etiqueta: 'Gráficas', icono: 'bar_chart' }, { valor: 'datos', etiqueta: 'Datos', icono: 'table_view' }].map((v) => (
             <button key={v.valor} type="button" onClick={() => setVista(v.valor)}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer flex items-center gap-1 ${
@@ -260,10 +258,10 @@ export default function PresupuestoDashboard() {
           onQuitarFiltro={() => setFiltro(null)}
           onCambio={recargar}
           filasExternas={filas[recurso.id]}
+          soloLectura
         />
       ) : null}
 
-      {cargandoPdf && <CsvUploaderModal soloPdf onClose={() => setCargandoPdf(false)} onImportado={recargar} />}
     </div>
   )
 }

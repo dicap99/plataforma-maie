@@ -21,7 +21,7 @@ import AperturaCalificacionPage from '../features/ra/AperturaCalificacionPage.js
 import AnalisisRAPage from '../features/ra/AnalisisRAPage.jsx'
 import MisEvaluacionesPage from '../features/evalDocente/MisEvaluacionesPage.jsx'
 import HabilitacionEvaluacionPage from '../features/evalDocente/HabilitacionEvaluacionPage.jsx'
-import PregradoEvaluacionPage from '../features/evalDocente/PregradoEvaluacionPage.jsx'
+import FormulariosEvaluacionPage from '../features/evalDocente/FormulariosEvaluacionPage.jsx'
 import ResultadosEvaluacionPage from '../features/evalDocente/ResultadosEvaluacionPage.jsx'
 import MisResultadosEvaluacionPage from '../features/evalDocente/MisResultadosEvaluacionPage.jsx'
 
@@ -57,7 +57,9 @@ export default function AppRouter() {
             <Route path="ra/cursos/:idCurso" element={<PlanillaRubricaPage soloLectura />} />
             {/* Módulo 3: evaluación docente (Acuerdo 058) */}
             <Route path="evaluacion" element={<HabilitacionEvaluacionPage />} />
-            <Route path="evaluacion/pregrado" element={<PregradoEvaluacionPage />} />
+            <Route path="evaluacion/formularios" element={<FormulariosEvaluacionPage />} />
+            {/* Los estudiantes de pregrado se registran en Gestión académica › Usuarios (2026-11-24) */}
+            <Route path="evaluacion/pregrado" element={<Navigate to="/coordinacion/gestion?pestana=usuarios&vista=pregrado" replace />} />
             <Route path="evaluacion/coordinacion" element={<MisEvaluacionesPage tipo="EC" />} />
             <Route path="evaluacion/resultados" element={<ResultadosEvaluacionPage />} />
             <Route path="evaluacion-coordinacion" element={<Navigate to="/coordinacion/evaluacion/coordinacion" replace />} />

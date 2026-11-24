@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import * as cursosApi from '../../api/cursosApi'
 import * as raApi from '../../api/raApi'
@@ -9,7 +9,6 @@ import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import Modal from '../../components/common/Modal.jsx'
 import { BarraProgreso, Insignia } from './panel/TarjetaKpi.jsx'
-import BeneficiosPanel from './beneficios/BeneficiosPanel.jsx'
 import UsuariosPage from './UsuariosPage.jsx'
 import DatosDelPrograma from './DatosDelPrograma.jsx'
 import { periodoAcademico } from '../../utils/periodo'
@@ -55,11 +54,11 @@ function FormularioOferta({ oferta, periodo, clases, cohortes, docentes, onClose
   }
 
   return (
-    <Modal titulo={oferta ? 'Editar clase ofertada' : 'Ofertar una clase en el semestre'} onClose={onClose} ancho={680}>
+    <Modal titulo={oferta ? 'Editar materia ofertada' : 'Ofertar una materia en el semestre'} onClose={onClose} ancho={680}>
       <form onSubmit={enviar}>
         <div className="form-grid">
           <div className="campo" style={{ gridColumn: '1 / -1' }}>
-            <label htmlFor="of-clase">Clase</label>
+            <label htmlFor="of-clase">Materia</label>
             <select id="of-clase" value={datos.id_clase} onChange={campo('id_clase')} required>
               {porCurso.map(([curso, lista]) => (
                 <optgroup key={curso} label={`${curso} · ${lista[0].curso_plan_nombre} (sem. ${lista[0].semestre})`}>
@@ -236,11 +235,11 @@ function FormularioClase({ clase, catalogo, onClose, onGuardada }) {
     }
   }
   return (
-    <Modal titulo={clase ? `Editar clase ${clase.codigo}` : 'Nueva clase'} onClose={onClose} ancho={600}>
+    <Modal titulo={clase ? `Editar materia ${clase.codigo}` : 'Nueva materia'} onClose={onClose} ancho={600}>
       <form onSubmit={enviar}>
         <div className="form-grid">
           <div className="campo" style={{ gridColumn: '1 / -1' }}>
-            <label htmlFor="cl-nombre">Nombre de la clase</label>
+            <label htmlFor="cl-nombre">Nombre de la materia</label>
             <input id="cl-nombre" value={datos.nombre} maxLength={150} required placeholder="p. ej. Robótica"
               onChange={(e) => setDatos((d) => ({ ...d, nombre: e.target.value }))} />
           </div>
@@ -280,7 +279,7 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
   const [editando, setEditando] = useState(null) // null | 'nueva' | clase
   const [error, setError] = useState(null)
   const eliminar = async (c) => {
-    if (!window.confirm(`¿Eliminar la clase ${c.codigo} · ${c.nombre}?`)) return
+    if (!window.confirm(`¿Eliminar la materia ${c.codigo} · ${c.nombre}?`)) return
     setError(null)
     try {
       await cursosApi.eliminarClase(c.id_clase)
@@ -293,18 +292,18 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
     <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-space-sm">
         <p className="max-w-3xl text-body-sm text-on-surface-variant">
-          Cada clase tiene un identificador único y cubre un curso del plan, del que toma los RA que evalúa. Los
-          docentes no se fijan aquí: se asignan en cada semestre al ofertar la clase.
+          Cada materia tiene un identificador único y cubre un curso del plan, del que toma los RA que evalúa. Los
+          docentes no se fijan aquí: se asignan en cada semestre al ofertar la materia.
         </p>
         <button type="button" className="btn btn-primario" onClick={() => setEditando('nueva')}>
-          <Icono nombre="add" className="text-[18px]" /> Nueva clase
+          <Icono nombre="add" className="text-[18px]" /> Nueva materia
         </button>
       </div>
       <ErrorApi error={error} />
       <div className="tabla-scroll">
         <table className="text-body-sm">
           <thead>
-            <tr><th>Código</th><th>Clase</th><th>Curso del plan</th><th>RA</th><th className="num">Ofertas</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
+            <tr><th>Código</th><th>Materia</th><th>Curso del plan</th><th>RA</th><th className="num">Ofertas</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
           </thead>
           <tbody>
             {clases.map((c) => (
@@ -338,8 +337,7 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
 // la calificación de rúbricas está en Resultados de aprendizaje (asesoría del 20-oct-2026).
 const PESTANAS = [
   ['usuarios', 'Usuarios'],
-  ['beneficios', 'Beneficios'],
-  ['clases', 'Clases'],
+  ['clases', 'Materias'],
   ['semestre', 'Asignación por semestre'],
   ['datos', 'Datos del programa'],
 ]
@@ -350,6 +348,15 @@ const PESTANA_INICIAL = PESTANAS[0][0]
 // de estudiantes y las cuentas de usuario.
 // La pestaña se puede indicar en la URL (?pestana=usuarios).
 export default function GestionAcademicaPage() {
+  const [parametros] = useSearchParams()
+  // «Beneficios» dejó de ser pestaña: vive en Datos del programa › Académicas (enlaces anteriores).
+  if (parametros.get('pestana') === 'beneficios') {
+    return <Navigate to="/coordinacion/gestion?pestana=datos&hoja=beneficios-detalle" replace />
+  }
+  return <GestionAcademica />
+}
+
+function GestionAcademica() {
   const [parametros, setParametros] = useSearchParams()
   const pestana = PESTANAS.some(([v]) => v === parametros.get('pestana')) ? parametros.get('pestana') : PESTANA_INICIAL
   const setPestana = (valor) => setParametros(valor === PESTANA_INICIAL ? {} : { pestana: valor }, { replace: true })
@@ -413,7 +420,7 @@ export default function GestionAcademicaPage() {
           </div>
           <h1 className="m-0 mt-1 font-display text-headline-lg text-primary">Gestión académica</h1>
           <p className="m-0 max-w-3xl text-body-md text-on-surface-variant">
-            Clases del plan, su oferta en cada semestre con los docentes asignados, la matrícula de estudiantes, las cuentas
+            Materias del plan, su oferta en cada semestre con los docentes asignados, la matrícula de estudiantes, las cuentas
             de usuario.
           </p>
         </div>
@@ -429,7 +436,6 @@ export default function GestionAcademicaPage() {
 
       {pestana === 'clases' && <ClasesPanel clases={clases.data} catalogo={catalogo.data} onCambio={clases.recargar} />}
       {pestana === 'usuarios' && <UsuariosPage embebido />}
-      {pestana === 'beneficios' && <BeneficiosPanel />}
       {pestana === 'datos' && <DatosDelPrograma />}
 
       {pestana === 'semestre' && (
@@ -446,7 +452,7 @@ export default function GestionAcademicaPage() {
                   }}>
                   {semestres.map((p) => {
                     const info = (periodos.data ?? []).find((x) => x.periodo === p)
-                    return <option key={p} value={p}>{p}{info ? ` · ${info.cursos} clase(s)` : ''}{p === periodoAcademico() ? ' (actual)' : ''}</option>
+                    return <option key={p} value={p}>{p}{info ? ` · ${info.cursos} materia(s)` : ''}{p === periodoAcademico() ? ' (actual)' : ''}</option>
                   })}
                   <option value={OTRO}>Otro semestre…</option>
                 </select>
@@ -478,7 +484,7 @@ export default function GestionAcademicaPage() {
               </span>
               <button type="button" className="btn btn-primario ml-auto" onClick={() => setEditando('nueva')}
                 disabled={listaCohortes.length === 0 || !/^[0-9]{4}-[AB]$/.test(periodo)}>
-                <Icono nombre="add" className="text-[18px]" /> Ofertar clase en {periodo}
+                <Icono nombre="add" className="text-[18px]" /> Ofertar materia en {periodo}
               </button>
             </div>
             <ErrorApi error={errorAccion ?? ofertas.error} />
@@ -487,7 +493,7 @@ export default function GestionAcademicaPage() {
                 <table className="text-body-sm">
                   <thead>
                     <tr>
-                      <th>Clase</th><th>Curso del plan</th><th>Promoción</th><th>Docentes</th><th>RA</th>
+                      <th>Materia</th><th>Curso del plan</th><th>Promoción</th><th>Docentes</th><th>RA</th>
                       <th className="num">Inscritos</th><th>Notas</th><th><span className="sr-only">Acciones</span></th>
                     </tr>
                   </thead>
@@ -519,7 +525,7 @@ export default function GestionAcademicaPage() {
                         </tr>
                       )
                     })}
-                    {lista.length === 0 && <tr><td colSpan={8} className="texto-suave">No hay clases ofertadas en {periodo} con estos filtros.</td></tr>}
+                    {lista.length === 0 && <tr><td colSpan={8} className="texto-suave">No hay materias ofertadas en {periodo} con estos filtros.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -533,7 +539,7 @@ export default function GestionAcademicaPage() {
                 {[...carga.entries()].sort().map(([nombre, cls]) => (
                   <li key={nombre} className="rounded-xl bg-surface-container-low p-space-sm">
                     <span className="font-semibold text-primary">{nombre}</span>
-                    <span className="texto-suave"> · {cls.length} clase(s)</span>
+                    <span className="texto-suave"> · {cls.length} materia(s)</span>
                     <br /><span className="text-body-sm text-on-surface-variant">{cls.join(', ')}</span>
                   </li>
                 ))}

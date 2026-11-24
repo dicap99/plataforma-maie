@@ -9,3 +9,5 @@ export const camposFormacion = () => client.get('/usuarios/campos-formacion')
 export const beneficiosDePromocion = (idCohorte) => client.get('/usuarios/beneficios', { params: { id_cohorte: idCohorte } })
 export const reemplazarBeneficios = (id, idCohorte, beneficios) =>
   client.put(`/usuarios/${id}/beneficios`, { id_cohorte: Number(idCohorte), beneficios })
+// Ficha de detalle según el rol (materias, beneficios, producción; perfil y materias del docente).
+export const ficha = (id) => client.get(`/usuarios/${id}/ficha`)

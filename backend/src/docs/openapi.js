@@ -283,6 +283,29 @@ const construir = () => {
           responses: { 200: exito(ref('BeneficiosEstudiante')), ...errores(400, 401, 403, 404) },
         },
       },
+      '/usuarios/{id}/ficha': {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        get: {
+          tags: ['Usuarios'], summary: 'Ficha de detalle según el rol',
+          description: 'Estudiante: promociones, materias matriculadas por semestre (con el componente, p. ej. electivo), beneficios por '
+            + 'semestre, producción académica vinculada y materias de pregrado (solo consulta; se registran en Datos del programa). '
+            + 'Docente: perfil y materias que ha dictado. ' + roles(['coordinador']),
+          responses: { 200: exito({ type: 'object' }), ...errores(401, 403, 404) },
+        },
+      },
+      '/admin/productos/{id}/estudiantes': {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        get: {
+          tags: ['Usuarios'], summary: 'Estudiantes de la promoción del producto, con los participantes marcados', description: roles(['coordinador']),
+          responses: { 200: exito({ type: 'object' }), ...errores(401, 403, 404) },
+        },
+        put: {
+          tags: ['Usuarios'], summary: 'Reemplazar los estudiantes registrados que participaron en el producto',
+          description: 'Solo estudiantes de la promoción del producto (400 si no). La ficha del estudiante lista su producción. ' + roles(['coordinador']),
+          requestBody: cuerpo({ type: 'object', required: ['estudiantes'], properties: { estudiantes: { type: 'array', items: { type: 'string', format: 'uuid' } } } }),
+          responses: { 200: exito({ type: 'object' }), ...errores(400, 401, 403, 404) },
+        },
+      },
       '/admin/finanzas/reflejo': {
         get: {
           tags: ['Módulo 1 · General'], summary: 'Hojas financieras con su reflejo',

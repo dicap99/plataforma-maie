@@ -88,7 +88,7 @@ const guardar = async (cliente, filas, errores, advertencias) => {
       continue;
     }
     if (!clase) {
-      error(`El curso "${texto(valores.curso)}" no corresponde a ninguna clase (Gestión académica › Clases)`);
+      error(`El curso "${texto(valores.curso)}" no corresponde a ninguna materia (Gestión académica › Materias)`);
       continue;
     }
     // El componente lo fija el curso del plan que cubre la clase; la columna solo se contrasta.

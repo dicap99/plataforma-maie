@@ -82,6 +82,16 @@ const preguntas = async (tipo = null) =>
     FROM evaluacion_preguntas WHERE activa AND ($1::tipo_formulario_eval IS NULL OR tipo_formulario = $1)
     ORDER BY tipo_formulario, orden`, [tipo])).rows;
 
+// Preguntas con las que se calculan los resultados de un semestre: las que se respondieron en él (aunque luego
+// se hayan desactivado en «Formularios») más las activas. Así editar el formulario no cambia el histórico.
+const preguntasDelPeriodo = async (p) =>
+  (await db.query(`
+    SELECT id_pregunta, tipo_formulario, caracteristica, nombre_caracteristica, codigo, orden, texto, escala
+    FROM evaluacion_preguntas q
+    WHERE q.activa OR EXISTS (SELECT 1 FROM evaluacion_respuesta_items i JOIN evaluacion_respuestas r USING (id_respuesta)
+                              WHERE i.id_pregunta = q.id_pregunta AND r.periodo = $1)
+    ORDER BY tipo_formulario, orden`, [p])).rows;
+
 // ---- Respuestas -------------------------------------------------------------------------------
 // Respuestas con sus valoraciones ({ id_pregunta: valor }). Nunca devuelve el evaluador del EE (no existe).
 const respuestas = async ({ periodo: p = null, idDocente = null, tipos = null } = {}) =>
@@ -208,6 +218,6 @@ const perfilDocente = async (idDocente) =>
 module.exports = {
   periodo, periodos, semestresConOfertas, guardarPeriodo,
   ofertas, inscripcionesPosgrado, inscripcionesPregrado, docentePropio,
-  preguntas, respuestas, unidadesConRespuestas, constanciasDe, ecAeHechas, avance,
+  preguntas, preguntasDelPeriodo, respuestas, unidadesConRespuestas, constanciasDe, ecAeHechas, avance,
   guardarEE, barajarEE, guardarNominal, nominal, tieneRespuestas, perfilDocente,
 };

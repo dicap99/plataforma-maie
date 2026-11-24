@@ -478,6 +478,36 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
       .toBe('registro');
   });
 
+  it('ficha del estudiante (consulta) y participantes de un producto (solo de su promoción)', async () => {
+    const { rows: [iii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
+    const { rows: [iv] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'I'");
+    const est = (await coord.post('/usuarios', {
+      identificacion: '555', nombres: 'Ficha', apellidos: 'Prueba', email: 'ficha@udenar.edu.co',
+      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: iii.id_cohorte,
+    })).body.data;
+    const propio = (await coord.post('/admin/productos', { id_cohorte: iii.id_cohorte, tipo: 'Artículo', cita: 'Ficha, P. «Artículo propio». Revista X, 2025.', anio: 2025 })).body.data;
+    const ajeno = (await coord.post('/admin/productos', { id_cohorte: iv.id_cohorte, tipo: 'Software', cita: 'Otro, Q. «Software ajeno». 2025.' })).body.data;
+    try {
+      const ficha = (await coord.get(`/usuarios/${est.id_usuario}/ficha`)).body.data;
+      expect(ficha).toMatchObject({ poblacion: 'posgrado', materias: [], beneficios: [], produccion: [] });
+      expect(ficha.promociones.map((p) => p.cohorte)).toEqual(['II']);
+
+      // La producción se registra desde el producto (Investigación y movilidad), no desde el usuario.
+      const lista = (await coord.get(`/admin/productos/${propio.id_producto}/estudiantes`)).body.data;
+      expect(lista.estudiantes.find((e) => e.id_usuario === est.id_usuario)).toMatchObject({ vinculado: false });
+      expect((await coord.put(`/admin/productos/${ajeno.id_producto}/estudiantes`, { estudiantes: [est.id_usuario] })).status).toBe(400);
+      const ok = await coord.put(`/admin/productos/${propio.id_producto}/estudiantes`, { estudiantes: [est.id_usuario] });
+      expect(ok.status).toBe(200);
+      expect(ok.body.data.estudiantes.find((e) => e.id_usuario === est.id_usuario).vinculado).toBe(true);
+      const conProduccion = (await coord.get(`/usuarios/${est.id_usuario}/ficha`)).body.data;
+      expect(conProduccion.produccion).toEqual([expect.objectContaining({ id_producto: propio.id_producto, tipo: 'Artículo' })]);
+    } finally {
+      await coord.delete(`/admin/productos/${propio.id_producto}`);
+      await coord.delete(`/admin/productos/${ajeno.id_producto}`);
+      await coord.delete(`/usuarios/${est.id_usuario}`);
+    }
+  });
+
   it('editar una fila calculada desde Gestión conserva el histórico y avisa del registro incompleto', async () => {
     const { rows: [ii] } = await db.query("SELECT * FROM cohortes WHERE nombre = 'II'");
     const estudiante = (await coord.post('/usuarios', {

@@ -485,3 +485,60 @@ describe('Lista de pregrado (plantilla → validar → confirmar)', () => {
     expect(r.body.error.details.errores[0].mensaje).toMatch(/posgrado/);
   });
 });
+
+describe('Formularios editables (Acuerdo 058, Art. 8)', () => {
+  const codigosDe = async (tipo) => (await coord.get(`/eval-docente/formularios/${tipo}`)).body.data.caracteristicas
+    .flatMap((c) => c.preguntas.map((p) => p.codigo));
+  const variablesEE = async (periodo) => {
+    const d = (await coord.get(`/eval-docente/resultados?periodo=${periodo}`)).body.data;
+    return new Set(d.unidades.filter((u) => u.ee).flatMap((u) => u.ee.variables.map((v) => v.codigo)));
+  };
+
+  it('agrega, protege lo respondido, desactiva sin alterar el histórico y elimina lo no respondido', async () => {
+    const todas = (await coord.get('/eval-docente/formularios/EE/preguntas')).body.data;
+    expect(todas).toHaveLength(30);
+    const p11 = todas.find((p) => p.codigo === '1.1');
+    expect(p11.respuestas).toBeGreaterThan(0);
+
+    // Solo Coordinación
+    const docente = conToken(await login(datos.docentes[1].email));
+    expect((await docente.get('/eval-docente/formularios/EE/preguntas')).status).toBe(403);
+
+    // Nueva pregunta al final de C3: código generado y visible en el formulario del estudiante, tras la 3.6.
+    const nueva = await coord.post('/eval-docente/formularios/EE/preguntas', { caracteristica: 3, texto: 'Vincula a los estudiantes con proyectos de investigación.' });
+    expect(nueva.status).toBe(201);
+    expect(nueva.body.data).toMatchObject({ codigo: '3.7', activa: true, respuestas: 0 });
+    let codigos = await codigosDe('EE');
+    expect(codigos.indexOf('3.7')).toBe(codigos.indexOf('3.6') + 1);
+
+    // Con respuestas: no cambia la redacción; sin respuestas: sí.
+    expect((await coord.put(`/eval-docente/formularios/preguntas/${p11.id_pregunta}`, { texto: 'Otra redacción' })).status).toBe(409);
+    expect((await coord.put(`/eval-docente/formularios/preguntas/${nueva.body.data.id_pregunta}`, { texto: 'Vincula a los estudiantes con proyectos y semilleros.' })).body.data.texto)
+      .toMatch(/semilleros/);
+
+    // Desactivar 1.1: sale del formulario, pero sigue en los resultados del semestre en que se respondió.
+    const antes = await variablesEE('2025-B');
+    expect(antes.has('1.1')).toBe(true);
+    expect((await coord.put(`/eval-docente/formularios/preguntas/${p11.id_pregunta}`, { activa: false })).body.data.activa).toBe(false);
+    try {
+      codigos = await codigosDe('EE');
+      expect(codigos).not.toContain('1.1');
+      expect((await variablesEE('2025-B')).has('1.1')).toBe(true);
+      // Una pregunta con respuestas no se elimina; la nueva (sin respuestas) sí.
+      expect((await coord.delete(`/eval-docente/formularios/preguntas/${p11.id_pregunta}`)).status).toBe(409);
+      expect((await coord.delete(`/eval-docente/formularios/preguntas/${nueva.body.data.id_pregunta}`)).status).toBe(200);
+      expect(await codigosDe('EE')).not.toContain('3.7');
+    } finally {
+      await coord.put(`/eval-docente/formularios/preguntas/${p11.id_pregunta}`, { activa: true });
+    }
+    expect(await codigosDe('EE')).toContain('1.1');
+  });
+
+  it('una característica nueva exige su nombre', async () => {
+    expect((await coord.post('/eval-docente/formularios/EC/preguntas', { caracteristica: 3, texto: 'Participa en la autoevaluación del programa.' })).status).toBe(400);
+    const r = await coord.post('/eval-docente/formularios/EC/preguntas', { caracteristica: 3, nombre_caracteristica: 'Compromiso institucional', texto: 'Participa en la autoevaluación del programa.' });
+    expect(r.status).toBe(201);
+    expect(r.body.data).toMatchObject({ codigo: '3.1', nombre_caracteristica: 'Compromiso institucional' });
+    expect((await coord.delete(`/eval-docente/formularios/preguntas/${r.body.data.id_pregunta}`)).status).toBe(200);
+  });
+});

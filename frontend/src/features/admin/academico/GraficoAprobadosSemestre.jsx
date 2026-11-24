@@ -30,7 +30,8 @@ const COLORES_SEMESTRES = [
 
 export default function GraficoAprobadosSemestre({ cohortes = [] }) {
   const [modo, setModo] = useState('cantidad')
-  const [promocionFiltro, setPromocionFiltro] = useState('todas')
+  // Sin selector propio: con una sola promoción en el rango general se ve su detalle por semestre.
+  const promocionFiltro = cohortes.length === 1 ? cohortes[0].id_cohorte : 'todas'
 
   const { ocultas, alternar } = useSeriesOcultas(COLORES_SEMESTRES.length)
 
@@ -108,27 +109,9 @@ export default function GraficoAprobadosSemestre({ cohortes = [] }) {
     <div className="flex flex-col gap-3 h-full">
       {/* Controles de Vista: Unidad y Selector de Cohorte */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <div className="flex items-center space-x-2">
-          <label htmlFor="select-barras-aprobados" className="text-xs text-slate-500 font-medium">
-            Promoción:
-          </label>
-          <select
-            id="select-barras-aprobados"
-            value={promocionFiltro}
-            onChange={(e) => setPromocionFiltro(e.target.value)}
-            className="text-xs py-1.5 px-3 rounded-lg border-slate-300 bg-white text-slate-700 font-medium shadow-2xs focus:ring-violet-500 focus:border-violet-500"
-          >
-            <option value="todas">Todas las promociones (Comparativa)</option>
-            {cohortes.map((c) => (
-              <option key={c.id_cohorte} value={c.id_cohorte}>
-                {c.nombre.startsWith('Sintética') || c.nombre.startsWith('Cohorte')
-                  ? c.nombre
-                  : `Promoción ${c.nombre}`}{' '}
-                ({c.periodo_inicio})
-              </option>
-            ))}
-          </select>
-        </div>
+        <span className="text-xs text-slate-500 font-medium">
+          {cohortes.length === 1 ? `Detalle de la promoción ${cohortes[0].nombre}` : 'Comparativa de las promociones del rango'}
+        </span>
 
         <Alternador etiqueta="Unidad" opciones={MODOS} valor={modo} onChange={setModo} />
       </div>

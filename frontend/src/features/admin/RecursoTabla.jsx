@@ -21,12 +21,21 @@ export default function RecursoTabla({
   onQuitarFiltro,
   soloLectura = false,
   filasExternas,
+  // `apartado`: { filtrar(fila) → bool, valores } — muestra solo ese subconjunto (sin chip de filtro) y los
+  // registros nuevos arrancan con `valores` (p. ej. { tipo: 'Artículo' }).
+  apartado,
+  // `accionExtra`: { etiqueta, onClick(fila) } — botón adicional por fila (p. ej. «Estudiantes» de un producto).
+  accionExtra,
 }) {
   const api = useApi(
     () => (filasExternas ? Promise.resolve({ data: null }) : adminApi.listar(recurso.id)),
     [recurso.id, Boolean(filasExternas)]
   )
-  const filas = filasExternas ?? api.data
+  const filasTodas = filasExternas ?? api.data
+  // El SMMLV (smmlv_AAAA) es de decreto: no se muestra ni se edita en «Parámetros del programa» (decisión del
+  // usuario, 2026-11-24). Sigue en la BD (seed.sql) para el Panel general.
+  const sinSmmlv = recurso.id === 'parametros' ? filasTodas?.filter((f) => !/^smmlv_/.test(f.clave)) : filasTodas
+  const filas = apartado ? sinSmmlv?.filter(apartado.filtrar) : sinSmmlv
   const { error, cargando, recargar } = api
   const editable = recurso.editable && !soloLectura
   const conOrigen = (filas ?? []).some((f) => f.origen)
@@ -101,7 +110,7 @@ export default function RecursoTabla({
   }
 
   const tieneDetalles = recurso.id === 'produccion' || recurso.campos.some((c) => c.name === 'detalles' && c.multilinea)
-  const tieneAcciones = editable || tieneDetalles
+  const tieneAcciones = editable || tieneDetalles || Boolean(accionExtra)
 
   if (viendoTodosDetalles) {
     return (
@@ -310,6 +319,16 @@ export default function RecursoTabla({
                                 Detalles
                               </button>
                             )}
+                            {accionExtra && (
+                              <button
+                                type="button"
+                                className="px-2.5 py-1 text-xs font-semibold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 border border-violet-200/60 rounded-md transition-colors cursor-pointer"
+                                aria-label={`${accionExtra.etiqueta} de ${nombreFila(fila)}`}
+                                onClick={() => accionExtra.onClick(fila)}
+                              >
+                                {accionExtra.etiqueta}
+                              </button>
+                            )}
                             {editable && (
                               <>
                                 <button
@@ -350,6 +369,7 @@ export default function RecursoTabla({
           recurso={recurso}
           fila={editando === 'nuevo' ? null : editando}
           cohortes={cohortes}
+          valoresIniciales={apartado?.valores}
           bloqueados={editando !== 'nuevo' && editando.origen === 'gestion' ? editando.reflejados ?? recurso.reflejados ?? [] : []}
           onClose={() => setEditando(null)}
           onGuardar={(datos) =>

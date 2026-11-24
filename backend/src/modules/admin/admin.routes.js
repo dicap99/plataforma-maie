@@ -12,6 +12,7 @@ router.use('/plantillas', require('./plantillas/plantillas.routes'));
 router.use('/clases', require('./clases/clases.routes')); // clases con identificador único
 router.use('/cursos', require('./cursos/cursos.routes')); // catálogo y ofertas por promoción
 router.use('/cohortes', require('./matriculas/matriculas.routes')); // /cohortes/:id/estudiantes
+router.use('/productos', require('./productos/productos.routes')); // /productos/:id/estudiantes (antes del CRUD)
 router.use('/', require('./recursos/recursos.routes')); // /recursos y CRUD de cada hoja
 
 module.exports = router;

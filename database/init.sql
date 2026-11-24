@@ -197,6 +197,15 @@ CREATE TABLE productos_investigacion (
     CONSTRAINT unq_producto UNIQUE (id_cohorte, tipo, cita)
 );
 
+-- Estudiantes registrados que participaron en cada producto (ficha del estudiante en Gestión académica ›
+-- Usuarios). El texto `estudiantes` se conserva para los productos de promociones sin cuentas.
+CREATE TABLE producto_estudiantes (
+    id_producto INT NOT NULL REFERENCES productos_investigacion(id_producto) ON DELETE CASCADE,
+    id_estudiante UUID NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    PRIMARY KEY (id_producto, id_estudiante)
+);
+CREATE INDEX idx_producto_estudiantes_estudiante ON producto_estudiantes (id_estudiante);
+
 -- Pasantías / estancias por promoción (RF-ADM-04) — hoja "Pasantías"
 CREATE TABLE cohorte_pasantias (
     id_cohorte INT PRIMARY KEY REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,

@@ -7,7 +7,7 @@ import { Cargando, ErrorApi } from '../../../components/common/Estado.jsx'
 import BeneficiosPorSemestre from './BeneficiosPorSemestre.jsx'
 import { ROMANOS, SEMESTRES, etiquetaBeca, etiquetaBeneficio } from './tipos'
 
-// Pestaña «Beneficios» de Gestión académica (asesoría del 20-oct-2026): becas, asistencias de
+// «Beneficios» de Gestión académica › Datos del programa › Académicas (asesoría del 20-oct-2026): becas, asistencias de
 // investigación y ayudantías de docencia de cada estudiante por semestre de su promoción. El usuario
 // solo se registra como estudiante de una promoción (pestaña Usuarios); aquí se editan sus beneficios,
 // que alimentan la hoja «Beneficios» de Información académica.

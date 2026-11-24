@@ -52,7 +52,7 @@ function Importar({ periodo, onImportado }) {
         </button>
       </div>
       <p className="m-0 text-body-sm text-on-surface-variant">
-        Una fila por estudiante y curso: semestre académico, promoción, curso (código o nombre de la clase), identificación, nombres,
+        Una fila por estudiante y curso: semestre académico, promoción, materia (código o nombre), identificación, nombres,
         apellidos, correo y programa de pregrado. La hoja «Ofertas (referencia)» de la plantilla trae las ofertas registradas.
       </p>
       <div {...getRootProps()} className={`cursor-pointer rounded-xl border-2 border-dashed p-space-md text-center ${isDragActive ? 'border-secondary bg-secondary-fixed/30' : 'border-outline-variant'}`}>
@@ -94,7 +94,9 @@ function Importar({ periodo, onImportado }) {
   )
 }
 
-export default function PregradoEvaluacionPage() {
+// `embebido`: dentro de Gestión académica › Usuarios › Estudiantes de pregrado (donde se registran desde el
+// 2026-11-24), sin el encabezado de página.
+export default function PregradoEvaluacionPage({ embebido = false }) {
   const periodos = useApi(evalApi.listarPeriodos)
   const [periodo, setPeriodo] = useState('')
   const lista = useApi(() => evalApi.listarPregrado(periodo || undefined), [periodo])
@@ -122,10 +124,18 @@ export default function PregradoEvaluacionPage() {
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <Encabezado icono="school" titulo="Estudiantes de pregrado">
-        Estudiantes de pregrado que toman cursos de la maestría, por semestre, promoción y curso. Evalúan a los docentes de sus cursos
-        cuando la evaluación del semestre incluye el pregrado (Habilitación y seguimiento). No entran en las rúbricas de resultados de aprendizaje.
-      </Encabezado>
+      {embebido ? (
+        <p className="m-0 max-w-4xl texto-suave">
+          Estudiantes de pregrado que toman materias de la maestría, por semestre, promoción y materia. Se registran con la plantilla
+          (crea las cuentas que falten). Evalúan a los docentes de sus materias cuando la evaluación del semestre incluye el pregrado.
+          No entran en las rúbricas de resultados de aprendizaje.
+        </p>
+      ) : (
+        <Encabezado icono="school" titulo="Estudiantes de pregrado">
+          Estudiantes de pregrado que toman cursos de la maestría, por semestre, promoción y curso. Evalúan a los docentes de sus cursos
+          cuando la evaluación del semestre incluye el pregrado (Habilitación y seguimiento). No entran en las rúbricas de resultados de aprendizaje.
+        </Encabezado>
+      )}
 
       <Importar periodo={periodo} onImportado={lista.recargar} />
 

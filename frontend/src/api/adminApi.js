@@ -33,3 +33,6 @@ export const descargarPlantilla = (conDatos = false) =>
 export const reflejoAcademico = () => client.get('/admin/academico/reflejo')
 // Hojas financieras con su reflejo («Contrataciones» calculada con los «Contratos OPS»), solo Coordinación.
 export const reflejoFinanciero = () => client.get('/admin/finanzas/reflejo')
+// Estudiantes registrados que participaron en un producto de investigación (Investigación y movilidad).
+export const estudiantesDeProducto = (idProducto) => client.get(`/admin/productos/${idProducto}/estudiantes`)
+export const vincularEstudiantes = (idProducto, estudiantes) => client.put(`/admin/productos/${idProducto}/estudiantes`, { estudiantes })

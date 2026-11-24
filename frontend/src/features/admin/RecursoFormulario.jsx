@@ -5,11 +5,12 @@ import Modal from '../../components/common/Modal.jsx'
 // En edición la llave no se modifica (identifica el registro en la URL).
 // Las columnas calculadas (p. ej. cursos del docente) se muestran en la tabla pero no se editan.
 // `bloqueados`: columnas que en esta fila se calculan desde Gestión académica (se muestran sin editar).
-export default function RecursoFormulario({ recurso, fila, cohortes, bloqueados = [], onGuardar, onClose }) {
+// `valoresIniciales`: valores con que arranca un registro nuevo (p. ej. el tipo de producto del apartado).
+export default function RecursoFormulario({ recurso, fila, cohortes, bloqueados = [], valoresIniciales, onGuardar, onClose }) {
   const editando = Boolean(fila)
   const campos = recurso.campos.filter((c) => !c.calculado)
   const [valores, setValores] = useState(() =>
-    Object.fromEntries(campos.map((c) => [c.name, fila?.[c.name] ?? ''])),
+    Object.fromEntries(campos.map((c) => [c.name, fila?.[c.name] ?? valoresIniciales?.[c.name] ?? ''])),
   )
   const [errores, setErrores] = useState([])
   const [guardando, setGuardando] = useState(false)

@@ -1,11 +1,11 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import Icono from '../../components/common/Icono.jsx'
 import RecursoTabla from './RecursoTabla.jsx'
-import CsvUploaderModal from './CsvUploaderModal.jsx'
 import { ordenarCohortes } from './academico/estadisticas'
 import PanelPromociones from './academico/PanelPromociones.jsx'
 import PanelCuerpoAcademico from './academico/PanelCuerpoAcademico.jsx'
@@ -73,10 +73,10 @@ export default function DatosProgramaPage() {
     'cuerpo-academico': 'docentes',
     investigacion: 'productos',
   })
-  const [vista, setVista] = useState('datos')
+  // La vista inicial siempre es «Gráficas» (también al cambiar de pestaña).
+  const [vista, setVista] = useState('graficas')
   const [rango, setRango] = useState({ desde: '', hasta: '' })
   const [filtro, setFiltro] = useState(null)
-  const [importando, setImportando] = useState(false)
   const [errorExportar, setErrorExportar] = useState(null)
 
   const exportar = async () => {
@@ -116,7 +116,6 @@ export default function DatosProgramaPage() {
   if (error) return <ErrorApi error={error} onReintentar={recargarTodo} />
 
   const listaRecursos = recursos.data || []
-  const puedeEditar = listaRecursos.some((r) => r.editable)
 
   // Metadatos de cada recurso
   const porId = Object.fromEntries(listaRecursos.map((r) => [r.id, r]))
@@ -141,6 +140,7 @@ export default function DatosProgramaPage() {
   const cambiarPestana = (id) => {
     setActivo(id)
     setFiltro(null)
+    setVista('graficas')
   }
 
   const cambiarSubrecurso = (subId) => {
@@ -186,16 +186,6 @@ export default function DatosProgramaPage() {
             Diseñado para procesos de autoevaluación continua, comités curriculares y acreditación institucional.
           </p>
         </div>
-        {puedeEditar && (
-          <button
-            type="button"
-            onClick={() => setImportando(true)}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 hover:border-violet-400 hover:text-violet-700 rounded-lg shadow-sm text-xs font-semibold transition-all group cursor-pointer"
-          >
-            <Icono nombre="upload_file" className="text-violet-500 group-hover:scale-110 transition-transform text-[16px]" />
-            <span>Importar Excel</span>
-          </button>
-        )}
       </div>
 
       {/* Barra de Filtro de Rango y Acciones */}
@@ -334,8 +324,21 @@ export default function DatosProgramaPage() {
           )}
         </div>
 
+        {/* «Datos» es solo consulta: la edición vive en Gestión académica › Datos del programa. */}
+        {vista === 'datos' && esCoordinacion && recursoActivo?.editable && (
+          <Link to={recursoActivo.id === 'beneficios'
+            ? '/coordinacion/gestion?pestana=datos&hoja=beneficios-detalle' // el detalle por estudiante y semestre
+            : ['produccion', 'productos', 'pasantias'].includes(recursoActivo.id)
+              ? `/coordinacion/gestion?pestana=datos&hoja=investigacion&apartado=${recursoActivo.id === 'pasantias' ? 'pasantias' : 'articulos'}`
+              : `/coordinacion/gestion?pestana=datos&hoja=${recursoActivo.id}`}
+            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white no-underline shadow-xs hover:bg-violet-700">
+            <Icono nombre="edit" className="text-[14px]" />
+            <span>Editar</span>
+          </Link>
+        )}
+
         {/* Alternador Gráficas / Datos SIEMPRE anclado a la derecha */}
-        <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-2xs ml-auto shrink-0">
+        <div className={`inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-2xs shrink-0 ${vista === 'datos' && esCoordinacion && recursoActivo?.editable ? '' : 'ml-auto'}`}>
           <button
             type="button"
             onClick={() => setVista('graficas')}
@@ -413,14 +416,7 @@ export default function DatosProgramaPage() {
           onQuitarFiltro={() => setFiltro(null)}
           onCambio={recargarTodo}
           filasExternas={filasExternas}
-        />
-      )}
-
-      {importando && (
-        <CsvUploaderModal
-          recursos={listaRecursos.filter((r) => r.id !== 'parametros')}
-          onClose={() => setImportando(false)}
-          onImportado={recargarTodo}
+          soloLectura
         />
       )}
 
