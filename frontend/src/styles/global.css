@@ -394,6 +394,9 @@ td.acciones {
 table {
   width: 100%;
   border-collapse: collapse;
+  /* Contiene los .sr-only (position: absolute) de encabezados y celdas: sin esto escapan del contenedor
+     con scroll horizontal de la tabla y ensanchan toda la página. */
+  position: relative;
 }
 
 th,
