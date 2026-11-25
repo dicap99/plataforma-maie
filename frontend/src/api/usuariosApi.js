@@ -11,3 +11,5 @@ export const reemplazarBeneficios = (id, idCohorte, beneficios) =>
   client.put(`/usuarios/${id}/beneficios`, { id_cohorte: Number(idCohorte), beneficios })
 // Ficha de detalle según el rol (materias, beneficios, producción; perfil y materias del docente).
 export const ficha = (id) => client.get(`/usuarios/${id}/ficha`)
+// Restablece la contraseña a una temporal nueva (se muestra una sola vez).
+export const restablecerPassword = (id) => client.post(`/usuarios/${id}/restablecer-password`)

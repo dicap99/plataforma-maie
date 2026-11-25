@@ -11,7 +11,7 @@ despliegue (ver «Despliegue en producción»).
 
 | Módulo | Estado |
 |---|---|
-| Autenticación, usuarios y RBAC | ✅ Coordinación, docente y estudiante (posgrado o pregrado); «Mi cuenta» para cambiar la contraseña |
+| Autenticación, usuarios y RBAC | ✅ Ingreso con identificación; coordinación, docente y estudiante (posgrado o pregrado); contraseñas temporales generadas por la plataforma y cambio obligatorio en «Mi cuenta» |
 | 1. Procesos Administrativos (RF-ADM-01 a 06) | ✅ Panel general con alertas; *Información académica* y *Presupuesto y finanzas* (gráficas y datos de consulta); *Gestión académica* como único lugar de edición: usuarios, materias, oferta por semestre y hojas del libro «Estadísticas MaIE»; importación del libro, plantilla, CSV y PDF de gastos (PSP-GEF-FR-03) |
 | 2. Resultados de Aprendizaje (RF-RA-01 a 04) | ✅ Rúbricas RA1–RA7, apertura de la calificación por semestre, planilla del docente (nota por criterio, nivel y total ponderado), consolidado con filtros combinables, análisis del programa y exportación a Excel |
 | 3. Evaluación Docente (RF-EVAL-01 a 05) | ✅ Formularios EE, EC y AE editables (Art. 8), quién evalúa a quién, habilitación por semestre (posgrado y pregrado), EE anónimo, %IP/%IN y categorías del Acuerdo (con el método del Excel de Coordinación como referencia), IDST-D, IDSC e IDST-P, resultados por docente, promoción y programa, Excel e informes PDF, consulta del docente tras la publicación |
@@ -42,7 +42,12 @@ cd backend  && cp .env.example .env && npm install && npm run dev   # http://loc
 cd frontend && npm install && npm run dev                           # http://localhost:5173
 ```
 
-Usuario inicial (seed): `coordinacion.maie@udenar.edu.co` / `CambiarMaIE2026`. **Cambiar tras el primer ingreso.**
+Se ingresa con la **identificación** y la contraseña. Usuario inicial (seed): identificación `0000000000`, contraseña
+`CambiarMaIE2026`. **Cambiar tras el primer ingreso.**
+
+Contraseñas: Coordinación no las ve. Al crear una cuenta, o con «Restablecer contraseña», la plataforma genera una
+contraseña temporal que se muestra una sola vez para entregarla; con ella el usuario solo puede ir a «Mi cuenta» a
+cambiarla (la API rechaza lo demás con `403` hasta entonces).
 
 Variables de entorno de la API (`backend/.env`): `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CORS_ORIGIN`, `PORT` y
 `EVAL_SECRETO` (clave de las huellas anónimas de la evaluación docente; fijarla una vez por instalación y no cambiarla
@@ -174,8 +179,8 @@ Documentación interactiva (Swagger UI): **http://localhost:5000/api/docs** — 
 
 | Recurso | Rutas | Rol |
 |---|---|---|
-| Auth | `POST /auth/login`, `GET /auth/me`, `PUT /auth/password` | Público / Todos |
-| Usuarios | CRUD `/usuarios`; `GET /usuarios/campos-formacion`; `GET /usuarios/beneficios?id_cohorte=`, `PUT /usuarios/{id}/beneficios`; `GET /usuarios/{id}/ficha` | Coord |
+| Auth | `POST /auth/login` (`identificacion`, `password`), `GET /auth/me`, `PUT /auth/password` (devuelve un token nuevo) | Público / Todos |
+| Usuarios | CRUD `/usuarios` (al crear devuelve `password_temporal` una sola vez); `POST /usuarios/{id}/restablecer-password`; `GET /usuarios/campos-formacion`; `GET /usuarios/beneficios?id_cohorte=`, `PUT /usuarios/{id}/beneficios`; `GET /usuarios/{id}/ficha` | Coord |
 | Hojas del libro | CRUD `/admin/{hoja}`: `cohortes`, `cohorte-semestres`, `docentes`, `beneficios`, `produccion`, `productos`, `pasantias`, `punto-equilibrio`, `presupuesto`, `pregrado`, `transferencias`, `contrataciones`, `contratos-ops`, `parametros`; `GET /admin/recursos` | Coord (Docente: lectura de las académicas) |
 | Hojas calculadas | `GET /admin/academico/reflejo`, `GET /admin/finanzas/reflejo` | Coord (Docente: académicas) |
 | Producción por estudiante | `GET/PUT /admin/productos/{id}/estudiantes` | Coord |

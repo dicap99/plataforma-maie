@@ -399,7 +399,7 @@ describe('Ofertas de curso, matrícula y calificación (RF-RA-02)', () => {
 });
 
 describe('Usuarios en Gestión académica y reflejo en Información académica', () => {
-  const base = { nombres: 'Prueba', activo: true, password: 'ClavePrueba2026' };
+  const base = { nombres: 'Prueba', activo: true };
 
   it('registra al estudiante con promoción y beneficios, y Información académica lo refleja', async () => {
     const { id_cohorte: idCohorte } = await idDe("SELECT id_cohorte FROM cohortes WHERE nombre = 'Sintética V'");

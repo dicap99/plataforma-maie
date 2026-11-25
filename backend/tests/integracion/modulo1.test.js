@@ -19,6 +19,13 @@ const conToken = (token) => ({
   subir: (url, buffer, nombre) =>
     request(app).post(`${API}${url}`).set('Authorization', `Bearer ${token}`).attach('archivo', buffer, nombre),
 });
+// Una cuenta nueva recibe una contraseña temporal (la devuelve la API una sola vez): se ingresa con ella, se
+// cambia por la definitiva y se devuelve el token nuevo, ya sin restricción.
+const entrarConTemporal = async (email, temporal, definitiva) => {
+  const token = await login({ email, password: temporal });
+  const res = await request(app).put(`${API}/auth/password`).set('Authorization', `Bearer ${token}`).send({ actual: temporal, nueva: definitiva });
+  return res.body.data.token;
+};
 const contar = async (tabla) => (await db.query(`SELECT COUNT(*)::int AS n FROM ${tabla}`)).rows[0].n;
 
 // Libro con la estructura del histórico "Estadísticas MaIE": encabezados en fila 2 y filas de totales.
@@ -55,6 +62,19 @@ describe('Autenticación', () => {
     expect(a.status).toBe(401);
     expect(b.status).toBe(401);
     expect(a.body.error.message).toBe(b.body.error.message);
+  });
+
+  it('se ingresa con la identificación (sin distinguir espacios) y no revela si existe', async () => {
+    const ok = await request(app).post(`${API}/auth/login`).send({ identificacion: ' 0000000000 ', password: COORD.password });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.usuario).toMatchObject({ identificacion: '0000000000', rol: 'coordinador' });
+    const mala = await request(app).post(`${API}/auth/login`).send({ identificacion: '0000000000', password: 'incorrecta' });
+    const nadie = await request(app).post(`${API}/auth/login`).send({ identificacion: '999999999', password: 'x' });
+    expect(mala.status).toBe(401);
+    expect(nadie.status).toBe(401);
+    expect(mala.body.error.message).toBe('Identificación o contraseña incorrectas');
+    expect(nadie.body.error.message).toBe(mala.body.error.message);
+    expect((await request(app).post(`${API}/auth/login`).send({ password: 'x' })).status).toBe(400);
   });
 
   it('login y /auth/me devuelven el usuario sin el hash de contraseña', async () => {
@@ -123,16 +143,15 @@ describe('Usuarios, RBAC y perfil docente', () => {
     const perfil = await coord.post('/admin/docentes', { nombre_completo: 'DOCENTE PRUEBA', afiliacion: 'UDENAR' });
     const usuario = await coord.post('/usuarios', {
       identificacion: '111', nombres: 'Docente', apellidos: 'Prueba', email: 'docente@udenar.edu.co',
-      rol: 'docente', password: 'ClaveDocente1', id_docente: perfil.body.data.id_docente,
+      rol: 'docente', id_docente: perfil.body.data.id_docente,
     });
     expect(usuario.status).toBe(201);
     expect(usuario.body.data.docente_vinculado).toBe('DOCENTE PRUEBA');
-    await coord.post('/usuarios', {
-      identificacion: '222', nombres: 'Est', apellidos: 'Prueba', email: 'estudiante@udenar.edu.co',
-      rol: 'estudiante', password: 'ClaveEstudiante1',
+    const est = await coord.post('/usuarios', {
+      identificacion: '222', nombres: 'Est', apellidos: 'Prueba', email: 'estudiante@udenar.edu.co', rol: 'estudiante',
     });
-    docente = conToken(await login({ email: 'docente@udenar.edu.co', password: 'ClaveDocente1' }));
-    estudiante = conToken(await login({ email: 'estudiante@udenar.edu.co', password: 'ClaveEstudiante1' }));
+    docente = conToken(await entrarConTemporal('docente@udenar.edu.co', usuario.body.data.password_temporal, 'ClaveDocente1'));
+    estudiante = conToken(await entrarConTemporal('estudiante@udenar.edu.co', est.body.data.password_temporal, 'ClaveEstudiante1'));
   });
 
   it('el estudiante no accede al módulo administrativo', async () => {
@@ -222,6 +241,41 @@ describe('Usuarios, RBAC y perfil docente', () => {
     await docente.put('/auth/password', { actual: 'ClaveDocente1', nueva: 'ClaveDocente2' });
     expect((await docente.get('/auth/me')).body.data.debe_cambiar_password).toBe(false);
     expect(await login({ email: 'docente.prueba@udenar.edu.co', password: 'ClaveDocente2' })).toBeTruthy();
+  });
+
+  it('contraseñas temporales: la genera la plataforma, obliga a cambiarla y Coordinación solo la restablece', async () => {
+    const datos = { identificacion: '333', nombres: 'Temporal', apellidos: 'Prueba', email: 'temporal@udenar.edu.co', rol: 'coordinador' };
+    expect((await coord.post('/usuarios', { ...datos, password: 'ElegidaPorCoord1' })).status).toBe(400);
+    const creado = await coord.post('/usuarios', datos);
+    expect(creado.status).toBe(201);
+    const { id_usuario: id, password_temporal: temporal } = creado.body.data;
+    expect(temporal).toMatch(/^[A-Za-z0-9]{10}$/);
+    expect(creado.body.data.debe_cambiar_password).toBe(true);
+    // La lista nunca devuelve contraseñas.
+    const enLista = (await coord.get('/usuarios')).body.data.find((u) => u.id_usuario === id);
+    expect(enLista.password_temporal).toBeUndefined();
+    expect(enLista.password_hash).toBeUndefined();
+
+    // Con la temporal solo se consulta la sesión y se cambia la contraseña (se ingresa con la identificación).
+    const t1 = (await request(app).post(`${API}/auth/login`).send({ identificacion: '333', password: temporal })).body.data.token;
+    expect((await conToken(t1).get('/auth/me')).status).toBe(200);
+    expect((await conToken(t1).get('/usuarios')).status).toBe(403);
+    expect((await conToken(t1).put('/auth/password', { actual: temporal, nueva: temporal })).status).toBe(400);
+    const cambio = await conToken(t1).put('/auth/password', { actual: temporal, nueva: 'Definitiva2026' });
+    expect(cambio.status).toBe(200);
+    expect(cambio.body.data.usuario.debe_cambiar_password).toBe(false);
+    expect((await conToken(cambio.body.data.token).get('/usuarios')).status).toBe(200);
+
+    // Restablecer: otra temporal; la anterior deja de servir; no sobre la propia cuenta.
+    const reinicio = await coord.post(`/usuarios/${id}/restablecer-password`);
+    expect(reinicio.status).toBe(200);
+    expect(reinicio.body.data.password_temporal).toMatch(/^[A-Za-z0-9]{10}$/);
+    expect(await login({ identificacion: '333', password: 'Definitiva2026' })).toBeUndefined();
+    const t2 = await login({ identificacion: '333', password: reinicio.body.data.password_temporal });
+    expect((await conToken(t2).get('/admin/cohortes')).status).toBe(403);
+    const yo = (await coord.get('/auth/me')).body.data.id_usuario;
+    expect((await coord.post(`/usuarios/${yo}/restablecer-password`)).status).toBe(400);
+    await coord.delete(`/usuarios/${id}`);
   });
 
   it('solo Coordinación gestiona usuarios', async () => {
@@ -350,7 +404,7 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
     const base = {
       identificacion: '333', nombres: 'Becada', apellidos: 'Prueba', email: 'becada@udenar.edu.co', telefono: '+57 300 123 4567',
-      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte,
+      rol: 'estudiante', id_cohorte: ii.id_cohorte,
     };
     const creado = await coord.post('/usuarios', base);
     expect(creado.status).toBe(201);
@@ -395,7 +449,7 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     const { rows: [ii] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'II'");
     const creado = await coord.post('/usuarios', {
       identificacion: '444', nombres: 'Ana', apellidos: 'Plantilla', email: 'ana.plantilla@udenar.edu.co',
-      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte,
+      rol: 'estudiante', id_cohorte: ii.id_cohorte,
     });
     await coord.put(`/usuarios/${creado.body.data.id_usuario}/beneficios`, { id_cohorte: ii.id_cohorte, beneficios: [{ semestre: 4, tipo: 'ayudante_docencia' }] });
     const vacia = await coord.get('/admin/plantillas').buffer(true).parse((res, cb) => {
@@ -483,7 +537,7 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     const { rows: [iv] } = await db.query("SELECT id_cohorte FROM cohortes WHERE nombre = 'I'");
     const est = (await coord.post('/usuarios', {
       identificacion: '555', nombres: 'Ficha', apellidos: 'Prueba', email: 'ficha@udenar.edu.co',
-      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: iii.id_cohorte,
+      rol: 'estudiante', id_cohorte: iii.id_cohorte,
     })).body.data;
     const propio = (await coord.post('/admin/productos', { id_cohorte: iii.id_cohorte, tipo: 'Artículo', cita: 'Ficha, P. «Artículo propio». Revista X, 2025.', anio: 2025 })).body.data;
     const ajeno = (await coord.post('/admin/productos', { id_cohorte: iv.id_cohorte, tipo: 'Software', cita: 'Otro, Q. «Software ajeno». 2025.' })).body.data;
@@ -512,7 +566,7 @@ describe('Importación (RF-ADM-01/02) y estadísticas (RF-ADM-05)', () => {
     const { rows: [ii] } = await db.query("SELECT * FROM cohortes WHERE nombre = 'II'");
     const estudiante = (await coord.post('/usuarios', {
       identificacion: '444', nombres: 'Parcial', apellidos: 'Prueba', email: 'parcial@udenar.edu.co',
-      rol: 'estudiante', password: 'ClaveEstudiante1', id_cohorte: ii.id_cohorte,
+      rol: 'estudiante', id_cohorte: ii.id_cohorte,
     })).body.data;
 
     // Un solo estudiante registrado de los matriculados de la hoja: cifras de Gestión, con aviso.

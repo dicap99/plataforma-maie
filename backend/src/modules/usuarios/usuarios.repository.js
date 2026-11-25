@@ -26,8 +26,8 @@ const get = async (id) => (await db.query(`${SELECT} WHERE u.id_usuario = $1`, [
 
 const create = (cliente, u) =>
   cliente.query(
-    `INSERT INTO usuarios (identificacion, nombres, apellidos, email, telefono, password_hash, rol, activo)
-     VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8) RETURNING id_usuario`,
+    `INSERT INTO usuarios (identificacion, nombres, apellidos, email, telefono, password_hash, rol, activo, debe_cambiar_password)
+     VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, TRUE) RETURNING id_usuario`,
     [u.identificacion, u.nombres, u.apellidos, u.email, u.telefono ?? null, u.password_hash, u.rol, u.activo ?? true],
   );
 
@@ -138,7 +138,12 @@ const camposFormacion = async () =>
 
 const remove = async (id) => (await db.query('DELETE FROM usuarios WHERE id_usuario = $1', [id])).rowCount > 0;
 
+// Contraseña temporal: queda marcada para que el usuario la cambie al ingresar.
+const restablecerPassword = async (id, passwordHash) =>
+  (await db.query('UPDATE usuarios SET password_hash = $2, debe_cambiar_password = TRUE WHERE id_usuario = $1', [id, passwordHash])).rowCount > 0;
+
 module.exports = {
+  restablecerPassword,
   SEPARADOR_CAMPOS,
   list,
   get,

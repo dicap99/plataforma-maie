@@ -12,7 +12,8 @@ const leerSesion = () => {
   try {
     const payload = jwtDecode(token)
     if (payload.exp * 1000 < Date.now()) throw new Error('expirado')
-    return { id: payload.sub, rol: payload.rol, nombre: payload.nombre }
+    // `temporal`: contraseña temporal; solo puede ir a «Mi cuenta» a cambiarla (la API también lo exige).
+    return { id: payload.sub, rol: payload.rol, nombre: payload.nombre, temporal: Boolean(payload.temporal) }
   } catch {
     localStorage.removeItem(TOKEN_KEY)
     return null
@@ -29,12 +30,18 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('maie:sesion-expirada', cerrar)
   }, [])
 
-  const login = useCallback(async (email, password) => {
-    const { data } = await authApi.login(email, password)
+  const login = useCallback(async (identificacion, password) => {
+    const { data } = await authApi.login(identificacion, password)
     localStorage.setItem(TOKEN_KEY, data.token)
     const sesion = leerSesion()
     setUsuario(sesion)
     return sesion
+  }, [])
+
+  // Token nuevo tras cambiar la contraseña (deja de ser temporal).
+  const actualizarToken = useCallback((token) => {
+    localStorage.setItem(TOKEN_KEY, token)
+    setUsuario(leerSesion())
   }, [])
 
   const logout = useCallback(() => {
@@ -42,7 +49,7 @@ export function AuthProvider({ children }) {
     setUsuario(null)
   }, [])
 
-  const value = useMemo(() => ({ usuario, login, logout }), [usuario, login, logout])
+  const value = useMemo(() => ({ usuario, login, logout, actualizarToken }), [usuario, login, logout, actualizarToken])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

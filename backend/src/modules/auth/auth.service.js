@@ -5,23 +5,29 @@ const env = require('../../config/env');
 const ApiError = require('../../utils/ApiError');
 const repository = require('./auth.repository');
 
-// Hash de relleno para que un correo inexistente tarde lo mismo que una contraseña errada.
+// Hash de relleno para que un usuario inexistente tarde lo mismo que una contraseña errada.
 const HASH_RELLENO = bcrypt.hashSync('relleno-no-valido', env.bcryptCost);
 
 const aPublico = ({ password_hash: _omit, ...usuario }) => usuario;
 
 const firmarToken = (usuario) =>
   jwt.sign(
-    { sub: usuario.id_usuario, rol: usuario.rol, nombre: `${usuario.nombres} ${usuario.apellidos}` },
+    {
+      sub: usuario.id_usuario, rol: usuario.rol, nombre: `${usuario.nombres} ${usuario.apellidos}`,
+      // Contraseña temporal: la API solo permite cambiarla (middlewares/authenticate.js).
+      ...(usuario.debe_cambiar_password ? { temporal: true } : {}),
+    },
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn },
   );
 
 // Inicio de sesión: devuelve el JWT y los datos públicos del usuario.
 const login = async ({ body }) => {
-  const usuario = await repository.findByEmail(body.email);
+  const usuario = body.identificacion
+    ? await repository.findByIdentificacion(body.identificacion)
+    : await repository.findByEmail(body.email);
   const valido = await bcrypt.compare(body.password, usuario?.password_hash ?? HASH_RELLENO);
-  if (!usuario || !valido) throw ApiError.unauthorized('Correo o contraseña incorrectos');
+  if (!usuario || !valido) throw ApiError.unauthorized('Identificación o contraseña incorrectas');
   if (!usuario.activo) throw ApiError.forbidden('La cuenta está desactivada');
   return { token: firmarToken(usuario), usuario: aPublico(usuario) };
 };
@@ -39,8 +45,11 @@ const cambiarPassword = async ({ user, body }) => {
   if (!usuario || !(await bcrypt.compare(body.actual, usuario.password_hash))) {
     throw ApiError.badRequest('La contraseña actual no es correcta');
   }
+  if (body.nueva === body.actual) throw ApiError.badRequest('La nueva contraseña debe ser distinta de la actual');
   await repository.updatePassword(user.id, await bcrypt.hash(body.nueva, env.bcryptCost));
-  return { mensaje: 'Contraseña actualizada' };
+  // Token nuevo: si la contraseña era temporal, la sesión deja de estar restringida.
+  const actualizado = await repository.findById(user.id);
+  return { mensaje: 'Contraseña actualizada', token: firmarToken(actualizado), usuario: aPublico(actualizado) };
 };
 
 module.exports = { login, me, cambiarPassword };

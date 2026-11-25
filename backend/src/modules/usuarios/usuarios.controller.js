@@ -5,6 +5,11 @@ const service = require('./usuarios.service');
 const beneficios = require('./beneficios.service');
 const fichas = require('./ficha.service');
 
+// POST /api/v1/usuarios/:id/restablecer-password — nueva contraseña temporal (se muestra una sola vez)
+const restablecerPassword = asyncHandler(async (req, res) => {
+  success(res, await service.restablecerPassword(requestContext(req)));
+});
+
 // GET /api/v1/usuarios/:id/ficha — detalle según el rol
 const ficha = asyncHandler(async (req, res) => {
   success(res, await fichas.ficha(requestContext(req)));
@@ -50,4 +55,4 @@ const reemplazarBeneficios = asyncHandler(async (req, res) => {
   success(res, await beneficios.reemplazar(requestContext(req)));
 });
 
-module.exports = { listar, camposFormacion, obtener, crear, actualizar, eliminar, listarBeneficios, reemplazarBeneficios, ficha };
+module.exports = { listar, camposFormacion, obtener, crear, actualizar, eliminar, listarBeneficios, reemplazarBeneficios, ficha, restablecerPassword };

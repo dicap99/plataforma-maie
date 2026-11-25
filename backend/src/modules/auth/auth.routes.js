@@ -9,7 +9,11 @@ const router = Router();
 // Montado en /api/v1/auth
 router.post(
   '/login',
-  body('email').isEmail().withMessage('Email inválido'),
+  // Se ingresa con la identificación (decisión del usuario, 2026-11-25); el correo se sigue aceptando por
+  // compatibilidad con integraciones y pruebas existentes.
+  body('identificacion').optional().isString().trim().isLength({ min: 1, max: 20 }).withMessage('Identificación inválida'),
+  body('email').optional().isEmail().withMessage('Email inválido'),
+  body().custom((b) => Boolean(b.identificacion || b.email)).withMessage('Ingrese su identificación'),
   body('password').notEmpty().withMessage('Contraseña requerida'),
   validate,
   controller.login,

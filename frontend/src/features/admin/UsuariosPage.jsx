@@ -15,7 +15,7 @@ import PregradoEvaluacionPage from '../evalDocente/PregradoEvaluacionPage.jsx'
 
 const ROLES = ['coordinador', 'docente', 'estudiante']
 const VACIO = {
-  identificacion: '', nombres: '', apellidos: '', email: '', telefono: '', rol: 'docente', activo: true, password: '',
+  identificacion: '', nombres: '', apellidos: '', email: '', telefono: '', rol: 'docente', activo: true,
   id_docente: '', afiliacion: '', departamento: '', universidad: '', campos_formacion: [], id_cohorte: '',
 }
 const separarCampos = (texto) => String(texto ?? '').split(/\n|,|\s-\s|\+/).map((c) => c.replace(/^[-•\s]+/, '').trim()).filter(Boolean)
@@ -61,6 +61,7 @@ export default function UsuariosPage({ embebido = false }) {
   const [editando, setEditando] = useState(null) // null | VACIO | usuario
   const [cursosDe, setCursosDe] = useState(null) // usuario docente cuyos cursos se editan
   const [fichaDe, setFichaDe] = useState(null)
+  const [temporal, setTemporal] = useState(null) // { usuario, password } que se muestra una sola vez
   const [parametros] = useSearchParams()
   const [vista, setVista] = useState(() => (VISTAS.some((v) => v.id === parametros.get('vista')) ? parametros.get('vista') : 'posgrado'))
   const [busqueda, setBusqueda] = useState('')
@@ -75,8 +76,19 @@ export default function UsuariosPage({ embebido = false }) {
       setErrorAccion(err)
     }
   }
+  const restablecer = async (u) => {
+    if (!window.confirm(`¿Restablecer la contraseña de ${u.nombres} ${u.apellidos}? Su contraseña actual dejará de funcionar y deberá cambiar la temporal al ingresar.`)) return
+    setErrorAccion(null)
+    try {
+      const { data } = await usuariosApi.restablecerPassword(u.id_usuario)
+      setTemporal({ usuario: u, password: data.password_temporal })
+      usuarios.recargar()
+    } catch (err) {
+      setErrorAccion(err)
+    }
+  }
   const editar = (u) => setEditando({
-    ...u, password: '', telefono: u.telefono ?? '', id_docente: u.id_docente ?? '', afiliacion: u.afiliacion ?? '',
+    ...u, telefono: u.telefono ?? '', id_docente: u.id_docente ?? '', afiliacion: u.afiliacion ?? '',
     departamento: u.departamento ?? '', universidad: u.universidad ?? '',
     campos_formacion: separarCampos(u.campo_formacion), id_cohorte: u.id_cohorte ? String(u.id_cohorte) : '',
   })
@@ -91,6 +103,7 @@ export default function UsuariosPage({ embebido = false }) {
     <td className="acciones whitespace-nowrap">
       <button type="button" className="btn-enlace" onClick={() => setFichaDe(u)}>Ficha</button>
       <button type="button" className="btn-enlace" onClick={() => editar(u)}>Editar</button>
+      {u.id_usuario !== sesion.id && <button type="button" className="btn-enlace" onClick={() => restablecer(u)}>Restablecer contraseña</button>}
       {u.rol === 'docente' && u.id_docente && <button type="button" className="btn-enlace" onClick={() => setCursosDe(u)}>Cursos</button>}
       {u.id_usuario !== sesion.id && <button type="button" className="btn-enlace peligro" onClick={() => eliminar(u)}>Eliminar</button>}
     </td>
@@ -255,6 +268,7 @@ export default function UsuariosPage({ embebido = false }) {
       {vista === 'pregrado' && <h2 className="m-0 font-display text-headline-sm text-primary">Cuentas de estudiantes de pregrado</h2>}
       {usuarios.cargando && !usuarios.data ? <Cargando /> : usuarios.data && <div className="card tabla-scroll">{TABLAS[vista]()}</div>}
       {fichaDe && <FichaUsuario usuario={fichaDe} onClose={() => setFichaDe(null)} />}
+      {temporal && <ContrasenaTemporal {...temporal} onClose={() => setTemporal(null)} />}
       {cursosDe && <CursosDeDocente usuario={cursosDe} onClose={() => { setCursosDe(null); docentes.recargar() }} />}
       {editando && (
         <FormularioUsuario
@@ -263,7 +277,8 @@ export default function UsuariosPage({ embebido = false }) {
           cohortes={[...(cohortes.data ?? [])].sort((a, b) => (a.periodo_inicio < b.periodo_inicio ? 1 : -1))}
           campos={campos.data ?? []}
           onClose={() => setEditando(null)}
-          onGuardado={() => {
+          onGuardado={(creado) => {
+            if (creado?.password_temporal) setTemporal({ usuario: creado, password: creado.password_temporal })
             usuarios.recargar()
             docentes.recargar()
             campos.recargar()
@@ -271,6 +286,33 @@ export default function UsuariosPage({ embebido = false }) {
         />
       )}
     </div>
+  )
+}
+
+// Contraseña temporal recién generada: se muestra una sola vez para entregarla al usuario.
+function ContrasenaTemporal({ usuario, password, onClose }) {
+  const [copiada, setCopiada] = useState(false)
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(password)
+      setCopiada(true)
+    } catch { /* sin portapapeles: se copia a mano */ }
+  }
+  return (
+    <Modal titulo="Contraseña temporal" onClose={onClose} ancho={520}>
+      <div className="flex flex-col gap-space-sm">
+        <p className="m-0">
+          Entregue a <strong>{usuario.nombres} {usuario.apellidos}</strong> (identificación <strong>{usuario.identificacion}</strong>) esta
+          contraseña temporal. Al ingresar deberá cambiarla.
+        </p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 select-all rounded-lg bg-surface-container-high px-3 py-2 text-center font-mono text-headline-sm tracking-wider">{password}</code>
+          <button type="button" className="btn btn-secundario" onClick={copiar}>{copiada ? 'Copiada' : 'Copiar'}</button>
+        </div>
+        <p className="m-0 text-body-sm text-error">Se muestra una sola vez: al cerrar este aviso no se podrá volver a ver. Si se pierde, restablézcala de nuevo.</p>
+        <div className="flex justify-end"><button type="button" className="btn btn-primario" onClick={onClose}>Entendido</button></div>
+      </div>
+    </Modal>
   )
 }
 
@@ -303,7 +345,7 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
     const esEstudiante = v.rol === 'estudiante'
     const datos = {
       identificacion: v.identificacion, nombres: v.nombres, apellidos: v.apellidos, email: v.email, telefono: v.telefono.trim() || null,
-      rol: v.rol, activo: v.activo, password: v.password || undefined,
+      rol: v.rol, activo: v.activo,
       id_docente: esDocente ? v.id_docente || null : null,
       // La universidad solo aplica a los externos; al pasar a UDENAR se borra.
       ...(esDocente ? {
@@ -313,8 +355,8 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
       ...(esEstudiante ? { id_cohorte: v.id_cohorte ? Number(v.id_cohorte) : null } : {}),
     }
     try {
-      await (nuevo ? usuariosApi.crearUsuario(datos) : usuariosApi.actualizarUsuario(inicial.id_usuario, datos))
-      onGuardado()
+      const { data } = await (nuevo ? usuariosApi.crearUsuario(datos) : usuariosApi.actualizarUsuario(inicial.id_usuario, datos))
+      onGuardado(data)
       onClose()
     } catch (err) {
       setErrores(Array.isArray(err.details) ? err.details.map((d) => d.msg) : [err.message])
@@ -339,10 +381,11 @@ function FormularioUsuario({ inicial, docentes, cohortes, campos, onClose, onGua
             <label htmlFor="u-rol">Rol *</label>
             <select {...campo('rol')}>{ROLES.map((r) => <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>)}</select>
           </div>
-          <div className="campo">
-            <label htmlFor="u-password">{nuevo ? 'Contraseña *' : 'Nueva contraseña (opcional)'}</label>
-            <input type="password" minLength={8} required={nuevo} autoComplete="new-password" {...campo('password')} />
-          </div>
+          <p className="campo-ancho m-0 texto-suave">
+            {nuevo
+              ? 'La plataforma genera una contraseña temporal y la muestra una sola vez para entregarla al usuario; deberá cambiarla al ingresar.'
+              : 'Coordinación no ve las contraseñas. Si el usuario la olvidó, use «Restablecer contraseña» en la lista.'}
+          </p>
 
           {v.rol === 'estudiante' && (
             <fieldset className="campo-ancho flex flex-col gap-space-sm rounded-xl border border-outline-variant p-space-sm">

@@ -455,8 +455,13 @@ describe('Lista de pregrado (plantilla → validar → confirmar)', () => {
     expect(confirmada.status).toBe(201);
     const [cred] = confirmada.body.data.credenciales;
     expect(cred.email).toBe('ana.pregrado@prueba.local');
-    const token = await login(cred.email, cred.password);
-    expect(token).toBeTruthy();
+    const temporal = await login(cred.email, cred.password);
+    expect(temporal).toBeTruthy();
+    // Con la contraseña temporal solo puede cambiarla; después usa la plataforma.
+    expect((await conToken(temporal).get('/eval-docente/pendientes')).status).toBe(403);
+    const cambio = await conToken(temporal).put('/auth/password', { actual: cred.password, nueva: 'ClavePregrado2026' });
+    expect(cambio.status).toBe(200);
+    const token = cambio.body.data.token;
     const lista = await coord.get(`/eval-docente/pregrado?periodo=${ACTUAL}`);
     expect(lista.body.data.some((x) => x.email === cred.email && x.programa === 'Ingeniería Electrónica')).toBe(true);
     // La nueva estudiante ya tiene EE pendientes con los docentes de la oferta (el semestre incluye pregrado).

@@ -1,6 +1,7 @@
 // RNF-SEG-01 — Gestión de usuarios y roles (RBAC)
 const bcrypt = require('bcryptjs');
 const env = require('../../config/env');
+const { generarPasswordTemporal } = require('../../utils/passwordTemporal');
 const db = require('../../config/db');
 const ApiError = require('../../utils/ApiError');
 const { ROLES } = require('../../utils/roles');
@@ -42,10 +43,10 @@ const guardarPerfilDocente = async (cliente, idUsuario, body) => {
 // Crea/actualiza el usuario con lo propio de su rol (perfil docente, o promoción del estudiante) en una
 // sola transacción. La beca y los beneficios por semestre no se editan aquí sino en la pestaña
 // «Beneficios» (beneficios.service.js), como se acordó en la asesoría del 20-oct-2026.
-const guardar = async (id, body) => {
+// `passwordHash`: solo lo fija la plataforma (contraseña temporal al crear); nunca sale del cuerpo de la petición.
+const guardar = async (id, body, passwordHash = null) => {
   // Teléfono: sin enviar se conserva (como los datos del perfil docente); vacío lo borra.
-  const datos = { ...body, telefono: body.telefono === undefined ? undefined : body.telefono?.trim() || null };
-  if (body.password) datos.password_hash = await bcrypt.hash(body.password, env.bcryptCost);
+  const datos = { ...body, telefono: body.telefono === undefined ? undefined : body.telefono?.trim() || null, password_hash: passwordHash };
   const esDocente = body.rol === ROLES.DOCENTE;
   const esEstudiante = body.rol === ROLES.ESTUDIANTE;
   if ((body.id_docente || body.afiliacion || body.departamento || body.universidad || body.campos_formacion?.length) && !esDocente) {
@@ -86,8 +87,19 @@ module.exports = {
     return usuario;
   },
 
+  // La contraseña la genera la plataforma (temporal); se devuelve una sola vez para entregarla al usuario.
   async crear({ body }) {
-    return repository.get(await guardar(null, body));
+    const passwordTemporal = generarPasswordTemporal();
+    const id = await guardar(null, body, await bcrypt.hash(passwordTemporal, env.bcryptCost));
+    return { ...(await repository.get(id)), password_temporal: passwordTemporal };
+  },
+
+  // Restablece la contraseña a una temporal nueva (Coordinación no ve las contraseñas de los usuarios).
+  async restablecerPassword({ params, user }) {
+    if (params.id === user.id) throw ApiError.badRequest('Para cambiar su propia contraseña use «Mi cuenta»');
+    const passwordTemporal = generarPasswordTemporal();
+    if (!(await repository.restablecerPassword(params.id, await bcrypt.hash(passwordTemporal, env.bcryptCost)))) throw noEncontrado();
+    return { password_temporal: passwordTemporal };
   },
 
   async actualizar({ params, body }) {

@@ -11,7 +11,7 @@ export default function LoginForm() {
   const { usuario, login } = useAuth()
   const navigate = useNavigate()
   
-  const [email, setEmail] = useState('')
+  const [identificacion, setIdentificacion] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [enviando, setEnviando] = useState(false)
@@ -26,7 +26,7 @@ export default function LoginForm() {
     setError(null)
     setEnviando(true)
     try {
-      const sesion = await login(email, password)
+      const sesion = await login(identificacion.trim(), password)
       navigate(INICIO_POR_ROL[sesion.rol], { replace: true })
     } catch (err) {
       setError(err.message ?? 'No fue posible iniciar sesión')
@@ -106,25 +106,27 @@ export default function LoginForm() {
           </h2>
           
           <form className="space-y-4" onSubmit={onSubmit}>
-            {/* Campo Correo Institucional */}
+            {/* Campo Identificación */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <label className="font-medium text-slate-700" htmlFor="user-email">
-                  Usuario o Correo Institucional
+                <label className="font-medium text-slate-700" htmlFor="user-identificacion">
+                  Identificación
                 </label>
-                <span className="text-slate-400 font-mono">@udenar.edu.co</span>
+                <span className="text-slate-400">Número de documento</span>
               </div>
               <div className="relative flex items-center">
-                <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[19px] pointer-events-none">mail</span>
+                <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[19px] pointer-events-none">badge</span>
                 <input 
                   className="w-full h-11 pl-10 pr-3.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm placeholder:text-slate-400 focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all outline-none" 
-                  id="user-email" 
-                  placeholder="usuario@udenar.edu.co" 
+                  id="user-identificacion" 
+                  placeholder="Ej.: 1085123456" 
                   required 
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  value={identificacion}
+                  onChange={(e) => setIdentificacion(e.target.value)}
                   autoComplete="username"
+                  autoCapitalize="characters"
+                  spellCheck={false}
                 />
               </div>
             </div>

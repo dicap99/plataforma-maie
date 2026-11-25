@@ -25,4 +25,13 @@ const updatePassword = async (id, passwordHash) => {
   await db.query('UPDATE usuarios SET password_hash = $2, debe_cambiar_password = FALSE WHERE id_usuario = $1', [id, passwordHash]);
 };
 
-module.exports = { findByEmail, findById, updatePassword };
+// Identificación sin distinguir mayúsculas ni espacios alrededor (p. ej. las temporales «TMP-001»).
+const findByIdentificacion = async (identificacion) => {
+  const { rows } = await db.query(
+    `SELECT ${CAMPOS_PUBLICOS}, password_hash FROM usuarios WHERE UPPER(identificacion) = UPPER($1)`,
+    [String(identificacion).trim()],
+  );
+  return rows[0] ?? null;
+};
+
+module.exports = { findByEmail, findByIdentificacion, findById, updatePassword };

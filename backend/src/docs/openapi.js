@@ -189,7 +189,6 @@ const UsuarioEntrada = {
     telefono: { type: 'string', maxLength: 30, nullable: true, description: 'Teléfono de contacto (lo registra Coordinación)' },
     rol: { type: 'string', enum: TODOS },
     activo: { type: 'boolean', default: true },
-    password: { type: 'string', minLength: 8, description: 'Obligatoria al crear; opcional al editar' },
     id_docente: { type: 'string', format: 'uuid', nullable: true, description: 'Perfil docente a vincular (solo rol docente)' },
     afiliacion: { type: 'string', enum: ['UDENAR', 'EXTERNO'], nullable: true, description: 'Docente: obligatoria si no tiene perfil' },
     departamento: { type: 'string', maxLength: 150, nullable: true, description: 'Docente: departamento o unidad académica' },
@@ -228,10 +227,11 @@ const construir = () => {
     paths: {
       '/auth/login': {
         post: {
-          tags: ['Autenticación'], summary: 'Iniciar sesión', security: [],
+          tags: ['Autenticación'], summary: 'Iniciar sesión con la identificación y la contraseña', security: [],
+          description: 'Se ingresa con la identificación (`identificacion`). Por compatibilidad también se acepta `email`.',
           requestBody: cuerpo({
-            type: 'object', required: ['email', 'password'],
-            properties: { email: { type: 'string', format: 'email' }, password: { type: 'string', format: 'password' } },
+            type: 'object', required: ['password'],
+            properties: { identificacion: { type: 'string', example: '0000000000' }, email: { type: 'string', format: 'email' }, password: { type: 'string', format: 'password' } },
           }),
           responses: {
             200: exito({ type: 'object', properties: { token: { type: 'string', description: 'JWT (8 h)' }, usuario: ref('Usuario') } }),
@@ -250,12 +250,25 @@ const construir = () => {
             type: 'object', required: ['actual', 'nueva'],
             properties: { actual: { type: 'string', format: 'password' }, nueva: { type: 'string', format: 'password', minLength: 8 } },
           }),
-          responses: { 200: exito({ type: 'object', properties: { mensaje: { type: 'string' } } }), ...errores(400, 401) },
+          responses: { 200: exito({ type: 'object', properties: { mensaje: { type: 'string' }, token: { type: 'string', description: 'JWT nuevo (sin la restricción de contraseña temporal)' }, usuario: ref('Usuario') } }), ...errores(400, 401) },
+        },
+      },
+      '/usuarios/{id}/restablecer-password': {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        post: {
+          tags: ['Usuarios'], summary: 'Restablecer a una contraseña temporal nueva',
+          description: 'Coordinación no ve las contraseñas: genera una temporal que se muestra una sola vez; el usuario debe cambiarla al ingresar. No aplica a la propia cuenta (400). ' + roles(['coordinador']),
+          responses: { 200: exito({ type: 'object', properties: { password_temporal: { type: 'string' } } }), ...errores(400, 401, 403, 404) },
         },
       },
       '/usuarios': {
         get: { tags: ['Usuarios'], summary: 'Listar usuarios', description: roles(['coordinador']), responses: { 200: exito({ type: 'array', items: ref('Usuario') }), ...errores(401, 403) } },
-        post: { tags: ['Usuarios'], summary: 'Crear usuario', description: roles(['coordinador']), requestBody: cuerpo(ref('UsuarioEntrada')), responses: { 201: exito(ref('Usuario'), 'Creado'), ...errores(400, 401, 403, 409) } },
+        post: {
+          tags: ['Usuarios'], summary: 'Crear usuario',
+          description: 'La contraseña la genera la plataforma: `password_temporal` se devuelve una sola vez para entregarla al usuario, que debe cambiarla al ingresar (con ella la API solo permite GET /auth/me y PUT /auth/password). No se acepta `password`. ' + roles(['coordinador']),
+          requestBody: cuerpo(ref('UsuarioEntrada')),
+          responses: { 201: exito({ allOf: [ref('Usuario'), { type: 'object', properties: { password_temporal: { type: 'string' } } }] }, 'Creado'), ...errores(400, 401, 403, 409) },
+        },
       },
       '/usuarios/campos-formacion': {
         get: { tags: ['Usuarios'], summary: 'Campos de formación registrados (selector del formulario)', description: roles(['coordinador']),

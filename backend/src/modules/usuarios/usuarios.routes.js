@@ -10,7 +10,7 @@ const controller = require('./usuarios.controller');
 const { COORDINADOR } = ROLES;
 const router = Router();
 
-const reglas = (passwordObligatoria) => [
+const reglas = () => [
   body('identificacion').isString().trim().notEmpty().withMessage('Identificación requerida'),
   body('nombres').isString().trim().notEmpty().withMessage('Nombres requeridos'),
   body('apellidos').isString().trim().notEmpty().withMessage('Apellidos requeridos'),
@@ -20,9 +20,8 @@ const reglas = (passwordObligatoria) => [
     .isLength({ max: 30 }).withMessage('El teléfono admite hasta 30 caracteres'),
   body('rol').isIn(TODOS).withMessage(`Rol debe ser uno de: ${TODOS.join(', ')}`),
   body('activo').optional().isBoolean().toBoolean(),
-  passwordObligatoria
-    ? body('password').isLength({ min: 8 }).withMessage('La contraseña debe tener al menos 8 caracteres')
-    : body('password').optional({ values: 'falsy' }).isLength({ min: 8 }).withMessage('La contraseña debe tener al menos 8 caracteres'),
+  // La contraseña no se define aquí: la plataforma genera una temporal al crear la cuenta y al restablecerla.
+  body('password').not().exists().withMessage('La contraseña la genera la plataforma (temporal); use «Restablecer contraseña»'),
   body('id_docente').optional({ values: 'null' }).isUUID().withMessage('Perfil docente inválido'),
   body('afiliacion').optional({ values: 'null' }).isIn(['UDENAR', 'EXTERNO']).withMessage('Afiliación debe ser UDENAR o EXTERNO'),
   body('departamento').optional({ values: 'null' }).isString().isLength({ max: 150 }).withMessage('Departamento de hasta 150 caracteres'),
@@ -50,9 +49,10 @@ router.get('/beneficios', ...soloCoord, query('id_cohorte').isInt({ min: 1 }).wi
   controller.listarBeneficios);
 router.put('/:id/beneficios', ...soloCoord, ...idValido, ...reglasBeneficios, controller.reemplazarBeneficios);
 router.get('/:id/ficha', ...soloCoord, ...idValido, controller.ficha);
+router.post('/:id/restablecer-password', ...soloCoord, ...idValido, controller.restablecerPassword);
 router.get('/:id', ...soloCoord, ...idValido, controller.obtener);
-router.post('/', ...soloCoord, ...reglas(true), controller.crear);
-router.put('/:id', ...soloCoord, ...idValido, ...reglas(false), controller.actualizar);
+router.post('/', ...soloCoord, ...reglas(), controller.crear);
+router.put('/:id', ...soloCoord, ...idValido, ...reglas(), controller.actualizar);
 router.delete('/:id', ...soloCoord, ...idValido, controller.eliminar);
 
 module.exports = router;
