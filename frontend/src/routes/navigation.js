@@ -1,8 +1,9 @@
 // Ruta de inicio y menú lateral por rol (matriz RBAC del Documento Técnico 2).
 export const INICIO_POR_ROL = {
   coordinador: '/coordinacion',
-  docente: '/docente',
-  estudiante: '/estudiante',
+  // Sin panel para docentes y estudiantes (2026-11-25): entran a su primera opción del menú.
+  docente: '/docente/perfil',
+  estudiante: '/estudiante/evaluacion',
 }
 
 // El menú se agrupa por módulo, como en el mockup del coordinador. Un grupo sin
@@ -50,14 +51,8 @@ export const MENU_POR_ROL = {
   docente: [
     {
       items: [
-        { to: '/docente', label: 'Panel', icono: 'space_dashboard', end: true },
         { to: '/docente/perfil', label: 'Mi perfil', icono: 'badge' },
       ],
-    },
-    {
-      grupo: 'Procesos administrativos',
-      icono: 'domain',
-      items: [{ to: '/docente/datos', label: 'Información académica', icono: 'groups' }],
     },
     {
       grupo: 'Resultados de aprendizaje',
@@ -76,7 +71,6 @@ export const MENU_POR_ROL = {
   estudiante: [
     {
       items: [
-        { to: '/estudiante', label: 'Panel', icono: 'space_dashboard', end: true },
         { to: '/cuenta', label: 'Mi cuenta', icono: 'key' },
       ],
     },

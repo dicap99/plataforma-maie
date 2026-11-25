@@ -4,8 +4,6 @@ import { INICIO_POR_ROL } from './navigation'
 import ProtectedRoute from './ProtectedRoute.jsx'
 import MainLayout from '../layouts/MainLayout.jsx'
 import LoginForm from '../features/auth/LoginForm.jsx'
-import DocenteDashboard from '../pages/DocenteDashboard.jsx'
-import EstudianteDashboard from '../pages/EstudianteDashboard.jsx'
 import NotFound from '../pages/NotFound.jsx'
 import EstadisticasDashboard from '../features/admin/EstadisticasDashboard.jsx'
 import DatosProgramaPage from '../features/admin/DatosProgramaPage.jsx'
@@ -66,9 +64,10 @@ export default function AppRouter() {
           </Route>
 
           <Route path="docente" element={<ProtectedRoute roles={['docente']} />}>
-            <Route index element={<DocenteDashboard />} />
+            <Route index element={<Navigate to="/docente/perfil" replace />} />
             <Route path="perfil" element={<PerfilDocentePage />} />
-            <Route path="datos" element={<DatosProgramaPage />} />
+            {/* Sin «Información académica» para el docente (2026-11-25): la ruta anterior lleva al perfil */}
+            <Route path="datos" element={<Navigate to="/docente/perfil" replace />} />
             <Route path="rubricas" element={<MisCursosPage />} />
             <Route path="rubricas/:idCurso" element={<PlanillaRubricaPage />} />
             <Route path="autoevaluacion" element={<MisEvaluacionesPage tipo="AE" />} />
@@ -76,7 +75,7 @@ export default function AppRouter() {
           </Route>
 
           <Route path="estudiante" element={<ProtectedRoute roles={['estudiante']} />}>
-            <Route index element={<EstudianteDashboard />} />
+            <Route index element={<Navigate to="/estudiante/evaluacion" replace />} />
             <Route path="evaluacion" element={<MisEvaluacionesPage tipo="EE" />} />
           </Route>
         </Route>
