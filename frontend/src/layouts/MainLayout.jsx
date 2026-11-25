@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import LimiteErrores from '../components/common/LimiteErrores.jsx'
 import * as authApi from '../api/authApi'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ETIQUETA_ROL, MENU_POR_ROL } from '../routes/navigation'
@@ -186,7 +187,10 @@ export default function MainLayout() {
               )}
             </div>
           )}
-          <Outlet />
+          {/* Un error de dibujo muestra un aviso en lugar de la página en blanco; se reinicia al cambiar de ruta. */}
+          <LimiteErrores key={pathname}>
+            <Outlet />
+          </LimiteErrores>
         </main>
       </div>
     </div>

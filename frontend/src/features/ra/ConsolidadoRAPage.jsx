@@ -394,7 +394,12 @@ export default function ConsolidadoRAPage() {
     return null
   }, [agrupar, f])
   const clave = JSON.stringify(params)
-  const reporte = useApi(() => (params ? raApi.reporteRA(params) : vacio()), [clave])
+  // Cada respuesta lleva la consulta que la produjo: al cambiar un filtro, useApi conserva la anterior mientras
+  // carga y su forma no corresponde a la vista nueva (p. ej. perfil → toda la promoción dejaba la página en blanco).
+  const reporte = useApi(
+    () => (params ? raApi.reporteRA(params).then((r) => ({ ...r, data: { ...r.data, clave } })) : vacio()),
+    [clave],
+  )
   // Con un RA elegido, su desglose por curso del plan.
   const desglose = useApi(
     () => (agrupar === 'ra' && f.ra ? raApi.reporteRA({ ...params, agrupar: 'catalogo' }) : vacio()),
@@ -492,7 +497,7 @@ export default function ConsolidadoRAPage() {
     }
   }
 
-  const datos = reporte.data
+  const datos = reporte.data?.clave === clave ? reporte.data : null
   const verRA = (filas) => (f.ra ? filas.filter((r) => String(r.id_ra) === f.ra) : filas)
   const rasConDatos = datos?.filas ? [...new Set(datos.filas.flatMap((x) => Object.keys(x.detalle ?? {})))].sort() : []
 
