@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import Icono from '../../../components/common/Icono.jsx'
-import { fecha, numero } from '../../../utils/formato'
+import { fecha, numero, porcentaje } from '../../../utils/formato'
 
 const NIVELES = {
   critico: { etiqueta: 'Crítico', icono: 'notifications_active', clase: 'text-error bg-error-container/60' },
@@ -13,6 +13,7 @@ const ICONO_TIPO = {
   titulacion: 'school',
   presupuesto: 'account_balance_wallet',
   datos: 'sync',
+  calificacion_ra: 'fact_check',
 }
 
 function Nivel({ nivel }) {
@@ -35,6 +36,20 @@ function PlazoPromocion({ item }) {
             quedan <span className="font-bold">{numero(item.meses_restantes)} meses</span> (hasta {fecha(item.limite)})
           </>
         )}
+      </span>
+    </li>
+  )
+}
+
+// Renglón de un curso con la calificación de rúbricas abierta e incompleta.
+function CursoPendiente({ item }) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-surface-container-low px-3 py-2 text-body-sm">
+      <Nivel nivel={item.nivel} />
+      <span className="font-bold text-primary">{item.curso}</span>
+      <span className="text-on-surface">
+        Promoción {item.promocion} · {item.periodo} · {item.docentes?.length ? item.docentes.join(', ') : 'sin docente asignado'} ·{' '}
+        <span className="font-bold">{numero(item.notas)} de {numero(item.esperadas)} notas</span> ({porcentaje(item.notas / item.esperadas)})
       </span>
     </li>
   )
@@ -75,9 +90,9 @@ function Alerta({ alerta }) {
       </div>
       {alerta.items?.length > 0 && (
         <ul className="m-0 grid list-none grid-cols-1 gap-2 p-0 lg:grid-cols-2">
-          {alerta.items.map((item) => (
-            <PlazoPromocion key={item.promocion} item={item} />
-          ))}
+          {alerta.items.map((item) => alerta.tipo === 'calificacion_ra'
+            ? <CursoPendiente key={`${item.periodo}-${item.curso}-${item.promocion}`} item={item} />
+            : <PlazoPromocion key={item.promocion} item={item} />)}
         </ul>
       )}
     </li>
@@ -104,7 +119,7 @@ export default function PanelAlertas({ alertas = [] }) {
         <div className="flex items-center gap-space-sm rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
           <Nivel nivel="info" />
           <p className="m-0 text-body-sm text-on-surface-variant">
-            Sin pendientes: evaluación docente, plazos de titulación, presupuesto y datos del programa al día.
+            Sin pendientes: evaluación docente, calificación de rúbricas, plazos de titulación, presupuesto y datos del programa al día.
           </p>
         </div>
       ) : (

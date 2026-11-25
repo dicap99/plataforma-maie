@@ -360,6 +360,8 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
         description: 'Estadísticas agregadas con los mismos filtros del consolidado: histograma de notas estudiante–RA (intervalos de 0,5), ' +
           '% satisfactorio (Alto + Medio) frente a la meta por RA, evolución por promoción y por semestre académico, desempeño por curso del plan, ' +
           'y desempeño de cada criterio de rúbrica ordenado del promedio más bajo al más alto. Sin conclusiones automáticas. ' +
+          '`meta.calificacion_pendiente`: semestres con la calificación abierta y cursos sin todas sus notas (dentro de los filtros), ' +
+          'para avisar que el análisis de esos cursos es parcial. ' +
           roles(['coordinador']),
         parameters: filtrosReporte,
         responses: { 200: exito({ type: 'object' }), ...errores(400, 401, 403) },

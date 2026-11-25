@@ -1,6 +1,7 @@
 // RF-ADM-05 — Alertas del Panel general del coordinador (funciones puras, sin BD).
 // Tipos acordados en la reunión de avances del 20-oct-2026: evaluación docente próxima o en curso,
-// plazos de titulación por promoción, corte presupuestal desactualizado y datos por actualizar.
+// plazos de titulación por promoción, corte presupuestal desactualizado y datos por actualizar. Además
+// (2026-11-25), calificación de rúbricas abierta con cursos sin todas sus notas.
 // Cada alerta: { nivel: 'critico'|'atencion'|'info', tipo, titulo, detalle, enlace?, items? }.
 
 const DIA = 86_400_000;
@@ -143,11 +144,37 @@ const datosPorActualizar = (cohortes, parametros, hoy) => {
 };
 
 // `estadisticas` = resultado de estadisticas.calcular(); `periodosEvaluacion` = filas de evaluacion_periodos.
-const calcular = (estadisticas, periodosEvaluacion = [], hoy = new Date()) => {
+// Calificación de rúbricas (Módulo 2): semestres abiertos con cursos a los que les faltan notas.
+// `resumen` = ra/periodos/avance.resumir(). Un renglón por curso pendiente.
+const calificacionRubricas = (resumen = []) => {
+  if (resumen.length === 0) return null;
+  const items = resumen.flatMap((p) => p.pendientes.map((c) => ({
+    periodo: p.periodo,
+    curso: c.curso,
+    promocion: c.cohorte,
+    docentes: c.docentes,
+    notas: c.notas,
+    esperadas: c.esperadas,
+    nivel: c.notas === 0 ? 'critico' : 'atencion',
+  })));
+  const semestres = resumen.map((p) => `${p.periodo}: ${p.pendientes.length} de ${p.cursos} ${p.cursos === 1 ? 'curso' : 'cursos'}`);
+  return {
+    // Atención mientras se califica; el detalle por curso marca en crítico los que no tienen ninguna nota.
+    nivel: 'atencion',
+    tipo: 'calificacion_ra',
+    titulo: 'Calificación de rúbricas incompleta',
+    detalle: `La calificación está abierta y hay cursos sin todas sus notas (${semestres.join(' · ')}). Los resultados de RA de esos cursos aún no cuentan.`,
+    enlace: { a: 'ra/calificacion', texto: 'Apertura de calificación' },
+    items,
+  };
+};
+
+const calcular = (estadisticas, periodosEvaluacion = [], hoy = new Date(), calificacion = []) => {
   const { promociones, presupuesto, parametros } = estadisticas;
   const plazo = Number(parametros.plazo_sustentacion_anios) || PLAZO_SUSTENTACION_ANIOS;
   return [
     evaluacionDocente(periodosEvaluacion, hoy),
+    calificacionRubricas(calificacion),
     plazosTitulacion(promociones.filas, plazo, hoy),
     cortePresupuestal(presupuesto.fecha_corte, hoy),
     datosPorActualizar(promociones.filas, parametros, hoy),

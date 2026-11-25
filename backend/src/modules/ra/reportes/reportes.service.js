@@ -6,6 +6,8 @@ const ExcelJS = require('exceljs');
 const { NIVELES, CLAVES_NIVEL, agruparUnidades, distribucion, validacion, nivelDeNota } = require('../rubrica');
 const repository = require('./reportes.repository');
 const { analizar } = require('./analisis');
+const periodosRepository = require('../periodos/periodos.repository');
+const avance = require('../periodos/avance');
 
 const META_POR_DEFECTO = 70;
 
@@ -145,13 +147,18 @@ module.exports = {
   // Análisis del programa (estadísticas agregadas con los mismos filtros del consolidado).
   async analisis({ query }) {
     const filtros = filtrosDe(query);
-    const [todas, notas, ras, metaBD] = await Promise.all([
+    const [todas, notas, ras, metaBD, abiertos] = await Promise.all([
       repository.resultados(filtros), repository.notasCompletas(filtros), repository.listRA(), repository.metaSatisfactorio(),
+      periodosRepository.avanceAbiertos(),
     ]);
     const meta = Number(metaBD ?? META_POR_DEFECTO);
     const completas = todas.filter((f) => f.completo);
     return {
-      meta: { filtros: { ...filtros }, niveles: NIVELES, meta_satisfactorio_pct: meta, rubricas_incompletas: todas.length - completas.length },
+      meta: {
+        filtros: { ...filtros }, niveles: NIVELES, meta_satisfactorio_pct: meta, rubricas_incompletas: todas.length - completas.length,
+        // Semestres con la calificación abierta y cursos sin todas sus notas: el análisis de esos cursos es parcial.
+        calificacion_pendiente: avance.filtrar(avance.resumir(abiertos), filtros),
+      },
       ...analizar({ filas: completas, notas, ras, meta }),
     };
   },

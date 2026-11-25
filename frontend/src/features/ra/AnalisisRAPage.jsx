@@ -60,6 +60,36 @@ function Histograma({ bins, niveles }) {
   )
 }
 
+// Aviso: calificación abierta con cursos sin todas sus notas (dentro de los filtros). Sus rúbricas
+// incompletas aún no cuentan, así que el análisis de esos cursos es parcial.
+function AvisoCalificacionPendiente({ semestres }) {
+  if (!semestres.length) return null
+  const cursos = semestres.flatMap((s) => s.pendientes.map((c) => ({ ...c, periodo: s.periodo })))
+  return (
+    <section role="alert" className="flex flex-col gap-space-sm rounded-xl border border-amber-300 bg-amber-50 p-space-md text-amber-950">
+      <div className="flex items-start gap-space-sm">
+        <Icono nombre="pending_actions" className="mt-0.5 shrink-0 text-[22px]" />
+        <div>
+          <h2 className="m-0 font-display text-headline-sm">La evaluación de rúbricas no está completa</h2>
+          <p className="m-0 text-body-sm">
+            La calificación de {semestres.map((s) => s.periodo).join(' y ')} está abierta y{' '}
+            {cursos.length === 1 ? 'un curso no tiene' : `${cursos.length} cursos no tienen`} todas sus notas. Mientras tanto, el análisis
+            de {cursos.length === 1 ? 'ese curso es parcial' : 'esos cursos es parcial'}: las rúbricas incompletas no cuentan.
+          </p>
+        </div>
+      </div>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0 pl-8 text-body-sm">
+        {cursos.map((c) => (
+          <li key={c.id_curso}>
+            <span className="font-semibold">{c.curso}</span> · Promoción {c.cohorte} · {c.periodo} ·{' '}
+            {c.docentes?.length ? c.docentes.join(', ') : 'sin docente asignado'} · {numero(c.notas)} de {numero(c.esperadas)} notas
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 function SatisfactorioPorRA({ porRA, meta }) {
   const datos = porRA.filter((r) => r.evaluados).map((r) => ({ ra: r.grupo, pct: r.pct_satisfactorio, evaluados: r.evaluados }))
   const tabla = {
@@ -232,6 +262,8 @@ export default function AnalisisRAPage() {
         )}
         {analisis.cargando && <span className="text-body-sm text-on-surface-variant" role="status">Recalculando…</span>}
       </section>
+
+      <AvisoCalificacionPendiente semestres={meta.calificacion_pendiente ?? []} />
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Secciones del análisis">
         {PESTANAS.map((p) => (
