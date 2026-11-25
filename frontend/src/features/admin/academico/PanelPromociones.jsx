@@ -5,7 +5,7 @@ import GraficoLineas from '../../../components/charts/GraficoLineas.jsx'
 import { SERIES } from '../../../components/charts/paleta'
 import { numero, porcentaje } from '../../../utils/formato'
 import { Alternador, RejillaGraficas, SinDatos } from './comunes.jsx'
-import { ETAPAS, razon } from './estadisticas'
+import { ETAPAS, poblacionReferencia, razon, suma } from './estadisticas'
 import DiagramaTriangular, { metricasTitulacion } from './DiagramaTriangular.jsx'
 import GraficoAprobadosSemestre from './GraficoAprobadosSemestre.jsx'
 
@@ -28,6 +28,27 @@ export default function PanelPromociones({ cohortes, onFiltrar }) {
   const formato = modo === 'pct' ? porcentaje : numero
   const curva = ETAPAS.map((e) => ({ etapa: e.nombre, ...Object.fromEntries(cohortes.map((c) => [c.nombre, valor(c, e.clave)])) }))
   const series = cohortes.map((c, i) => ({ clave: c.nombre, nombre: `Promoción ${c.nombre}`, color: SERIES[i % SERIES.length] }))
+  // Titulación y deserción por promoción (las mismas fórmulas de backend/.../reportes/estadisticas.js).
+  const tasas = cohortes.map((c) => {
+    const vigentes = poblacionReferencia(c)
+    const retirados = typeof c.matriculados === 'number' && typeof vigentes === 'number' ? Math.max(c.matriculados - vigentes, 0) : null
+    const culminada = typeof c.egresados === 'number'
+    return {
+      ...c,
+      promocion: c.nombre,
+      poblacion_referencia: vigentes,
+      retirados,
+      pct_desercion: razon(retirados, c.matriculados),
+      pct_titulacion: culminada ? razon(c.graduados, c.matriculados) : null,
+      pct_graduados: culminada ? razon(c.graduados, c.egresados) : null,
+    }
+  })
+  const culminadas = tasas.filter((t) => typeof t.egresados === 'number')
+  const matriculadosCulminadas = suma(culminadas.map((t) => t.matriculados))
+  const titulacionGlobal = razon(suma(culminadas.map((t) => t.graduados)), matriculadosCulminadas)
+  const desercionGlobal = razon(suma(culminadas.map((t) => t.retirados)), matriculadosCulminadas)
+  const seleccionar = (c) => onFiltrar({ etiqueta: `Promoción ${c.nombre}`, fn: (f) => f.id_cohorte === c.id_cohorte })
+
   const datosEmbudo = embudo ? ETAPAS.filter((e) => typeof embudo[e.clave] === 'number').map((e) => ({ etapa: e.nombre, estudiantes: embudo[e.clave] })) : []
 
   return (
@@ -90,6 +111,56 @@ export default function PanelPromociones({ cohortes, onFiltrar }) {
               { clave: 'graduados', nombre: 'Graduados', color: SERIES[6] }]}
             formato={numero}
             onSeleccionar={(c) => onFiltrar({ etiqueta: `Promoción ${c.nombre}`, fn: (f) => f.id_cohorte === c.id_cohorte })}
+          />
+        </ChartCard>
+
+        <ChartCard
+          titulo="Titulación por promoción"
+          subtitulo={`Graduados sobre matriculados al I semestre y sobre egresados (solo promociones culminadas). Culminadas del rango: ${porcentaje(titulacionGlobal)} · clic en una promoción para ver su registro`}
+          tabla={{
+            columnas: [
+              { clave: 'promocion', titulo: 'Promoción' },
+              { clave: 'matriculados', titulo: 'Matriculados I sem.', formato: numero },
+              { clave: 'egresados', titulo: 'Egresados', formato: numero },
+              { clave: 'graduados', titulo: 'Graduados', formato: numero },
+              { clave: 'pct_titulacion', titulo: '% titulación', formato: porcentaje },
+              { clave: 'pct_graduados', titulo: '% de egresados', formato: porcentaje },
+            ],
+            filas: tasas,
+          }}
+        >
+          <GraficoBarras
+            datos={tasas}
+            ejeX="promocion"
+            series={[
+              { clave: 'pct_titulacion', nombre: '% sobre matriculados', color: SERIES[0] },
+              { clave: 'pct_graduados', nombre: '% sobre egresados', color: SERIES[2] },
+            ]}
+            formato={porcentaje}
+            onSeleccionar={seleccionar}
+          />
+        </ChartCard>
+
+        <ChartCard
+          titulo="Deserción por promoción"
+          subtitulo={`Retirados desde la matrícula al I semestre (parcial en promociones en curso). Culminadas del rango: ${porcentaje(desercionGlobal)} · clic en una promoción para ver su registro`}
+          tabla={{
+            columnas: [
+              { clave: 'promocion', titulo: 'Promoción' },
+              { clave: 'matriculados', titulo: 'Matriculados I sem.', formato: numero },
+              { clave: 'poblacion_referencia', titulo: 'Vigentes o egresados', formato: numero },
+              { clave: 'retirados', titulo: 'Retirados', formato: numero },
+              { clave: 'pct_desercion', titulo: '% deserción', formato: porcentaje },
+            ],
+            filas: tasas,
+          }}
+        >
+          <GraficoBarras
+            datos={tasas}
+            ejeX="promocion"
+            series={[{ clave: 'pct_desercion', nombre: '% deserción', color: SERIES[3] }]}
+            formato={porcentaje}
+            onSeleccionar={seleccionar}
           />
         </ChartCard>
       </RejillaGraficas>

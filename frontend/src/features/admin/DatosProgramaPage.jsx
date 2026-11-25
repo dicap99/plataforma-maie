@@ -244,14 +244,6 @@ export default function DatosProgramaPage() {
                 <span>Exportar Excel</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg transition-colors cursor-pointer"
-            >
-              <Icono nombre="print" className="text-slate-500 text-[16px]" />
-              <span>Imprimir</span>
-            </button>
           </div>
         </div>
         <ErrorApi error={errorExportar} />

@@ -38,7 +38,8 @@ export default function MainLayout() {
   }, [usuario])
 
   // El docente cambia su contraseña en «Mi perfil»; los demás roles, en «Mi cuenta».
-  const cuentaPropia = usuario?.rol === 'docente'
+  // Con contraseña temporal todos la cambian en «Mi cuenta» (el resto queda bloqueado hasta entonces).
+  const cuentaPropia = usuario?.rol === 'docente' && !usuario?.temporal
     ? { ruta: '/docente/perfil', etiqueta: 'Ir a Mi perfil' }
     : { ruta: '/cuenta', etiqueta: 'Ir a Mi cuenta' }
 
@@ -106,13 +107,6 @@ export default function MainLayout() {
             </div>
           ))}
         </nav>
-
-        <div className="shrink-0 bg-primary-container/60 p-space-md">
-          <div className="flex items-center gap-space-sm">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-secondary-fixed" />
-            <span className="text-label-sm text-primary-fixed-dim">Servidor MaIE conectado</span>
-          </div>
-        </div>
       </aside>
 
       {/* Telón del menú en móvil */}
@@ -155,7 +149,12 @@ export default function MainLayout() {
                 {ETIQUETA_ROL[usuario?.rol] ?? usuario?.rol}
               </span>
             </div>
-            <div className="flex items-center gap-space-sm">
+            {/* El nombre lleva a la cuenta propia (contraseña): Coordinación no tiene «Mi cuenta» en el menú. */}
+            <Link
+              to={cuentaPropia.ruta}
+              title="Cambiar contraseña"
+              className="flex items-center gap-space-sm rounded-xl px-1 py-0.5 no-underline transition-colors hover:bg-surface-container"
+            >
               <div className="hidden flex-col text-right md:flex">
                 <span className="text-label-md font-bold leading-tight text-primary">{usuario?.nombre}</span>
                 <span className="text-label-sm text-on-surface-variant">
@@ -165,7 +164,7 @@ export default function MainLayout() {
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-label-md font-bold text-on-primary ring-2 ring-surface-container-high">
                 {iniciales(usuario?.nombre)}
               </span>
-            </div>
+            </Link>
             <button
               type="button"
               onClick={logout}
@@ -181,7 +180,7 @@ export default function MainLayout() {
           {temporal && (
             <div role="alert" className="mb-space-md flex flex-wrap items-center gap-space-sm rounded-xl border border-amber-300 bg-amber-50 px-space-md py-space-sm text-body-sm text-amber-900">
               <Icono nombre="key" className="text-[20px]" />
-              <span>Su contraseña es temporal: cámbiela. Si su identificación o su correo no son los suyos, solicite a Coordinación que los actualice.</span>
+              <span>Su contraseña es temporal: cámbiela para continuar usando la plataforma. Si su identificación o su correo no son los suyos, solicite a Coordinación que los actualice.</span>
               {pathname !== cuentaPropia.ruta && (
                 <Link to={cuentaPropia.ruta} className="font-semibold underline">{cuentaPropia.etiqueta}</Link>
               )}

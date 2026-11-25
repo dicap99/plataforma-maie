@@ -94,7 +94,8 @@ const plazosTitulacion = (cohortes, plazoAnios, hoy) => {
     tipo: 'titulacion',
     titulo: 'Plazos de titulación por promoción',
     detalle: `${plural(pendientes, 'egresado', 'egresados')} sin sustentar. Plazo legal: ${plural(plazoAnios, 'año', 'años')} desde el fin de la promoción.`,
-    enlace: { a: 'datos', texto: 'Ver promociones' },
+    // Lleva a los estudiantes de posgrado por promoción (Gestión académica › Usuarios).
+    enlace: { a: 'gestion?pestana=usuarios&vista=posgrado', texto: 'Ver promociones' },
     items,
   };
 };

@@ -49,21 +49,3 @@ export default function BannerPrograma({ descripcion, metadatos = [], children }
     </section>
   )
 }
-
-// Botón sobre el banner. `principal` usa el morado de acción; el resto es traslúcido.
-export function BotonBanner({ icono, principal = false, children, ...props }) {
-  return (
-    <button
-      type="button"
-      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-label-lg transition-all active:scale-95 ${
-        principal
-          ? 'bg-secondary text-on-secondary shadow-md hover:bg-secondary/90 hover:shadow-lg'
-          : 'bg-white/10 text-on-primary shadow-sm hover:bg-white/20'
-      }`}
-      {...props}
-    >
-      <Icono nombre={icono} className="text-[18px]" />
-      <span>{children}</span>
-    </button>
-  )
-}

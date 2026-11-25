@@ -23,10 +23,13 @@ export default function MiCuentaPage() {
     <>
       <header className="encabezado-pagina">
         <h1>Mi cuenta</h1>
-        <p className="texto-suave">
-          {u.nombres} {u.apellidos}. Sus datos los registra la Coordinación del programa; si algo no es correcto, solicite la
-          corrección.
-        </p>
+        {/* Coordinación registra los datos de todos, incluidos los suyos: el aviso es solo para los demás roles. */}
+        {u.rol !== 'coordinador' && (
+          <p className="texto-suave">
+            {u.nombres} {u.apellidos}. Sus datos los registra la Coordinación del programa; si algo no es correcto, solicite la
+            corrección.
+          </p>
+        )}
       </header>
       <section className="card">
         <h2>Datos de la cuenta</h2>

@@ -13,7 +13,8 @@ export const MENU_POR_ROL = {
     {
       items: [
         { to: '/coordinacion', label: 'Panel general', icono: 'space_dashboard', end: true },
-        { to: '/cuenta', label: 'Mi cuenta', icono: 'key' },
+        // Sin «Mi cuenta» en el menú (2026-11-25): los datos se editan en Gestión académica › Usuarios; la
+        // contraseña propia se cambia desde el nombre en la barra superior.
       ],
     },
     {
