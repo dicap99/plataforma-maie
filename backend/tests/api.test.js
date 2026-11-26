@@ -52,13 +52,18 @@ describe('API MaIE — esqueleto', () => {
     expect(r.status).toBe(400);
   });
 
-  it.each(['/api/v1/ra/rubricas', '/api/v1/ra/evaluaciones?curso=1', '/api/v1/ra/reportes', '/api/v1/admin/cursos'])(
+  it.each(['/api/v1/ra/rubricas', '/api/v1/ra/evaluaciones?curso=1', '/api/v1/ra/reportes', '/api/v1/ra/reportes/informe.pdf', '/api/v1/admin/cursos'])(
     'estudiante no consulta resultados de aprendizaje: %s → 403',
     async (ruta) => {
       const res = await request(app).get(ruta).set('Authorization', `Bearer ${tokenPara('estudiante')}`);
       expect(res.status).toBe(403);
     },
   );
+
+  it('docente no descarga el informe PDF consolidado de RA → 403', async () => {
+    const res = await request(app).get('/api/v1/ra/reportes/informe.pdf').set('Authorization', `Bearer ${tokenPara('docente')}`);
+    expect(res.status).toBe(403);
+  });
 
   it('calificación fuera de 0–5 → 400 antes de tocar la base de datos', async () => {
     const res = await request(app)
@@ -95,6 +100,15 @@ describe('API MaIE — esqueleto', () => {
   it('login con datos inválidos → 400', async () => {
     const res = await request(app).post('/api/v1/auth/login').send({ email: 'no-es-email' });
     expect(res.status).toBe(400);
+  });
+
+  it('matrícula financiera y exportación individual: RBAC y validación antes de tocar BD', async () => {
+    const doc = `Bearer ${tokenPara('docente')}`;
+    const coord = `Bearer ${tokenPara('coordinador')}`;
+    expect((await request(app).get('/api/v1/admin/matriculas-financieras').set('Authorization', doc)).status).toBe(403);
+    expect((await request(app).get('/api/v1/admin/exportar/contratos-ops').set('Authorization', doc)).status).toBe(403);
+    expect((await request(app).put('/api/v1/admin/matriculas-financieras').set('Authorization', coord).send({ pagado: true })).status).toBe(400);
+    expect((await request(app).post('/api/v1/eval-docente/pregrado').set('Authorization', coord).send({ id_curso: 0 })).status).toBe(400);
   });
 
   it('ruta inexistente → 404', async () => {

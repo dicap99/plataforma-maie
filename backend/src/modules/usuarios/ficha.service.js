@@ -29,7 +29,7 @@ const estudiante = async (id) => {
            WHERE ce.id_estudiante = $1 ORDER BY h.periodo_inicio`, [id]),
     filas(`${MATERIAS} JOIN curso_estudiantes ce ON ce.id_curso = c.id_curso
            WHERE ce.id_estudiante = $1 ORDER BY c.periodo, k.orden, cl.nombre`, [id]),
-    filas(`SELECT b.id_cohorte, h.nombre AS cohorte, b.semestre, b.tipo
+    filas(`SELECT b.id_cohorte, h.nombre AS cohorte, b.semestre, b.tipo, b.detalle
            FROM estudiante_beneficios b JOIN cohortes h USING (id_cohorte)
            WHERE b.id_estudiante = $1 ORDER BY h.periodo_inicio, b.semestre, b.tipo`, [id]),
     filas(`SELECT p.id_producto, p.tipo, p.cita, p.anio, p.enlace, h.nombre AS cohorte

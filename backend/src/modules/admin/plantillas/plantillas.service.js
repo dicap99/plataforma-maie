@@ -1,8 +1,9 @@
 // RF-ADM-02 — Plantilla estándar .xlsx para importación masiva (sin celdas combinadas).
 // Con ?datos=true incluye los registros actuales (sirve también como exportación a Excel).
 const ExcelJS = require('exceljs');
-const { RECURSOS } = require('../recursos/recursos.definicion');
+const { RECURSOS, porId } = require('../recursos/recursos.definicion');
 const repositorios = require('../recursos/recursos.repository');
+const ApiError = require('../../../utils/ApiError');
 const { HOJA_INSTRUCCIONES } = require('../importaciones/lectorPlantilla');
 const asignacion = require('../importaciones/asignacionDocente');
 const beneficiosEstudiante = require('../importaciones/beneficiosEstudiante');
@@ -19,6 +20,7 @@ const AYUDA_TIPO = {
   entero: 'Número entero ≥ 0',
   dinero: 'Valor en pesos, sin símbolos',
   semestre: 'Semestre 1 a 4',
+  booleano: 'Valores: Sí, No',
   docente: 'Nombre completo del docente tal como aparece en "Docentes UDENAR-EXTERNOS"',
 };
 const LISTAS = {
@@ -92,6 +94,7 @@ const hojaRecurso = (libro, recurso, filas, origenDe = null) => {
     const col = letra(i + 1);
     let regla = null;
     if (campo.type === 'enum') regla = { type: 'list', formulae: [`"${campo.options.join(',')}"`] };
+    if (campo.type === 'booleano') regla = { type: 'list', formulae: ['"Sí,No"'] };
     if (campo.type === 'semestre') regla = { type: 'whole', operator: 'between', formulae: [1, 4] };
     if (LISTAS[campo.type]) regla = { type: 'list', formulae: [LISTAS[campo.type]] };
     if (!regla) return;
@@ -108,7 +111,8 @@ const hojaRecurso = (libro, recurso, filas, origenDe = null) => {
       ...Object.fromEntries(
         recurso.campos.map((c) => {
           if (c.type === 'cohorte') return [c.name, fila.cohorte];
-          if (c.type === 'fecha' && fila[c.name]) return [c.name, new Date(`${fila[c.name]}T00:00:00Z`)];
+          if (c.type === 'booleano') return [c.name, fila[c.name] ? 'Sí' : 'No'];
+          if (c.type === 'fecha' && fila[c.name]) return [c.name, new Date(`${String(fila[c.name]).slice(0, 10)}T00:00:00Z`)];
           return [c.name, fila[c.name]];
         }),
       ),
@@ -159,6 +163,32 @@ module.exports = {
     const fecha = new Date().toISOString().slice(0, 10);
     return {
       nombreArchivo: conDatos ? `MaIE_datos_administrativos_${fecha}.xlsx` : 'MaIE_plantilla_importacion.xlsx',
+      buffer: await libro.xlsx.writeBuffer(),
+    };
+  },
+
+  // Exporta un único recurso tabular a Excel (.xlsx), aplicando el reflejo si corresponde (p. ej. Contratos OPS,
+  // Contrataciones, Pasantías, Presupuesto, etc.).
+  async exportarRecurso({ params }) {
+    const recurso = porId[params.recurso];
+    if (!recurso) throw ApiError.notFound('Recurso no encontrado');
+    let filas = await repositorios[recurso.id].list();
+    if (reflejo.RECURSOS_REFLEJADOS.includes(recurso.id) || recurso.id === 'contrataciones' || recurso.id === 'pregrado') {
+      const todas = Object.fromEntries(await Promise.all(RECURSOS.map(async (r) => [r.id, await repositorios[r.id].list()])));
+      const combinado = await reflejo.aplicar(todas);
+      filas = combinado[recurso.id] ?? filas;
+    }
+    const libro = new ExcelJS.Workbook();
+    libro.creator = 'Plataforma MaIE';
+    libro.created = new Date();
+    const conCalculados = recurso.calculados?.length
+      ? { ...recurso, campos: [...recurso.campos, ...recurso.calculados.map((c) => ({ name: c.name, label: c.label, type: 'texto' }))] }
+      : recurso;
+    const tieneOrigen = filas.some((f) => f.origen);
+    hojaRecurso(libro, conCalculados, filas, tieneOrigen ? (f) => (f.origen === 'gestion' ? 'Calculado desde Gestión académica' : 'Registro histórico') : null);
+    const fecha = new Date().toISOString().slice(0, 10);
+    return {
+      nombreArchivo: `MaIE_${recurso.id}_${fecha}.xlsx`,
       buffer: await libro.xlsx.writeBuffer(),
     };
   },

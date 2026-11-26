@@ -16,6 +16,19 @@ export default function ContratacionesOpsPanel({ recurso, cohortes }) {
   const contratos = useApi(() => adminApi.listar(recurso.id))
   const [editando, setEditando] = useState(null) // null | { fila } | { nuevo: { periodo } }
   const [errorAccion, setErrorAccion] = useState(null)
+  const [exportando, setExportando] = useState(false)
+
+  const exportar = async () => {
+    setExportando(true)
+    setErrorAccion(null)
+    try {
+      await adminApi.exportarRecurso(recurso.id)
+    } catch (err) {
+      setErrorAccion(err)
+    } finally {
+      setExportando(false)
+    }
+  }
 
   if ((hoja.cargando && !hoja.data) || (contratos.cargando && !contratos.data)) return <Cargando />
   const error = hoja.error ?? contratos.error
@@ -53,9 +66,14 @@ export default function ContratacionesOpsPanel({ recurso, cohortes }) {
           detalle: use «Registrar» para completarlos. El total de cada semestre es el dinero reportado; cuando se
           registren todos sus contratos, se calcula de ellos.
         </p>
-        <button type="button" className="btn btn-primario" onClick={() => setEditando({ nuevo: {} })}>
-          <Icono nombre="add" className="text-[18px]" /> Agregar contrato
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn btn-secundario" onClick={exportar} disabled={exportando}>
+            <Icono nombre="file_download" className="text-[18px]" /> {exportando ? 'Exportando…' : 'Exportar a Excel'}
+          </button>
+          <button type="button" className="btn btn-primario" onClick={() => setEditando({ nuevo: {} })}>
+            <Icono nombre="add" className="text-[18px]" /> Agregar contrato
+          </button>
+        </div>
       </div>
       <ErrorApi error={errorAccion} />
 

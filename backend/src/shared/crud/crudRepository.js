@@ -23,7 +23,14 @@ const crudRepository = (recurso) => {
     return rows[0] ?? null;
   };
 
-  const valores = (datos, cols) => cols.map((c) => (datos[c] === undefined ? null : datos[c]));
+  const valores = (datos, cols) =>
+    cols.map((c) => {
+      if (datos[c] !== undefined && datos[c] !== null) return datos[c];
+      const campo = campos.find((x) => x.name === c);
+      if (campo?.type === 'entero' && !campo.required && tabla === 'cohorte_pasantias') return 0;
+      if (campo?.type === 'booleano' && !campo.required) return false;
+      return datos[c] === undefined ? null : datos[c];
+    });
 
   return {
     async list() {

@@ -33,28 +33,52 @@ export function PanelEjecucion({ resumen, equilibrio, cohortes, onFiltrar }) {
     const base = proyectado.get(f.id_cohorte) ?? null
     return { ...f, ingresos_proyectados: base, pct_recaudo: razon(f.ingresos, base), pct_gasto: razon(f.gastos_comprometidos, base) }
   })
-  if (!filas.length) return <SinDatos texto="No hay cortes de presupuesto para estas promociones." />
+  const ordenCohorte = new Map(cohortes.map((c, i) => [c.id_cohorte, i]))
+  const recaudo = (resumen?.recaudo_matriculas ?? [])
+    .filter((r) => ordenCohorte.has(r.id_cohorte) && r.total > 0)
+    .sort((a, b) => ordenCohorte.get(a.id_cohorte) - ordenCohorte.get(b.id_cohorte))
+    .map((r) => ({ ...r, promocion: r.cohorte }))
+
+  if (!filas.length && !recaudo.length) return <SinDatos texto="No hay cortes de presupuesto ni matrículas financieras para estas promociones." />
 
   const filtrar = (f) => onFiltrar(porPromocion('presupuesto')(f))
   const conBase = viabilidad.filter((f) => f.ingresos_proyectados !== null)
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <ChartCard titulo="Ingresos, gastos y saldo por promoción"
-        subtitulo={`Último corte (${fecha(resumen.fecha_corte)}); el saldo es ingresos menos gastos comprometidos y puede ser negativo · clic para ver los cortes`}
-        tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'fecha_corte', titulo: 'Corte', formato: fecha }, { clave: 'ingresos', titulo: 'Ingresos', formato: pesos }, { clave: 'gastos_comprometidos', titulo: 'Gastos', formato: pesos }, { clave: 'saldo_comprometido', titulo: 'Saldo', formato: pesos }])}>
-        <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
-          series={[{ clave: 'ingresos', nombre: 'Ingresos', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }, { clave: 'saldo_comprometido', nombre: 'Saldo', color: SERIES[2] }]} />
-      </ChartCard>
+      {filas.length > 0 && (
+        <>
+          <ChartCard titulo="Ingresos, gastos y saldo por promoción"
+            subtitulo={`Último corte (${fecha(resumen.fecha_corte)}); el saldo es ingresos menos gastos comprometidos y puede ser negativo · clic para ver los cortes`}
+            tabla={tablaDe(filas, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'fecha_corte', titulo: 'Corte', formato: fecha }, { clave: 'ingresos', titulo: 'Ingresos', formato: pesos }, { clave: 'gastos_comprometidos', titulo: 'Gastos', formato: pesos }, { clave: 'saldo_comprometido', titulo: 'Saldo', formato: pesos }])}>
+            <GraficoBarras datos={filas} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
+              series={[{ clave: 'ingresos', nombre: 'Ingresos', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }, { clave: 'saldo_comprometido', nombre: 'Saldo', color: SERIES[2] }]} />
+          </ChartCard>
 
-      <ChartCard titulo="Ejecución frente al estudio de viabilidad"
-        subtitulo="Línea base del estudio de viabilidad (ingresos proyectados = gastos proyectados en el punto de equilibrio) frente a lo recaudado y comprometido en el último corte · clic para ver los cortes"
-        tabla={tablaDe(viabilidad, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'ingresos_proyectados', titulo: 'Viabilidad', formato: pesos }, { clave: 'ingresos', titulo: 'Recaudado', formato: pesos }, { clave: 'pct_recaudo', titulo: '% recaudo', formato: porcentaje }, { clave: 'gastos_comprometidos', titulo: 'Comprometido', formato: pesos }, { clave: 'pct_gasto', titulo: '% gasto', formato: porcentaje }])}>
-        {conBase.length ? (
-          <GraficoBarras datos={viabilidad} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
-            series={[{ clave: 'ingresos_proyectados', nombre: 'Viabilidad (proyectado)', color: SERIES[3] }, { clave: 'ingresos', nombre: 'Ingresos recaudados', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }]} />
-        ) : <SinDatos texto="No hay estudio de viabilidad (punto de equilibrio) registrado para estas promociones." />}
-      </ChartCard>
+          <ChartCard titulo="Ejecución frente al estudio de viabilidad"
+            subtitulo="Línea base del estudio de viabilidad (ingresos proyectados = gastos proyectados en el punto de equilibrio) frente a lo recaudado y comprometido en el último corte · clic para ver los cortes"
+            tabla={tablaDe(viabilidad, [{ clave: 'promocion', titulo: 'Promoción' }, { clave: 'ingresos_proyectados', titulo: 'Viabilidad', formato: pesos }, { clave: 'ingresos', titulo: 'Recaudado', formato: pesos }, { clave: 'pct_recaudo', titulo: '% recaudo', formato: porcentaje }, { clave: 'gastos_comprometidos', titulo: 'Comprometido', formato: pesos }, { clave: 'pct_gasto', titulo: '% gasto', formato: porcentaje }])}>
+            {conBase.length ? (
+              <GraficoBarras datos={viabilidad} ejeX="promocion" formato={pesos} formatoEje={ejePesos} onSeleccionar={filtrar}
+                series={[{ clave: 'ingresos_proyectados', nombre: 'Viabilidad (proyectado)', color: SERIES[3] }, { clave: 'ingresos', nombre: 'Ingresos recaudados', color: SERIES[0] }, { clave: 'gastos_comprometidos', nombre: 'Gastos comprometidos', color: SERIES[1] }]} />
+            ) : <SinDatos texto="No hay estudio de viabilidad (punto de equilibrio) registrado para estas promociones." />}
+          </ChartCard>
+        </>
+      )}
+
+      {recaudo.length > 0 && (
+        <ChartCard titulo="Ingresos registrados por matrícula financiera (posgrado y pregrado)"
+          subtitulo="Suma de pagos registrados en Gestión académica › Datos del programa › Matrícula financiera"
+          tabla={tablaDe(recaudo, [
+            { clave: 'promocion', titulo: 'Promoción' },
+            { clave: 'posgrado', titulo: 'Posgrado', formato: pesos },
+            { clave: 'pregrado', titulo: 'Pregrado', formato: pesos },
+            { clave: 'total', titulo: 'Total recaudado', formato: pesos },
+          ])}>
+          <GraficoBarras datos={recaudo} ejeX="promocion" apilado formato={pesos} formatoEje={ejePesos}
+            series={[{ clave: 'posgrado', nombre: 'Posgrado', color: SERIES[0] }, { clave: 'pregrado', nombre: 'Pregrado', color: SERIES[4] }]} />
+        </ChartCard>
+      )}
     </div>
   )
 }

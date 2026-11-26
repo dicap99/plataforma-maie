@@ -10,7 +10,8 @@ const SELECT = `
   SELECT u.id_usuario, u.identificacion, u.nombres, u.apellidos, u.email, u.telefono, u.rol, u.activo, u.debe_cambiar_password, u.creado_en,
          d.id_docente, d.nombre_completo AS docente_vinculado, d.afiliacion, d.departamento, d.universidad, d.campo_formacion,
          he.id_cohorte, h.nombre AS cohorte, he.beca, he.estado AS estado_promocion,
-         COALESCE((SELECT json_agg(json_build_object('semestre', b.semestre, 'tipo', b.tipo) ORDER BY b.semestre, b.tipo)
+         COALESCE((SELECT json_agg(json_strip_nulls(json_build_object('semestre', b.semestre, 'tipo', b.tipo, 'detalle', b.detalle))
+                                   ORDER BY b.semestre, b.tipo)
                    FROM estudiante_beneficios b
                    WHERE b.id_cohorte = he.id_cohorte AND b.id_estudiante = u.id_usuario), '[]') AS beneficios
   FROM usuarios u
@@ -68,7 +69,8 @@ const asignarPromocion = async (cliente, idUsuario, idCohorte) => {
 const estudiantesConBeneficios = async (idCohorte, idUsuario = null, cliente = db) =>
   (await cliente.query(
     `SELECT u.id_usuario, u.identificacion, u.nombres, u.apellidos, u.activo, ce.beca, ce.estado AS estado_promocion,
-            COALESCE((SELECT json_agg(json_build_object('semestre', b.semestre, 'tipo', b.tipo) ORDER BY b.semestre, b.tipo)
+            COALESCE((SELECT json_agg(json_strip_nulls(json_build_object('semestre', b.semestre, 'tipo', b.tipo, 'detalle', b.detalle))
+                                      ORDER BY b.semestre, b.tipo)
                       FROM estudiante_beneficios b
                       WHERE b.id_cohorte = ce.id_cohorte AND b.id_estudiante = u.id_usuario), '[]') AS beneficios
      FROM cohorte_estudiantes ce
@@ -85,10 +87,11 @@ const reemplazarBeneficios = async (cliente, idUsuario, idCohorte, beneficios, b
   await cliente.query('DELETE FROM estudiante_beneficios WHERE id_estudiante = $1 AND id_cohorte = $2', [idUsuario, idCohorte]);
   if (!beneficios.length) return;
   await cliente.query(
-    `INSERT INTO estudiante_beneficios (id_cohorte, id_estudiante, semestre, tipo)
-     SELECT $1, $2, x.semestre, x.tipo FROM unnest($3::smallint[], $4::varchar[]) AS x(semestre, tipo)
+    `INSERT INTO estudiante_beneficios (id_cohorte, id_estudiante, semestre, tipo, detalle)
+     SELECT $1, $2, x.semestre, x.tipo, NULLIF(TRIM(x.detalle), '')
+     FROM unnest($3::smallint[], $4::varchar[], $5::text[]) AS x(semestre, tipo, detalle)
      ON CONFLICT DO NOTHING`,
-    [idCohorte, idUsuario, beneficios.map((b) => b.semestre), beneficios.map((b) => b.tipo)],
+    [idCohorte, idUsuario, beneficios.map((b) => b.semestre), beneficios.map((b) => b.tipo), beneficios.map((b) => b.detalle ?? null)],
   );
 };
 

@@ -14,6 +14,7 @@ const soloCoord = [authenticate, authorize(COORDINADOR)];
 const idValido = [param('id').isInt({ min: 1 }).withMessage('Identificador de clase inválido').toInt(), validate];
 const reglas = [
   body('nombre').isString().trim().notEmpty().isLength({ max: 150 }).withMessage('Nombre de la clase requerido (máx. 150)'),
+  body('codigo_externo').optional({ values: 'null' }).isString().trim().isLength({ max: 50 }).withMessage('Código externo de hasta 50 caracteres'),
   body('id_catalogo').isInt({ min: 1 }).withMessage('Curso del plan requerido').toInt(),
   body('descripcion').optional({ values: 'null' }).isString().trim(),
   body('activa').optional().custom((v) => typeof v === 'boolean').withMessage('activa debe ser true o false'),

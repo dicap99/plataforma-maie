@@ -48,6 +48,7 @@ const PESTANAS = [
     subrecursos: [
       { id: 'productos', etiqueta: 'Productos', icono: 'article' },
       { id: 'produccion', etiqueta: 'Producción Científica', icono: 'auto_stories' },
+      { id: 'pasantias-detalle', etiqueta: 'Detalle de pasantías', icono: 'badge' },
       { id: 'pasantias', etiqueta: 'Pasantías de Investigación', icono: 'flight_takeoff' },
     ],
   },
@@ -59,9 +60,9 @@ export default function DatosProgramaPage() {
   const recursos = useApi(adminApi.listarRecursos)
   const reflejo = useApi(adminApi.reflejoAcademico)
   const docentesApi = useApi(() => adminApi.listar('docentes'))
-  // La «Producción científica» viene del reflejo: se calcula con los productos registrados.
+  // La «Producción científica» y «Pasantías» vienen del reflejo: se calculan con los registros detallados.
   const productosApi = useApi(() => adminApi.listar('productos'))
-  const pasantiasApi = useApi(() => adminApi.listar('pasantias'))
+  const pasantiasDetalleApi = useApi(() => adminApi.listar('pasantias-detalle'))
   // Solo Coordinación lee los parámetros; si no hay acceso, la gráfica de créditos no se muestra.
   const parametrosApi = useApi(
     () => (esCoordinacion ? adminApi.listar('parametros') : Promise.resolve({ data: [] })),
@@ -93,7 +94,7 @@ export default function DatosProgramaPage() {
     (reflejo.cargando && !reflejo.data) ||
     (docentesApi.cargando && !docentesApi.data) ||
     (productosApi.cargando && !productosApi.data) ||
-    (pasantiasApi.cargando && !pasantiasApi.data)
+    (pasantiasDetalleApi.cargando && !pasantiasDetalleApi.data)
 
   if (cargando) return <Cargando texto="Cargando información académica del programa…" />
 
@@ -102,7 +103,7 @@ export default function DatosProgramaPage() {
     reflejo.error ||
     docentesApi.error ||
     productosApi.error ||
-    pasantiasApi.error
+    pasantiasDetalleApi.error
 
   // Tras editar o importar se recargan las hojas: las gráficas se actualizan al momento.
   const recargarTodo = () => {
@@ -110,7 +111,7 @@ export default function DatosProgramaPage() {
     reflejo.recargar()
     docentesApi.recargar()
     productosApi.recargar()
-    pasantiasApi.recargar()
+    pasantiasDetalleApi.recargar()
   }
 
   if (error) return <ErrorApi error={error} onReintentar={recargarTodo} />
@@ -163,7 +164,8 @@ export default function DatosProgramaPage() {
     if (recursoActivoId === 'docentes') return docentesApi.data
     if (recursoActivoId === 'productos') return delRango(productosApi.data)
     if (recursoActivoId === 'produccion') return delRango(reflejo.data?.produccion)
-    if (recursoActivoId === 'pasantias') return delRango(pasantiasApi.data)
+    if (recursoActivoId === 'pasantias-detalle') return delRango(pasantiasDetalleApi.data)
+    if (recursoActivoId === 'pasantias') return delRango(reflejo.data?.pasantias)
     return undefined
   })()
   // Conteo de registros para la barra secundaria
@@ -320,8 +322,8 @@ export default function DatosProgramaPage() {
         {vista === 'datos' && esCoordinacion && recursoActivo?.editable && (
           <Link to={recursoActivo.id === 'beneficios'
             ? '/coordinacion/gestion?pestana=datos&hoja=beneficios-detalle' // el detalle por estudiante y semestre
-            : ['produccion', 'productos', 'pasantias'].includes(recursoActivo.id)
-              ? `/coordinacion/gestion?pestana=datos&hoja=investigacion&apartado=${recursoActivo.id === 'pasantias' ? 'pasantias' : 'articulos'}`
+            : ['produccion', 'productos', 'pasantias', 'pasantias-detalle'].includes(recursoActivo.id)
+              ? `/coordinacion/gestion?pestana=datos&hoja=investigacion&apartado=${recursoActivo.id.startsWith('pasantias') ? 'pasantias' : 'articulos'}`
               : `/coordinacion/gestion?pestana=datos&hoja=${recursoActivo.id}`}
             className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white no-underline shadow-xs hover:bg-violet-700">
             <Icono nombre="edit" className="text-[14px]" />
@@ -390,7 +392,7 @@ export default function DatosProgramaPage() {
           {activo === 'investigacion' && (
             <PanelInvestigacionMovilidad
               filasProduccion={reflejo.data?.produccion ?? []}
-              filasPasantias={pasantiasApi.data ?? []}
+              filasPasantias={reflejo.data?.pasantias ?? []}
               cohortes={enRango}
               onFiltrar={(f) => {
                 cambiarSubrecurso(f.esPasantia ? 'pasantias' : 'produccion')

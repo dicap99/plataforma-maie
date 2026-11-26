@@ -213,6 +213,22 @@ CREATE TABLE cohorte_pasantias (
     internacionales INT NOT NULL DEFAULT 0 CHECK (internacionales >= 0)
 );
 
+-- Registro detallado de pasantías (asesoría del 25-nov-2026). Las promociones con pasantías detalladas
+-- calculan los conteos de cohorte_pasantias (reflejo.js); las demás conservan el histórico del libro.
+CREATE TABLE pasantias_detalle (
+    id_pasantia SERIAL PRIMARY KEY,
+    id_cohorte INT NOT NULL REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,
+    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('Nacional', 'Internacional')),
+    estudiante VARCHAR(200) NOT NULL,
+    institucion VARCHAR(200) NOT NULL,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE,
+    tiene_soporte BOOLEAN NOT NULL DEFAULT FALSE,
+    soporte_detalle VARCHAR(200),
+    CONSTRAINT unq_pasantia_detalle UNIQUE (id_cohorte, tipo, estudiante, institucion, fecha_inicio),
+    CONSTRAINT chk_fechas_pasantia CHECK (fecha_fin IS NULL OR fecha_fin >= fecha_inicio)
+);
+
 -- Perfil histórico del docente (RF-ADM-06) — hoja "Docentes UDENAR-EXTERNOS"
 -- La cuenta de usuario es opcional: un docente externo puede existir sin acceso al sistema.
 CREATE TABLE docentes_perfil (
@@ -264,6 +280,7 @@ CREATE TABLE cursos_catalogo (
 CREATE TABLE clases (
     id_clase SERIAL PRIMARY KEY,
     codigo VARCHAR(20) UNIQUE NOT NULL,
+    codigo_externo VARCHAR(50), -- código institucional asignado por OCARA (asesoría 25-nov-2026)
     nombre VARCHAR(150) NOT NULL,
     id_catalogo INT NOT NULL REFERENCES cursos_catalogo(id_catalogo),
     descripcion TEXT,
@@ -313,6 +330,7 @@ CREATE TABLE estudiante_beneficios (
     semestre SMALLINT NOT NULL CHECK (semestre BETWEEN 1 AND 4),
     tipo VARCHAR(30) NOT NULL
         CHECK (tipo IN ('100', 'hora_catedra', 'sintraunicol', 'asistente_investigacion', 'ayudante_docencia')),
+    detalle TEXT, -- proyecto de investigación o curso(s) de ayudantía (asesoría 25-nov-2026)
     PRIMARY KEY (id_cohorte, id_estudiante, semestre, tipo),
     FOREIGN KEY (id_cohorte, id_estudiante) REFERENCES cohorte_estudiantes(id_cohorte, id_estudiante) ON DELETE CASCADE
 );
@@ -322,6 +340,24 @@ CREATE TABLE curso_estudiantes (
     id_estudiante UUID REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
     PRIMARY KEY (id_curso, id_estudiante)
 );
+
+-- Matrícula financiera por estudiante, población y periodo (asesoría 25-nov-2026):
+-- registra quién pagó y cuánto ingresó al programa en posgrado y pregrado.
+CREATE TABLE matriculas_financieras (
+    id_matricula_fin SERIAL PRIMARY KEY,
+    id_estudiante UUID NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    poblacion VARCHAR(10) NOT NULL CHECK (poblacion IN ('posgrado', 'pregrado')),
+    id_cohorte INT REFERENCES cohortes(id_cohorte) ON DELETE CASCADE,
+    periodo periodo_academico NOT NULL,
+    pagado BOOLEAN NOT NULL DEFAULT TRUE,
+    valor_pagado NUMERIC(16,2) NOT NULL DEFAULT 0 CHECK (valor_pagado >= 0),
+    fecha_pago DATE,
+    referencia VARCHAR(80),
+    observaciones TEXT,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unq_matricula_fin UNIQUE NULLS NOT DISTINCT (id_estudiante, poblacion, periodo, id_cohorte)
+);
+CREATE INDEX idx_matriculas_fin_periodo ON matriculas_financieras (periodo, poblacion, id_cohorte);
 
 -- =====================================================================
 -- MÓDULO 2: RESULTADOS DE APRENDIZAJE (RA1 - RA7)

@@ -9,6 +9,7 @@ import CsvUploaderModal from './CsvUploaderModal.jsx'
 import BeneficiosPanel from './beneficios/BeneficiosPanel.jsx'
 import InvestigacionMovilidadPanel from './InvestigacionMovilidadPanel.jsx'
 import ContratacionesOpsPanel from './ContratacionesOpsPanel.jsx'
+import MatriculasFinancierasPanel from './finanzas/MatriculasFinancierasPanel.jsx'
 
 // Hojas de cada grupo, en orden. «parametros» es financiera en el backend, pero se muestra primero entre las
 // académicas (decisión del usuario, 2026-11-24). «beneficios-detalle» no es una hoja del libro: es el registro
@@ -16,15 +17,16 @@ import ContratacionesOpsPanel from './ContratacionesOpsPanel.jsx'
 const GRUPOS = [
   { id: 'academicas', titulo: 'Académicas', categoria: 'academico', orden: ['parametros', 'cohortes', 'docentes', 'beneficios-detalle', 'investigacion'] },
   // En el orden de las pestañas de Presupuesto y finanzas.
-  { id: 'financieras', titulo: 'Financieras', categoria: 'financiero', orden: ['presupuesto', 'punto-equilibrio', 'pregrado', 'transferencias', 'contratos-ops'] },
+  { id: 'financieras', titulo: 'Financieras', categoria: 'financiero', orden: ['presupuesto', 'punto-equilibrio', 'matriculas-financieras', 'pregrado', 'transferencias', 'contratos-ops'] },
 ]
 const MOVIDAS_A_ACADEMICAS = new Set(['parametros'])
 const BENEFICIOS_DETALLE = { id: 'beneficios-detalle', titulo: 'Beneficios' }
+const MATRICULAS_FIN = { id: 'matriculas-financieras', titulo: 'Matrícula financiera' }
 // Artículos, ponencias, software, prototipos y tesis (productos) y pasantías, en una sola entrada (decisión del
 // usuario, 2026-11-24). Los totales de «Producción científica» se calculan de los productos registrados.
 const INVESTIGACION = { id: 'investigacion', titulo: 'Investigación y movilidad' }
 // Hojas anteriores que ahora se editan dentro de «Investigación y movilidad» (?hoja= de enlaces previos).
-const A_INVESTIGACION = { produccion: 'articulos', productos: 'articulos', pasantias: 'pasantias' }
+const A_INVESTIGACION = { produccion: 'articulos', productos: 'articulos', pasantias: 'pasantias', 'pasantias-detalle': 'pasantias' }
 const posicion = (orden, id) => (orden.includes(id) ? orden.indexOf(id) : Infinity)
 
 // Datos del programa (RF-ADM-01 a RF-ADM-06), pestaña de Gestión académica: el único lugar donde se editan
@@ -37,7 +39,7 @@ const posicion = (orden, id) => (orden.includes(id) ? orden.indexOf(id) : Infini
 // «Contrataciones OPS» se edita con todo el detalle de cada contrato (hoja «contratos-ops», acordado en la
 // reunión del 20-oct); los totales por periodo («contrataciones») se calculan de ahí y se consultan en
 // Presupuesto y finanzas (decisión del usuario, 2026-11-24).
-const OCULTAS = new Set(['beneficios', 'produccion', 'productos', 'pasantias', 'contrataciones'])
+const OCULTAS = new Set(['beneficios', 'produccion', 'productos', 'pasantias', 'pasantias-detalle', 'contrataciones'])
 const TITULOS = { 'contratos-ops': 'Contrataciones OPS' }
 const REDIRIGIDAS = { contrataciones: 'contratos-ops' }
 
@@ -57,8 +59,11 @@ export default function DatosDelPrograma() {
   const grupoDe = (r) => (MOVIDAS_A_ACADEMICAS.has(r.id) ? 'academico' : r.categoria)
   const grupos = GRUPOS.map((g) => ({
     ...g,
-    hojas: [...lista.filter((r) => grupoDe(r) === g.categoria), ...(g.id === 'academicas' ? [BENEFICIOS_DETALLE, INVESTIGACION] : [])]
-      .sort((a, b) => posicion(g.orden, a.id) - posicion(g.orden, b.id)),
+    hojas: [
+      ...lista.filter((r) => grupoDe(r) === g.categoria),
+      ...(g.id === 'academicas' ? [BENEFICIOS_DETALLE, INVESTIGACION] : []),
+      ...(g.id === 'financieras' ? [MATRICULAS_FIN] : []),
+    ].sort((a, b) => posicion(g.orden, a.id) - posicion(g.orden, b.id)),
   }))
   const todas = grupos.flatMap((g) => g.hojas)
   const hoja = todas.find((r) => r.id === activo) ?? todas[0]
@@ -99,6 +104,8 @@ export default function DatosDelPrograma() {
 
       {hoja.id === BENEFICIOS_DETALLE.id ? (
         <BeneficiosPanel key={version} />
+      ) : hoja.id === MATRICULAS_FIN.id ? (
+        <MatriculasFinancierasPanel key={version} cohortes={cohortes.data ?? []} />
       ) : hoja.id === 'contratos-ops' ? (
         <ContratacionesOpsPanel key={version} recurso={hoja} cohortes={cohortes.data ?? []} />
       ) : hoja.id === INVESTIGACION.id ? (

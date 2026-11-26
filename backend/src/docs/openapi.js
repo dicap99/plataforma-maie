@@ -17,6 +17,7 @@ const ESQUEMA_TIPO = {
   numero: () => ({ type: 'number' }),
   dinero: () => ({ type: 'number', description: 'Pesos colombianos (COP)' }),
   texto: () => ({ type: 'string' }),
+  booleano: () => ({ type: 'boolean' }),
   periodo: () => ({ ...PERIODO }),
   fecha: () => ({ type: 'string', format: 'date' }),
   enum: (c) => ({ type: 'string', enum: c.options }),
@@ -27,6 +28,7 @@ const LLAVES_GENERADAS = {
   id_cohorte: { type: 'integer', readOnly: true },
   id_presupuesto: { type: 'integer', readOnly: true },
   id_producto: { type: 'integer', readOnly: true },
+  id_pasantia: { type: 'integer', readOnly: true },
   id_contrato: { type: 'integer', readOnly: true },
   id_docente: { type: 'string', format: 'uuid', readOnly: true },
 };
@@ -175,6 +177,7 @@ const BeneficioSemestre = {
   properties: {
     semestre: { type: 'integer', minimum: 1, maximum: 4, description: 'Semestre de la promoción' },
     tipo: { type: 'string', enum: VALORES_BENEFICIO, description: 'Una sola beca por semestre; asistencias y ayudantías se suman' },
+    detalle: { type: 'string', maxLength: 500, nullable: true, description: 'Proyecto de investigación o curso(s) de ayudantía' },
   },
 };
 
@@ -383,6 +386,55 @@ const construir = () => {
             ...errores(401, 403),
           },
         },
+      },
+      '/admin/exportar/{recurso}': {
+        parameters: [{ name: 'recurso', in: 'path', required: true, schema: { type: 'string', enum: RECURSOS.map((r) => r.id) } }],
+        get: {
+          tags: ['Módulo 1 · General'], summary: 'Exportar una hoja/tabla individual a Excel (.xlsx)', description: roles(['coordinador']),
+          responses: {
+            200: { description: 'Libro Excel', content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: { type: 'string', format: 'binary' } } } },
+            ...errores(401, 403, 404),
+          },
+        },
+      },
+      '/admin/matriculas-financieras': {
+        get: {
+          tags: ['Módulo 1 · General'], summary: 'Matrícula financiera por estudiante (posgrado y pregrado)', description: roles(['coordinador']),
+          parameters: [
+            { name: 'periodo', in: 'query', schema: PERIODO },
+            { name: 'id_cohorte', in: 'query', schema: { type: 'integer', minimum: 1 } },
+            { name: 'poblacion', in: 'query', schema: { type: 'string', enum: ['posgrado', 'pregrado'] } },
+          ],
+          responses: { 200: exito({ type: 'object' }), ...errores(400, 401, 403) },
+        },
+        put: {
+          tags: ['Módulo 1 · General'], summary: 'Registrar o actualizar pago de matrícula financiera', description: roles(['coordinador']),
+          requestBody: cuerpo({
+            type: 'object', required: ['id_estudiante', 'poblacion', 'periodo', 'pagado', 'valor_pagado'],
+            properties: {
+              id_estudiante: { type: 'string', format: 'uuid' },
+              poblacion: { type: 'string', enum: ['posgrado', 'pregrado'] },
+              id_cohorte: { type: 'integer', nullable: true },
+              periodo: PERIODO,
+              pagado: { type: 'boolean' },
+              valor_pagado: { type: 'number', minimum: 0 },
+              fecha_pago: { type: 'string', format: 'date', nullable: true },
+              referencia: { type: 'string', maxLength: 80, nullable: true },
+              observaciones: { type: 'string', nullable: true },
+            },
+          }),
+          responses: { 200: exito({ type: 'object' }), ...errores(400, 401, 403, 404) },
+        },
+      },
+      '/admin/matriculas-financieras/exportar': {
+        get: {
+          tags: ['Módulo 1 · General'], summary: 'Exportar matrícula financiera a Excel (.xlsx)', description: roles(['coordinador']),
+          responses: { 200: { description: 'Libro Excel', content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: { type: 'string', format: 'binary' } } } }, ...errores(401, 403) },
+        },
+      },
+      '/admin/matriculas-financieras/{id}': {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer', minimum: 1 } }],
+        delete: { tags: ['Módulo 1 · General'], summary: 'Eliminar registro de matrícula financiera', description: roles(['coordinador']), responses: { 200: exito({ type: 'object' }), ...errores(401, 403, 404) } },
       },
       '/admin/reportes/estadisticas': {
         get: {

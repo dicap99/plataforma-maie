@@ -29,7 +29,11 @@ export default function BeneficiosPanel() {
 
   const q = busqueda.trim().toLowerCase()
   const visibles = (estudiantes.data ?? []).filter((e) => !q || `${e.nombres} ${e.apellidos} ${e.identificacion}`.toLowerCase().includes(q))
-  const delSemestre = (e, s) => e.beneficios.filter((b) => b.semestre === s).map((b) => etiquetaBeneficio(b.tipo)).join(' + ')
+  const delSemestre = (e, s) =>
+    e.beneficios
+      .filter((b) => b.semestre === s)
+      .map((b) => `${etiquetaBeneficio(b.tipo)}${b.detalle ? ` (${b.detalle})` : ''}`)
+      .join(' + ')
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -100,7 +104,7 @@ function EditarBeneficios({ estudiante, idCohorte, onClose, onGuardado }) {
   const [beneficios, setBeneficios] = useState(estudiante.beneficios)
   const [error, setError] = useState(null)
   const [guardando, setGuardando] = useState(false)
-  const clave = (lista) => lista.map((b) => `${b.semestre}|${b.tipo}`).sort().join(',')
+  const clave = (lista) => lista.map((b) => `${b.semestre}|${b.tipo}|${(b.detalle ?? '').trim()}`).sort().join(',')
   const sinCambios = clave(beneficios) === clave(estudiante.beneficios)
 
   const guardar = async (e) => {

@@ -200,6 +200,28 @@ module.exports = {
     return procesar(filas, query.simular === 'true');
   },
 
+  // POST /eval-docente/pregrado — inscripción individual de un estudiante de pregrado en una oferta
+  async inscribir({ body }) {
+    const { rows: [curso] } = await db.query('SELECT id_curso FROM cursos WHERE id_curso = $1', [body.id_curso]);
+    if (!curso) throw ApiError.notFound('Curso no encontrado');
+    const { rows: [est] } = await db.query('SELECT id_usuario, rol FROM usuarios WHERE id_usuario = $1', [body.id_estudiante]);
+    if (!est || est.rol !== 'estudiante') throw ApiError.badRequest('El usuario debe existir y tener rol estudiante');
+    const { rows: [posgrado] } = await db.query(
+      'SELECT 1 FROM curso_estudiantes WHERE id_curso = $1 AND id_estudiante = $2',
+      [body.id_curso, body.id_estudiante],
+    );
+    if (posgrado) throw ApiError.conflict('El estudiante ya está matriculado como posgrado en este curso');
+    const { rows: [r] } = await db.query(
+      `INSERT INTO curso_estudiantes_pregrado (id_curso, id_estudiante, programa)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (id_curso, id_estudiante)
+       DO UPDATE SET programa = COALESCE(EXCLUDED.programa, curso_estudiantes_pregrado.programa), estado = 'inscrito'
+       RETURNING id_curso, id_estudiante, programa, estado`,
+      [body.id_curso, body.id_estudiante, body.programa?.trim() || null],
+    );
+    return r;
+  },
+
   // PUT /eval-docente/pregrado/:idCurso/:idEstudiante — { estado: 'inscrito' | 'retirado' }
   async cambiarEstado({ params, body }) {
     const { rows: [r] } = await db.query(

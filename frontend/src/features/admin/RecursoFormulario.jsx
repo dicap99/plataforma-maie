@@ -10,7 +10,12 @@ export default function RecursoFormulario({ recurso, fila, cohortes, bloqueados 
   const editando = Boolean(fila)
   const campos = recurso.campos.filter((c) => !c.calculado)
   const [valores, setValores] = useState(() =>
-    Object.fromEntries(campos.map((c) => [c.name, fila?.[c.name] ?? valoresIniciales?.[c.name] ?? ''])),
+    Object.fromEntries(campos.map((c) => {
+      const crudo = fila?.[c.name] ?? valoresIniciales?.[c.name]
+      if (c.type === 'booleano') return [c.name, Boolean(crudo)]
+      if (c.type === 'fecha' && crudo) return [c.name, String(crudo).slice(0, 10)]
+      return [c.name, crudo ?? '']
+    })),
   )
   const [errores, setErrores] = useState([])
   const [guardando, setGuardando] = useState(false)
@@ -61,6 +66,20 @@ export default function RecursoFormulario({ recurso, fila, cohortes, bloqueados 
           <option value="">Seleccione…</option>
           {campo.options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
+      )
+    }
+    if (campo.type === 'booleano') {
+      return (
+        <label className="campo-check" htmlFor={`campo-${campo.name}`}>
+          <input
+            id={`campo-${campo.name}`}
+            type="checkbox"
+            checked={Boolean(valores[campo.name])}
+            disabled={comun.disabled}
+            onChange={(e) => cambiar(campo.name, e.target.checked)}
+          />
+          <span>Sí</span>
+        </label>
       )
     }
     if (campo.multilinea) return <textarea rows={3} {...comun} />

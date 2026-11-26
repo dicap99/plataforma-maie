@@ -15,7 +15,7 @@ const APARTADOS = [
   { id: 'software', titulo: 'Software', tipo: 'Software' },
   { id: 'prototipos', titulo: 'Prototipos', tipo: 'Prototipo' },
   { id: 'tesis', titulo: 'Tesis', tipo: 'Tesis' },
-  { id: 'pasantias', titulo: 'Pasantías', recurso: 'pasantias' },
+  { id: 'pasantias', titulo: 'Pasantías', recurso: 'pasantias-detalle' },
 ]
 
 // Estudiantes registrados de la promoción del producto: se marcan los que participaron.
@@ -83,11 +83,16 @@ export default function InvestigacionMovilidadPanel({ recursos, cohortes, aparta
           </button>
         ))}
       </div>
-      {apartado.tipo && (
+      {apartado.tipo ? (
         <p className="m-0 text-body-sm text-on-surface-variant">
           {apartado.titulo} de los estudiantes, con su cita bibliográfica. Con «Estudiantes» se marcan los estudiantes registrados
           que participaron (aparecen en su ficha). Los totales de «Producción científica» de cada promoción se calculan de estos
           registros; las promociones sin registros conservan el histórico del libro.
+        </p>
+      ) : (
+        <p className="m-0 text-body-sm text-on-surface-variant">
+          Registro detallado de cada pasantía (nacional o internacional), con estudiante, institución, fechas y control de soporte
+          documental (sin subir archivos). Las promociones con registros detallados calculan automáticamente los totales de «Pasantías».
         </p>
       )}
       {recurso ? (

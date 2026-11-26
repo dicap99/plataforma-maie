@@ -3,7 +3,7 @@
 const db = require('../../../config/db');
 
 const SELECT = `
-  SELECT cl.id_clase, cl.codigo, cl.nombre, cl.descripcion, cl.activa, cl.id_catalogo,
+  SELECT cl.id_clase, cl.codigo, cl.codigo_externo, cl.nombre, cl.descripcion, cl.activa, cl.id_catalogo,
          k.codigo AS curso_plan, k.nombre AS curso_plan_nombre, k.semestre, m.id_modulo, m.nombre AS modulo,
          COALESCE((SELECT json_agg(r.codigo ORDER BY r.id_ra)
                    FROM catalogo_ra cr JOIN resultados_aprendizaje r USING (id_ra)
@@ -26,15 +26,15 @@ const codigosConPrefijo = async (prefijo) =>
 
 const create = async (c) =>
   (await db.query(
-    `INSERT INTO clases (codigo, nombre, id_catalogo, descripcion, activa)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id_clase`,
-    [c.codigo, c.nombre, c.id_catalogo, c.descripcion || null, c.activa ?? true],
+    `INSERT INTO clases (codigo, codigo_externo, nombre, id_catalogo, descripcion, activa)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_clase`,
+    [c.codigo, c.codigo_externo || null, c.nombre, c.id_catalogo, c.descripcion || null, c.activa ?? true],
   )).rows[0].id_clase;
 
 const update = async (id, c) =>
   (await db.query(
-    'UPDATE clases SET nombre = $2, id_catalogo = $3, descripcion = $4, activa = $5 WHERE id_clase = $1',
-    [id, c.nombre, c.id_catalogo, c.descripcion || null, c.activa ?? true],
+    'UPDATE clases SET codigo_externo = $2, nombre = $3, id_catalogo = $4, descripcion = $5, activa = $6 WHERE id_clase = $1',
+    [id, c.codigo_externo || null, c.nombre, c.id_catalogo, c.descripcion || null, c.activa ?? true],
   )).rowCount;
 
 const remove = async (id) => (await db.query('DELETE FROM clases WHERE id_clase = $1', [id])).rowCount > 0;

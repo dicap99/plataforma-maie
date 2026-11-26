@@ -21,7 +21,9 @@ export const porcentaje = (v) => (vacio(v) ? '—' : pct.format(v))
 // Valor de una celda según el tipo de campo del recurso.
 export const valorCampo = (campo, v) => {
   if (vacio(v) || v === '') return '—'
+  if (campo.type === 'booleano') return v ? 'Sí' : 'No'
   if (campo.type === 'dinero') return pesos(v)
   if (campo.type === 'entero' || campo.type === 'numero') return numero(v)
+  if (campo.type === 'fecha') return String(v).slice(0, 10)
   return String(v)
 }

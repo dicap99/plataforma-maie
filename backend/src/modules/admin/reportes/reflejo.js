@@ -71,6 +71,37 @@ const contratosOps = async () =>
     FROM contratos_ops o LEFT JOIN cohortes h ON h.id_cohorte = o.id_cohorte
     ORDER BY o.periodo, h.periodo_inicio`)).rows;
 
+const pasantiasDetalle = async () =>
+  (await db.query('SELECT id_cohorte, tipo FROM pasantias_detalle')).rows;
+
+const pagosPregrado = async () =>
+  (await db.query(`
+    SELECT mf.id_cohorte, mf.periodo,
+           COUNT(DISTINCT mf.id_estudiante)::int AS estudiantes,
+           COALESCE(SUM(mf.valor_pagado), 0)::float8 AS ingreso
+    FROM matriculas_financieras mf
+    WHERE mf.poblacion = 'pregrado' AND mf.pagado = TRUE AND mf.id_cohorte IS NOT NULL
+    GROUP BY mf.id_cohorte, mf.periodo`)).rows;
+
+const inscripcionesPregrado = async () =>
+  (await db.query(`
+    SELECT c.id_cohorte, c.periodo, COUNT(*)::int AS inscripciones
+    FROM curso_estudiantes_pregrado cp
+    JOIN cursos c ON c.id_curso = cp.id_curso
+    WHERE cp.estado <> 'retirado'
+    GROUP BY c.id_cohorte, c.periodo`)).rows;
+
+const recaudoMatriculas = async () =>
+  (await db.query(`
+    SELECT mf.id_cohorte, h.nombre AS cohorte,
+           COALESCE(SUM(mf.valor_pagado) FILTER (WHERE mf.pagado AND mf.poblacion = 'posgrado'), 0)::float8 AS posgrado,
+           COALESCE(SUM(mf.valor_pagado) FILTER (WHERE mf.pagado AND mf.poblacion = 'pregrado'), 0)::float8 AS pregrado,
+           COALESCE(SUM(mf.valor_pagado) FILTER (WHERE mf.pagado), 0)::float8 AS total
+    FROM matriculas_financieras mf
+    LEFT JOIN cohortes h ON h.id_cohorte = mf.id_cohorte
+    GROUP BY mf.id_cohorte, h.nombre, h.periodo_inicio
+    ORDER BY h.periodo_inicio NULLS LAST, h.nombre`)).rows;
+
 // --- Combinación (funciones puras) -------------------------------------------------------
 // Promociones: inscritos, matriculados, egresados y graduados desde los estudiantes registrados.
 // Los aprobados por semestre siguen saliendo de la hoja.
@@ -180,12 +211,68 @@ const combinarSemestres = (hoja, ofertas, cohortes) => {
   ].sort((a, b) => a.id_cohorte - b.id_cohorte || a.semestre - b.semestre);
 };
 
+// Pasantías: las promociones con registros detallados en «Pasantías detalladas» calculan sus conteos
+// nacionales e internacionales; las demás conservan la hoja histórica.
+const combinarPasantias = (hoja, pasantias, cohortes) => {
+  const porCohorte = new Map();
+  for (const p of pasantias) porCohorte.set(p.id_cohorte, [...(porCohorte.get(p.id_cohorte) ?? []), p]);
+  const calcular = (lista) => ({
+    nacionales: lista.filter((p) => p.tipo === 'Nacional').length,
+    internacionales: lista.filter((p) => p.tipo === 'Internacional').length,
+    origen: 'gestion',
+  });
+  const nombre = new Map(cohortes.map((c) => [c.id_cohorte, c.nombre]));
+  const filas = hoja.map((f) => (porCohorte.has(f.id_cohorte) ? { ...f, ...calcular(porCohorte.get(f.id_cohorte)) } : { ...f, origen: 'registro' }));
+  for (const [id, lista] of porCohorte) {
+    if (filas.some((f) => f.id_cohorte === id) || !nombre.has(id)) continue;
+    filas.push({ id_cohorte: id, cohorte: nombre.get(id), ...calcular(lista), sin_registro: true });
+  }
+  return filas;
+};
+
+// Estudiantes de pregrado: cuando un (id_cohorte, periodo) tiene pagos registrados en matrícula financiera,
+// calcula estudiantes pagados, inscripciones vigentes e ingreso real; los demás conservan la hoja histórica.
+const combinarPregrado = (hoja, pagos, inscritos, cohortes = []) => {
+  const clave = (f) => `${f.id_cohorte}|${f.periodo}`;
+  const mapaPagos = new Map(pagos.map((p) => [clave(p), p]));
+  const mapaInscritos = new Map(inscritos.map((i) => [clave(i), i.inscripciones]));
+  const nombre = new Map(cohortes.map((c) => [c.id_cohorte, c.nombre]));
+  const filas = hoja.map((f) => {
+    const p = mapaPagos.get(clave(f));
+    if (!p) return { ...f, origen: 'registro' };
+    return {
+      ...f,
+      estudiantes: p.estudiantes,
+      inscripciones: Math.max(p.estudiantes, mapaInscritos.get(clave(f)) ?? 0),
+      ingreso: p.ingreso,
+      origen: 'gestion',
+    };
+  });
+  for (const [k, p] of mapaPagos) {
+    if (filas.some((f) => clave(f) === k) || !nombre.has(p.id_cohorte)) continue;
+    filas.push({
+      id_cohorte: p.id_cohorte,
+      cohorte: nombre.get(p.id_cohorte),
+      periodo: p.periodo,
+      estudiantes: p.estudiantes,
+      inscripciones: Math.max(p.estudiantes, mapaInscritos.get(k) ?? 0),
+      ingreso: p.ingreso,
+      origen: 'gestion',
+      sin_registro: true,
+    });
+  }
+  return filas;
+};
+
 // Aplica el reflejo a las hojas ya cargadas: { cohortes, beneficios, 'cohorte-semestres', … }.
 const aplicar = async (datos) => {
-  const [conteos, beneficios, ofertas, productos, contratos] = await Promise.all([
+  const [conteos, beneficios, ofertas, productos, pasantias, contratos, pagosPreg, inscPreg] = await Promise.all([
     estudiantesPorCohorte(), beneficiosPorCohorte(), ofertasPorCohorte(),
     db.query('SELECT id_cohorte, tipo, cita, anio FROM productos_investigacion ORDER BY tipo, anio, cita').then((r) => r.rows),
+    datos.pasantias ? pasantiasDetalle() : [],
     datos.contrataciones ? contratosOps() : [],
+    datos.pregrado ? pagosPregrado() : [],
+    datos.pregrado ? inscripcionesPregrado() : [],
   ]);
   const porCohorte = new Map(beneficios.map((b) => [b.id_cohorte, b]));
   const estudiantes = conteos.map((e) => ({ ...e, ...porCohorte.get(e.id_cohorte) }));
@@ -195,17 +282,30 @@ const aplicar = async (datos) => {
     beneficios: combinarBeneficios(datos.beneficios, estudiantes, datos.cohortes),
     'cohorte-semestres': combinarSemestres(datos['cohorte-semestres'], ofertas, datos.cohortes),
     produccion: combinarProduccion(datos.produccion, productos, datos.cohortes),
+    ...(datos.pasantias ? { pasantias: combinarPasantias(datos.pasantias, pasantias, datos.cohortes) } : {}),
     // Solo cuando se cargó la hoja financiera (informe de Coordinación o reflejo financiero).
     ...(datos.contrataciones ? { contrataciones: combinarContrataciones(datos.contrataciones, contratos) } : {}),
+    ...(datos.pregrado ? { pregrado: combinarPregrado(datos.pregrado, pagosPreg, inscPreg, datos.cohortes) } : {}),
   };
 };
 
-// Reflejo de las hojas financieras ya cargadas ({ contrataciones }), para Presupuesto y finanzas.
-const aplicarFinanciero = async (datos) => ({
-  contrataciones: combinarContrataciones(datos.contrataciones, await contratosOps()),
-});
+// Reflejo de las hojas financieras ya cargadas ({ contrataciones, pregrado, cohortes }), para Presupuesto y finanzas.
+const aplicarFinanciero = async (datos) => {
+  const [contratos, pagosPreg, inscPreg, recaudo] = await Promise.all([
+    contratosOps(),
+    datos.pregrado ? pagosPregrado() : [],
+    datos.pregrado ? inscripcionesPregrado() : [],
+    recaudoMatriculas(),
+  ]);
+  return {
+    contrataciones: combinarContrataciones(datos.contrataciones, contratos),
+    ...(datos.pregrado ? { pregrado: combinarPregrado(datos.pregrado, pagosPreg, inscPreg, datos.cohortes) } : {}),
+    recaudo_matriculas: recaudo,
+  };
+};
 
 module.exports = {
-  SEMESTRE_REAL, aplicar, aplicarFinanciero, combinarCohortes, combinarBeneficios, combinarSemestres, combinarProduccion, combinarContrataciones,
-  RECURSOS_REFLEJADOS: ['cohortes', 'beneficios', 'cohorte-semestres', 'produccion'],
+  SEMESTRE_REAL, aplicar, aplicarFinanciero, recaudoMatriculas,
+  combinarCohortes, combinarBeneficios, combinarSemestres, combinarProduccion, combinarPasantias, combinarContrataciones, combinarPregrado,
+  RECURSOS_REFLEJADOS: ['cohortes', 'beneficios', 'cohorte-semestres', 'produccion', 'pasantias'],
 };

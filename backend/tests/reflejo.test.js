@@ -114,3 +114,43 @@ describe('Reflejo de «Contratos OPS» en «Contrataciones»', () => {
     expect(f).toMatchObject({ n_ops: 5, valor: 68500000, origen: 'registro', registro_parcial: { registrados: 2, reportados: 5 } });
   });
 });
+
+describe('Reflejo de «Pasantías detalladas» y «Matrícula financiera» de pregrado', () => {
+  const { combinarPasantias, combinarPregrado } = require('../src/modules/admin/reportes/reflejo');
+
+  it('las promociones con pasantías detalladas calculan nacionales e internacionales; las demás conservan la hoja', () => {
+    const filas = combinarPasantias(
+      [
+        { id_cohorte: 1, cohorte: 'I', nacionales: 2, internacionales: 1 },
+        { id_cohorte: 2, cohorte: 'II', nacionales: 0, internacionales: 0 },
+      ],
+      [
+        { id_cohorte: 2, tipo: 'Nacional' },
+        { id_cohorte: 2, tipo: 'Internacional' },
+        { id_cohorte: 2, tipo: 'Internacional' },
+        { id_cohorte: 3, tipo: 'Nacional' },
+      ],
+      hojaCohortes.concat({ id_cohorte: 3, nombre: 'III' }),
+    );
+    expect(filas[0]).toMatchObject({ nacionales: 2, internacionales: 1, origen: 'registro' });
+    expect(filas[1]).toMatchObject({ nacionales: 1, internacionales: 2, origen: 'gestion' });
+    expect(filas[2]).toMatchObject({ id_cohorte: 3, cohorte: 'III', nacionales: 1, internacionales: 0, sin_registro: true });
+  });
+
+  it('los pagos de pregrado actualizan el ingreso del periodo en «Estudiantes de pregrado»', () => {
+    const filas = combinarPregrado(
+      [{ id_cohorte: 1, cohorte: 'I', periodo: '2021-A', estudiantes: 10, inscripciones: 12, ingreso: 5000000 }],
+      [
+        { id_cohorte: 1, periodo: '2021-A', estudiantes: 8, ingreso: 6400000 },
+        { id_cohorte: 2, periodo: '2026-B', estudiantes: 3, ingreso: 2400000 },
+      ],
+      [
+        { id_cohorte: 1, periodo: '2021-A', inscripciones: 11 },
+        { id_cohorte: 2, periodo: '2026-B', inscripciones: 4 },
+      ],
+      hojaCohortes,
+    );
+    expect(filas[0]).toMatchObject({ estudiantes: 8, inscripciones: 11, ingreso: 6400000, origen: 'gestion' });
+    expect(filas[1]).toMatchObject({ id_cohorte: 2, cohorte: 'II', periodo: '2026-B', estudiantes: 3, inscripciones: 4, ingreso: 2400000, sin_registro: true });
+  });
+});

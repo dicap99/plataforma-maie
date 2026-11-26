@@ -19,6 +19,7 @@ const BENEFICIOS_ESTUDIANTE = {
     { name: 'estudiante', label: 'Estudiante', type: 'texto' },
     { name: 'semestre', label: 'Semestre de la promoción', type: 'semestre', required: true },
     { name: 'tipo', label: 'Beneficio', type: 'enum', options: TIPOS_BENEFICIO.map((t) => t.etiqueta), required: true },
+    { name: 'detalle', label: 'Detalle (proyecto o cursos)', type: 'texto' },
   ],
 };
 
@@ -28,7 +29,7 @@ const texto = (v) => (v === null || v === undefined ? '' : String(v).trim());
 // Filas actuales (exportación a Excel).
 const listar = async () =>
   (await db.query(`
-    SELECT h.nombre AS cohorte, u.identificacion, u.apellidos || ' ' || u.nombres AS estudiante, b.semestre, b.tipo
+    SELECT h.nombre AS cohorte, u.identificacion, u.apellidos || ' ' || u.nombres AS estudiante, b.semestre, b.tipo, b.detalle
     FROM estudiante_beneficios b
     JOIN cohortes h ON h.id_cohorte = b.id_cohorte
     JOIN usuarios u ON u.id_usuario = b.id_estudiante
@@ -65,7 +66,7 @@ const guardar = async (cliente, filas, errores) => {
     }
     const clave = `${m.id_cohorte}|${m.id_estudiante}`;
     if (!porEstudiante.has(clave)) porEstudiante.set(clave, { ...m, hoja, fila, beneficios: [] });
-    porEstudiante.get(clave).beneficios.push({ semestre, tipo: tipo.valor });
+    porEstudiante.get(clave).beneficios.push({ semestre, tipo: tipo.valor, detalle: texto(valores.detalle) || null });
   }
 
   for (const e of porEstudiante.values()) {
@@ -82,9 +83,10 @@ const guardar = async (cliente, filas, errores) => {
         'DELETE FROM estudiante_beneficios WHERE id_cohorte = $1 AND id_estudiante = $2', [e.id_cohorte, e.id_estudiante],
       );
       await cliente.query(
-        `INSERT INTO estudiante_beneficios (id_cohorte, id_estudiante, semestre, tipo)
-         SELECT $1, $2, x.semestre, x.tipo FROM unnest($3::smallint[], $4::varchar[]) AS x(semestre, tipo)`,
-        [e.id_cohorte, e.id_estudiante, unicos.map((b) => b.semestre), unicos.map((b) => b.tipo)],
+        `INSERT INTO estudiante_beneficios (id_cohorte, id_estudiante, semestre, tipo, detalle)
+         SELECT $1, $2, x.semestre, x.tipo, NULLIF(TRIM(x.detalle), '')
+         FROM unnest($3::smallint[], $4::varchar[], $5::text[]) AS x(semestre, tipo, detalle)`,
+        [e.id_cohorte, e.id_estudiante, unicos.map((b) => b.semestre), unicos.map((b) => b.tipo), unicos.map((b) => b.detalle ?? null)],
       );
       await cliente.query(
         'UPDATE cohorte_estudiantes SET beca = $3 WHERE id_cohorte = $1 AND id_estudiante = $2',

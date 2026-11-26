@@ -22,7 +22,7 @@ const listCatalogo = async () =>
 
 // Oferta con catálogo, promoción, docentes, RA evaluados y avance de la calificación.
 const SELECT_OFERTA = `
-  SELECT c.id_curso, c.id_clase, cl.codigo AS clase_codigo, cl.nombre, c.id_catalogo, k.codigo,
+  SELECT c.id_curso, c.id_clase, cl.codigo AS clase_codigo, cl.codigo_externo AS clase_codigo_externo, cl.nombre, c.id_catalogo, k.codigo,
          k.nombre AS nombre_catalogo, c.id_cohorte, h.nombre AS cohorte, c.periodo, c.grupo,
          k.semestre, m.nombre AS modulo,
          COALESCE((SELECT p.abierto FROM periodos_calificacion_ra p WHERE p.periodo = c.periodo), FALSE)
@@ -37,6 +37,7 @@ const SELECT_OFERTA = `
                    FROM catalogo_ra cr JOIN resultados_aprendizaje r USING (id_ra)
                    WHERE cr.id_catalogo = c.id_catalogo), '[]') AS ras,
          (SELECT COUNT(*)::int FROM curso_estudiantes ce WHERE ce.id_curso = c.id_curso) AS inscritos,
+         (SELECT COUNT(*)::int FROM curso_estudiantes_pregrado cp WHERE cp.id_curso = c.id_curso AND cp.estado <> 'retirado') AS inscritos_pregrado,
          (SELECT COUNT(*)::int FROM evaluaciones_ra_estudiante e WHERE e.id_curso = c.id_curso) AS notas,
          (SELECT COUNT(*)::int FROM catalogo_ra cr JOIN rubricas_criterios rc USING (id_ra)
           WHERE cr.id_catalogo = c.id_catalogo) AS criterios
@@ -70,6 +71,16 @@ const estudiantes = async (id) =>
      JOIN usuarios u ON u.id_usuario = ce.id_estudiante
      LEFT JOIN cohorte_estudiantes he ON he.id_cohorte = c.id_cohorte AND he.id_estudiante = u.id_usuario
      WHERE ce.id_curso = $1
+     ORDER BY u.apellidos, u.nombres`,
+    [id],
+  )).rows;
+
+const estudiantesPregrado = async (id) =>
+  (await db.query(
+    `SELECT u.id_usuario AS id_estudiante, u.identificacion, u.nombres, u.apellidos, u.email, cp.programa, cp.estado
+     FROM curso_estudiantes_pregrado cp
+     JOIN usuarios u ON u.id_usuario = cp.id_estudiante
+     WHERE cp.id_curso = $1
      ORDER BY u.apellidos, u.nombres`,
     [id],
   )).rows;
@@ -176,6 +187,7 @@ module.exports = {
   list,
   get,
   estudiantes,
+  estudiantesPregrado,
   create,
   update,
   remove,

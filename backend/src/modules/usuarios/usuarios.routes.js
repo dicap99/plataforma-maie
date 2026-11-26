@@ -37,6 +37,7 @@ const reglasBeneficios = [
   body('beneficios').isArray({ max: 20 }).withMessage('beneficios debe ser una lista'),
   body('beneficios.*.semestre').isInt({ min: 1, max: 4 }).withMessage('Semestre del beneficio inválido (1 a 4)').toInt(),
   body('beneficios.*.tipo').isIn(VALORES_BENEFICIO).withMessage(`Tipo de beneficio debe ser uno de: ${VALORES_BENEFICIO.join(', ')}`),
+  body('beneficios.*.detalle').optional({ values: 'null' }).isString().trim().isLength({ max: 500 }).withMessage('Detalle del beneficio de hasta 500 caracteres'),
   validate,
 ];
 const idValido = [param('id').isUUID().withMessage('Identificador inválido'), validate];

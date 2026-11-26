@@ -40,8 +40,8 @@ const PESTANAS = [
     ],
   },
 ]
-// «Contrataciones» llega con su reflejo: los periodos con contratos registrados se calculan de ellos.
-const REFLEJADAS = ['contrataciones']
+// «Contrataciones» y «Estudiantes de pregrado» llegan con su reflejo financiero.
+const REFLEJADAS = ['contrataciones', 'pregrado']
 const HOJAS = PESTANAS.flatMap((p) => p.hojas.map((h) => h.id)).filter((id) => !REFLEJADAS.includes(id))
 
 const cargarHojas = async () => {

@@ -70,10 +70,19 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
   }))
   const nombreElegida = promociones.find((c) => String(c.id_cohorte) === idCohorte)?.nombre
 
-  const creditos = [1, 2, 3, 4].map((s) => ({
-    semestre: `Semestre ${ROMANOS[s - 1]}`,
-    creditos: parametros.find((p) => p.clave === `creditos_semestre_${s}`)?.valor ?? null,
-  }))
+  const ofertasReales = datosCursos.filter((f) => f.origen === 'gestion')
+  const creditos = [1, 2, 3, 4].map((s) => {
+    const delSemestre = ofertasReales.filter((f) => f.semestre === s)
+    if (delSemestre.length > 0) {
+      const promCursos = suma(delSemestre.map((f) => f.n_cursos)) / delSemestre.length
+      return { semestre: `Semestre ${ROMANOS[s - 1]}`, creditos: Math.round(promCursos * (s === 4 ? 6 : 4) * 10) / 10 }
+    }
+    return {
+      semestre: `Semestre ${ROMANOS[s - 1]}`,
+      creditos: parametros.find((p) => p.clave === `creditos_semestre_${s}`)?.valor ?? null,
+    }
+  })
+  const creditosDesdeOferta = ofertasReales.length > 0
   const hayCreditos = creditos.some((c) => c.creditos !== null)
 
   // Créditos de una promoción con la regla de la fila «Número de créditos» del libro, aplicada a sus cursos:
@@ -254,7 +263,11 @@ export default function PanelCuerpoAcademico({ filasDocentes = [], filasCursos =
         {hayCreditos && (
           <ChartCard
             titulo="Créditos promedio por semestre"
-            subtitulo={`${numero(suma(creditos.map((c) => c.creditos)))} créditos según Parámetros del programa (fila «Número de créditos» de la hoja «Cursos y Docentes»)`}
+            subtitulo={
+              creditosDesdeOferta
+                ? `${numero(suma(creditos.map((c) => c.creditos)))} créditos promedio calculados desde la oferta real registrada`
+                : `${numero(suma(creditos.map((c) => c.creditos)))} créditos según Parámetros del programa (fila «Número de créditos» de la hoja «Cursos y Docentes»)`
+            }
             tabla={{
               columnas: [
                 { clave: 'semestre', titulo: 'Semestre' },

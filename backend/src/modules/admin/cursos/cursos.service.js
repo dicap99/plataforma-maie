@@ -20,7 +20,11 @@ const validarRol = async (ids, rol, etiqueta) => {
   }
 };
 
-const detalle = async (id) => ({ ...(await repository.get(id)), estudiantes: await repository.estudiantes(id) });
+const detalle = async (id) => ({
+  ...(await repository.get(id)),
+  estudiantes: await repository.estudiantes(id),
+  pregrado: await repository.estudiantesPregrado(id),
+});
 
 const guardar = async (id, body) => {
   const clase = await repository.clase(body.id_clase);

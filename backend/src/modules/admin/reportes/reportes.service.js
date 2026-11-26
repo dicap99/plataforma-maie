@@ -38,18 +38,26 @@ module.exports = {
     return Object.fromEntries(ids.map((id) => [id, combinado[id]]));
   },
 
-  // Hojas financieras con su reflejo: «Contrataciones» calculada con los «Contratos OPS» registrados.
+  // Hojas financieras con su reflejo: «Contrataciones» (desde «Contratos OPS»), «Estudiantes de pregrado»
+  // (cuando hay matrícula financiera de pregrado) y el recaudo acumulado por promoción.
   async reflejoFinanciero() {
-    return reflejo.aplicarFinanciero({ contrataciones: await repositorios.contrataciones.list() });
+    const [contrataciones, pregrado, cohortes] = await Promise.all([
+      repositorios.contrataciones.list(),
+      repositorios.pregrado.list(),
+      repositorios.cohortes.list(),
+    ]);
+    return reflejo.aplicarFinanciero({ contrataciones, pregrado, cohortes });
   },
 
-  // Consolidado presupuestal por promoción (corte más reciente), comparado con su proyección.
+  // Consolidado presupuestal por promoción (corte más reciente), comparado con su proyección y recaudo por matrículas.
   async resumenPresupuesto() {
-    const [filas, parametros, equilibrio] = await Promise.all([
+    const [filas, parametros, equilibrio, recaudo] = await Promise.all([
       repositorios.presupuesto.list(),
       repositorios.parametros.list(),
       repositorios['punto-equilibrio'].list(),
+      reflejo.recaudoMatriculas(),
     ]);
-    return estadisticas.presupuesto(filas, Object.fromEntries(parametros.map((p) => [p.clave, p.valor])), equilibrio);
+    const resumen = estadisticas.presupuesto(filas, Object.fromEntries(parametros.map((p) => [p.clave, p.valor])), equilibrio);
+    return { ...resumen, recaudo_matriculas: recaudo };
   },
 };

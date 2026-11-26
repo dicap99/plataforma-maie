@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as adminApi from '../../api/adminApi'
 import useApi from '../../hooks/useApi'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { Cargando, ErrorApi } from '../../components/common/Estado.jsx'
 import { valorCampo } from '../../utils/formato'
 import RecursoFormulario from './RecursoFormulario.jsx'
@@ -37,12 +38,27 @@ export default function RecursoTabla({
   const sinSmmlv = recurso.id === 'parametros' ? filasTodas?.filter((f) => !/^smmlv_/.test(f.clave)) : filasTodas
   const filas = apartado ? sinSmmlv?.filter(apartado.filtrar) : sinSmmlv
   const { error, cargando, recargar } = api
+  const esCoordinacion = useAuth()?.usuario?.rol === 'coordinador'
+  const puedeExportar = esCoordinacion && recurso.id !== 'parametros'
   const editable = recurso.editable && !soloLectura
   const conOrigen = (filas ?? []).some((f) => f.origen)
   const [editando, setEditando] = useState(null)
   const [viendoDetalles, setViendoDetalles] = useState(null)
   const [viendoTodosDetalles, setViendoTodosDetalles] = useState(false)
   const [errorAccion, setErrorAccion] = useState(null)
+  const [exportando, setExportando] = useState(false)
+
+  const exportar = async () => {
+    setExportando(true)
+    setErrorAccion(null)
+    try {
+      await adminApi.exportarRecurso(recurso.id)
+    } catch (err) {
+      setErrorAccion(err)
+    } finally {
+      setExportando(false)
+    }
+  }
 
   const tras = async (promesa) => {
     await promesa
@@ -174,7 +190,7 @@ export default function RecursoTabla({
   return (
     <section>
       {/* Barra de herramientas / filtros */}
-      {(filtro || tieneDetalles || editable) && (
+      {(filtro || tieneDetalles || editable || puedeExportar) && (
         <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             {filtro && (
@@ -202,15 +218,27 @@ export default function RecursoTabla({
               </button>
             )}
           </div>
-          {editable && (
-            <button
-              type="button"
-              className="btn btn-primario btn-sm ml-auto"
-              onClick={() => setEditando('nuevo')}
-            >
-              Agregar registro
-            </button>
-          )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {puedeExportar && (
+              <button
+                type="button"
+                className="btn btn-secundario btn-sm"
+                onClick={exportar}
+                disabled={exportando}
+              >
+                {exportando ? 'Exportando…' : 'Exportar a Excel'}
+              </button>
+            )}
+            {editable && (
+              <button
+                type="button"
+                className="btn btn-primario btn-sm"
+                onClick={() => setEditando('nuevo')}
+              >
+                Agregar registro
+              </button>
+            )}
+          </div>
         </header>
       )}
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import * as adminApi from '../../api/adminApi'
 import * as cursosApi from '../../api/cursosApi'
+import * as evalApi from '../../api/evalDocenteApi'
 import * as raApi from '../../api/raApi'
 import * as usuariosApi from '../../api/usuariosApi'
 import useApi from '../../hooks/useApi'
@@ -143,11 +144,16 @@ function DocentesOferta({ oferta, docentes, onClose, onGuardada }) {
   )
 }
 
-// Matrícula de una oferta: estudiantes de la promoción con casillas.
+// Matrícula académica de una oferta: selección individual de estudiantes de posgrado (ej. electivas)
+// y gestión de estudiantes de pregrado que cursan la materia (asesoría 25-nov-2026).
 function MatriculaOferta({ oferta, onClose, onGuardada }) {
   const detalle = useApi(() => cursosApi.obtenerOferta(oferta.id_curso), [oferta.id_curso])
   const promocion = useApi(() => cursosApi.estudiantesCohorte(oferta.id_cohorte), [oferta.id_cohorte])
+  const estudiantesTodos = useApi(() => usuariosApi.listarUsuarios('estudiante'))
+  const [pestana, setPestana] = useState('posgrado')
+  const [busqueda, setBusqueda] = useState('')
   const [seleccion, setSeleccion] = useState(null)
+  const [nuevoPregrado, setNuevoPregrado] = useState({ id_estudiante: '', programa: '' })
   const [error, setError] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
@@ -160,12 +166,16 @@ function MatriculaOferta({ oferta, onClose, onGuardada }) {
     else s.add(id)
     setSeleccion(s)
   }
-  const accion = async (fn) => {
+  const marcarTodos = (todos) => {
+    setSeleccion(todos ? new Set((promocion.data ?? []).filter((e) => e.estado !== 'retirado').map((e) => e.id_estudiante)) : new Set())
+  }
+  const accion = async (fn, cerrar = true) => {
     setGuardando(true)
     setError(null)
     try {
       await fn()
-      onGuardada()
+      if (cerrar) onGuardada()
+      else await detalle.recargar()
     } catch (err) {
       setError(err)
     } finally {
@@ -173,25 +183,88 @@ function MatriculaOferta({ oferta, onClose, onGuardada }) {
     }
   }
 
+  const q = busqueda.trim().toLowerCase()
+  const listaPosgrado = (promocion.data ?? []).filter((e) => !q || `${e.apellidos} ${e.nombres} ${e.identificacion}`.toLowerCase().includes(q))
+  const pregradoInscritos = detalle.data?.pregrado ?? []
+  const idsPregradoYa = new Set(pregradoInscritos.map((p) => p.id_estudiante))
+  const candidatosPregrado = (estudiantesTodos.data ?? [])
+    .filter((u) => !u.id_cohorte && !inscritos.has(u.id_usuario) && !idsPregradoYa.has(u.id_usuario))
+    .sort((a, b) => nombreDe(a).localeCompare(nombreDe(b)))
+
+  const inscribirPregrado = (e) => {
+    e.preventDefault()
+    if (!nuevoPregrado.id_estudiante) return
+    accion(async () => {
+      await evalApi.inscribirPregrado({
+        id_curso: oferta.id_curso,
+        id_estudiante: nuevoPregrado.id_estudiante,
+        programa: nuevoPregrado.programa.trim() || null,
+      })
+      setNuevoPregrado({ id_estudiante: '', programa: '' })
+    }, false)
+  }
+
   return (
-    <Modal titulo={`Matrícula · ${oferta.codigo} · Promoción ${oferta.cohorte}`} onClose={onClose} ancho={640}>
+    <Modal titulo={`Matrícula académica · ${oferta.nombre} · ${oferta.periodo}`} onClose={onClose} ancho={700}>
+      <p className="m-0 mb-2 text-body-sm text-on-surface-variant">
+        {oferta.clase_codigo}{oferta.clase_codigo_externo ? ` (OCARA: ${oferta.clase_codigo_externo})` : ''} · Promoción {oferta.cohorte}
+      </p>
+      <div className="mb-3 flex gap-2 border-b border-outline-variant pb-2" role="tablist">
+        {[
+          ['posgrado', `Posgrado (${marcados.size})`],
+          ['pregrado', `Pregrado (${pregradoInscritos.length})`],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={pestana === id}
+            onClick={() => setPestana(id)}
+            className={`rounded-lg px-3 py-1 text-label-md font-semibold ${
+              pestana === id ? 'bg-secondary text-on-secondary' : 'bg-surface-container-low text-on-surface-variant'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {(detalle.cargando || promocion.cargando) && <Cargando />}
       <ErrorApi error={detalle.error ?? promocion.error} />
-      {promocion.data && detalle.data && (
+
+      {pestana === 'posgrado' && promocion.data && detalle.data && (
         <>
           {promocion.data.length === 0 ? (
             <p className="texto-suave">La promoción no tiene estudiantes. Asígneles la promoción en la pestaña «Usuarios».</p>
           ) : (
-            <div className="grid max-h-80 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
-              {promocion.data.map((e) => (
-                <label key={e.id_estudiante} className="campo-check">
-                  <input type="checkbox" checked={marcados.has(e.id_estudiante)} onChange={() => alternar(e.id_estudiante)} />
-                  {nombreDe(e)}{e.estado === 'retirado' && <span className="texto-suave"> (retirado)</span>}
-                </label>
-              ))}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <input
+                  type="search"
+                  placeholder="Buscar estudiante de la promoción…"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="min-w-56 flex-1"
+                />
+                <div className="flex gap-2">
+                  <button type="button" className="btn-enlace" onClick={() => marcarTodos(true)}>Marcar activos</button>
+                  <button type="button" className="btn-enlace" onClick={() => marcarTodos(false)}>Desmarcar todos</button>
+                </div>
+              </div>
+              <div className="grid max-h-72 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
+                {listaPosgrado.map((e) => (
+                  <label key={e.id_estudiante} className="campo-check">
+                    <input type="checkbox" checked={marcados.has(e.id_estudiante)} onChange={() => alternar(e.id_estudiante)} />
+                    <span>
+                      {nombreDe(e)} <span className="texto-suave">· {e.identificacion}</span>
+                      {e.estado === 'retirado' && <span className="texto-suave"> (retirado)</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
-          <p className="texto-suave">No se puede desmatricular a un estudiante que ya tiene notas de rúbrica en el curso.</p>
+          <p className="texto-suave">Seleccione individualmente los estudiantes (p. ej. electivas) o matricule toda la promoción. No se puede desmatricular a quien ya tiene notas de rúbrica.</p>
           <ErrorApi error={error} />
           <div className="modal-acciones">
             <button type="button" className="btn btn-secundario" disabled={guardando}
@@ -205,6 +278,84 @@ function MatriculaOferta({ oferta, onClose, onGuardada }) {
           </div>
         </>
       )}
+
+      {pestana === 'pregrado' && detalle.data && (
+        <div className="flex flex-col gap-space-sm">
+          <p className="m-0 text-body-sm text-on-surface-variant">
+            Estudiantes de pregrado que cursan esta materia de la maestría (evalúan al docente cuando el semestre incluye pregrado; no entran en rúbricas de RA).
+          </p>
+          {pregradoInscritos.length > 0 ? (
+            <div className="tabla-scroll max-h-56">
+              <table className="text-body-sm">
+                <thead>
+                  <tr><th>Estudiante</th><th>Identificación</th><th>Programa</th><th>Estado</th><th aria-label="Acciones" /></tr>
+                </thead>
+                <tbody>
+                  {pregradoInscritos.map((p) => (
+                    <tr key={p.id_estudiante}>
+                      <td>{nombreDe(p)}</td>
+                      <td>{p.identificacion}</td>
+                      <td>{p.programa ?? '—'}</td>
+                      <td>{p.estado === 'retirado' ? 'Retirado' : 'Inscrito'}</td>
+                      <td className="acciones whitespace-nowrap">
+                        <button type="button" className="btn-enlace" disabled={guardando}
+                          onClick={() => accion(() => evalApi.estadoPregrado(oferta.id_curso, p.id_estudiante, p.estado === 'retirado' ? 'inscrito' : 'retirado'), false)}>
+                          {p.estado === 'retirado' ? 'Reincorporar' : 'Retirar'}
+                        </button>{' '}
+                        <button type="button" className="btn-enlace peligro" disabled={guardando}
+                          onClick={() => accion(() => evalApi.quitarPregrado(oferta.id_curso, p.id_estudiante), false)}>
+                          Quitar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="m-0 texto-suave">No hay estudiantes de pregrado inscritos en esta materia.</p>
+          )}
+
+          <form onSubmit={inscribirPregrado} className="form-grid rounded-xl bg-surface-container-low p-3">
+            <div className="campo">
+              <label htmlFor="mat-pre-est">Agregar estudiante de pregrado</label>
+              <select
+                id="mat-pre-est"
+                required
+                value={nuevoPregrado.id_estudiante}
+                onChange={(e) => setNuevoPregrado((x) => ({ ...x, id_estudiante: e.target.value }))}
+              >
+                <option value="">Seleccione cuenta de pregrado…</option>
+                {candidatosPregrado.map((u) => (
+                  <option key={u.id_usuario} value={u.id_usuario}>{nombreDe(u)} · {u.identificacion}</option>
+                ))}
+              </select>
+            </div>
+            <div className="campo">
+              <label htmlFor="mat-pre-prog">Programa de pregrado (opcional)</label>
+              <input
+                id="mat-pre-prog"
+                maxLength={150}
+                placeholder="Ingeniería Electrónica"
+                value={nuevoPregrado.programa}
+                onChange={(e) => setNuevoPregrado((x) => ({ ...x, programa: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2" style={{ gridColumn: '1 / -1' }}>
+              <span className="texto-suave">
+                ¿Falta la cuenta? Créela en Usuarios (rol estudiante, sin promoción) o importe la plantilla en Usuarios › Estudiantes de pregrado.
+              </span>
+              <button type="submit" className="btn btn-primario shrink-0" disabled={guardando || !nuevoPregrado.id_estudiante}>
+                Inscribir en materia
+              </button>
+            </div>
+          </form>
+          <ErrorApi error={error} />
+          <div className="modal-acciones">
+            <button type="button" className="btn btn-primario" onClick={onGuardada}>Listo</button>
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }
@@ -213,6 +364,7 @@ function MatriculaOferta({ oferta, onClose, onGuardada }) {
 function FormularioClase({ clase, catalogo, onClose, onGuardada }) {
   const [datos, setDatos] = useState({
     nombre: clase?.nombre ?? '',
+    codigo_externo: clase?.codigo_externo ?? '',
     id_catalogo: clase?.id_catalogo ?? catalogo[0]?.id_catalogo ?? '',
     descripcion: clase?.descripcion ?? '',
     activa: clase?.activa ?? true,
@@ -223,7 +375,13 @@ function FormularioClase({ clase, catalogo, onClose, onGuardada }) {
     e.preventDefault()
     setGuardando(true)
     setError(null)
-    const cuerpo = { ...datos, id_catalogo: Number(datos.id_catalogo), nombre: datos.nombre.trim(), descripcion: datos.descripcion.trim() || null }
+    const cuerpo = {
+      ...datos,
+      id_catalogo: Number(datos.id_catalogo),
+      nombre: datos.nombre.trim(),
+      codigo_externo: datos.codigo_externo.trim() || null,
+      descripcion: datos.descripcion.trim() || null,
+    }
     try {
       if (clase) await cursosApi.actualizarClase(clase.id_clase, cuerpo)
       else await cursosApi.crearClase(cuerpo)
@@ -238,10 +396,15 @@ function FormularioClase({ clase, catalogo, onClose, onGuardada }) {
     <Modal titulo={clase ? `Editar materia ${clase.codigo}` : 'Nueva materia'} onClose={onClose} ancho={600}>
       <form onSubmit={enviar}>
         <div className="form-grid">
-          <div className="campo" style={{ gridColumn: '1 / -1' }}>
+          <div className="campo">
             <label htmlFor="cl-nombre">Nombre de la materia</label>
             <input id="cl-nombre" value={datos.nombre} maxLength={150} required placeholder="p. ej. Robótica"
               onChange={(e) => setDatos((d) => ({ ...d, nombre: e.target.value }))} />
+          </div>
+          <div className="campo">
+            <label htmlFor="cl-codigo-ext">Código externo (OCARA, opcional)</label>
+            <input id="cl-codigo-ext" value={datos.codigo_externo} maxLength={50} placeholder="p. ej. 4512"
+              onChange={(e) => setDatos((d) => ({ ...d, codigo_externo: e.target.value }))} />
           </div>
           <div className="campo" style={{ gridColumn: '1 / -1' }}>
             <label htmlFor="cl-catalogo">Curso del plan que cubre</label>
@@ -303,12 +466,13 @@ function ClasesPanel({ clases, catalogo, onCambio }) {
       <div className="tabla-scroll">
         <table className="text-body-sm">
           <thead>
-            <tr><th>Código</th><th>Materia</th><th>Curso del plan</th><th>RA</th><th className="num">Ofertas</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
+            <tr><th>Código</th><th>Código OCARA</th><th>Materia</th><th>Curso del plan</th><th>RA</th><th className="num">Ofertas</th><th>Estado</th><th><span className="sr-only">Acciones</span></th></tr>
           </thead>
           <tbody>
             {clases.map((c) => (
               <tr key={c.id_clase}>
                 <td className="nowrap font-semibold text-primary">{c.codigo}</td>
+                <td className="nowrap">{c.codigo_externo || <span className="texto-suave">—</span>}</td>
                 <td>{c.nombre}</td>
                 <td>{c.curso_plan} · {c.curso_plan_nombre} <span className="texto-suave">(sem. {c.semestre})</span></td>
                 <td><div className="flex flex-wrap gap-1">{c.ras.map((r) => <Insignia key={r} tono="acento">{r}</Insignia>)}</div></td>
@@ -480,7 +644,8 @@ function GestionAcademica() {
               </div>
               <span className="text-body-sm text-on-surface-variant">
                 Calificación de rúbricas: <strong>{estadoSemestre?.abierto ? 'abierta' : 'cerrada'}</strong>{' '}
-                (<Link to="/coordinacion/ra/calificacion" className="underline">cambiar</Link>)
+                (<Link to="/coordinacion/ra/calificacion" className="underline">cambiar</Link>) ·{' '}
+                <Link to="/coordinacion/gestion?pestana=datos&hoja=matriculas-financieras" className="underline">Matrícula financiera</Link>
               </span>
               <button type="button" className="btn btn-primario ml-auto" onClick={() => setEditando('nueva')}
                 disabled={listaCohortes.length === 0 || !/^[0-9]{4}-[AB]$/.test(periodo)}>
@@ -503,7 +668,10 @@ function GestionAcademica() {
                       const avance = esperadas ? o.notas / esperadas : 0
                       return (
                         <tr key={o.id_curso}>
-                          <td><strong>{o.nombre}</strong>{o.grupo > 1 && ` · grupo ${o.grupo}`}<br /><span className="texto-suave">{o.clase_codigo}</span></td>
+                          <td>
+                            <strong>{o.nombre}</strong>{o.grupo > 1 && ` · grupo ${o.grupo}`}<br />
+                            <span className="texto-suave">{o.clase_codigo}{o.clase_codigo_externo ? ` · OCARA ${o.clase_codigo_externo}` : ''}</span>
+                          </td>
                           <td className="nowrap">{o.codigo}<br /><span className="texto-suave">sem. {o.semestre}</span></td>
                           <td>{o.cohorte}</td>
                           <td>
@@ -511,7 +679,10 @@ function GestionAcademica() {
                             <br /><button type="button" className="btn-enlace" onClick={() => setAsignando(o)}>Asignar docentes</button>
                           </td>
                           <td><div className="flex flex-wrap gap-1">{o.ras.map((r) => <Insignia key={r} tono="acento">{r}</Insignia>)}</div></td>
-                          <td className="num">{o.inscritos}</td>
+                          <td className="num">
+                            {o.inscritos}
+                            {o.inscritos_pregrado > 0 && <div className="texto-suave">+{o.inscritos_pregrado} preg.</div>}
+                          </td>
                           <td style={{ minWidth: 110 }}>
                             <span className="text-label-sm text-on-surface-variant">{porcentaje(avance)}</span>
                             <BarraProgreso fraccion={avance} />

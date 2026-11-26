@@ -72,7 +72,10 @@ export default function FichaUsuario({ usuario, onClose }) {
   const ficha = useApi(() => usuariosApi.ficha(usuario.id_usuario), [usuario.id_usuario])
   const f = ficha.data
   const u = f?.usuario ?? usuario
-  const beneficiosPorSemestre = (f?.beneficios ?? []).reduce((m, b) => m.set(b.semestre, [...(m.get(b.semestre) ?? []), etiquetaBeneficio(b.tipo)]), new Map())
+  const beneficiosPorSemestre = (f?.beneficios ?? []).reduce(
+    (m, b) => m.set(b.semestre, [...(m.get(b.semestre) ?? []), `${etiquetaBeneficio(b.tipo)}${b.detalle ? ` (${b.detalle})` : ''}`]),
+    new Map(),
+  )
 
   return (
     <Modal titulo={`${u.nombres} ${u.apellidos} · ${ETIQUETA_ROL[u.rol] ?? u.rol}`} onClose={onClose} ancho={900}>

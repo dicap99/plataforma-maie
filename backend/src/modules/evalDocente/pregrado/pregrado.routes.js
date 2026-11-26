@@ -17,6 +17,11 @@ const inscripcion = [
 // Montado en /api/v1/eval-docente/pregrado (solo Coordinación)
 router.use(authenticate, authorize(ROLES.COORDINADOR));
 router.get('/', semestre, validate, controller.listar);
+router.post('/',
+  body('id_curso').isInt({ min: 1 }).withMessage('Curso inválido').toInt(),
+  body('id_estudiante').isUUID().withMessage('Estudiante inválido'),
+  body('programa').optional({ values: 'null' }).isString().trim().isLength({ max: 150 }).withMessage('Programa de hasta 150 caracteres'),
+  validate, controller.inscribir);
 router.get('/plantilla', semestre, validate, controller.plantilla);
 router.post('/importar', upload.single('archivo'), controller.importar);
 router.put('/:idCurso/:idEstudiante', ...inscripcion,

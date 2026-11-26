@@ -6,6 +6,7 @@ module.exports = {
   plantilla: descargar(service.plantilla), // GET /eval-docente/pregrado/plantilla
   // POST /eval-docente/pregrado/importar — 200 al validar (simular), 201 al confirmar
   importar: responder(service.importar, (r) => (r.simulacion ? 200 : 201)),
+  inscribir: responder(service.inscribir, 201), // POST /eval-docente/pregrado
   cambiarEstado: responder(service.cambiarEstado), // PUT /eval-docente/pregrado/:idCurso/:idEstudiante
   quitar: responder(service.quitar), // DELETE /eval-docente/pregrado/:idCurso/:idEstudiante
 };

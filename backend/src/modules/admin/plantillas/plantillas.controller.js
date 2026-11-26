@@ -3,8 +3,8 @@ const requestContext = require('../../../utils/requestContext');
 const service = require('./plantillas.service');
 
 // GET /api/v1/admin/plantillas — descarga binaria (no usa el DTO JSON)
-const descargar = asyncHandler(async (req, res) => {
-  const { nombreArchivo, buffer } = await service.generar(requestContext(req));
+const responderExcel = (fn) => asyncHandler(async (req, res) => {
+  const { nombreArchivo, buffer } = await fn(requestContext(req));
   res
     .status(200)
     .set({
@@ -15,4 +15,7 @@ const descargar = asyncHandler(async (req, res) => {
     .send(Buffer.from(buffer));
 });
 
-module.exports = { descargar };
+module.exports = {
+  descargar: responderExcel(service.generar),
+  exportarRecurso: responderExcel(service.exportarRecurso),
+};

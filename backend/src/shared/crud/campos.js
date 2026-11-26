@@ -10,6 +10,7 @@ const TIPOS = {
   numero: (v, m) => v.isFloat().withMessage(`${m} debe ser numérico`).toFloat(),
   dinero: (v, m) => v.isFloat().withMessage(`${m} debe ser un valor en pesos`).toFloat(),
   texto: (v, m) => v.isString().withMessage(`${m} debe ser texto`).trim(),
+  booleano: (v, m) => v.isBoolean().withMessage(`${m} debe ser verdadero o falso`).toBoolean(),
   periodo: (v, m) => v.matches(PERIODO_REGEX).withMessage(`${m} debe tener formato AAAA-A o AAAA-B`),
   fecha: (v, m) => v.isISO8601({ strict: true }).withMessage(`${m} debe ser una fecha AAAA-MM-DD`),
   cohorte: (v, m) => v.isInt({ min: 1 }).withMessage(`${m} debe ser una promoción válida`).toInt(),
@@ -75,6 +76,13 @@ const NORMALIZAR = {
   numero: (v) => { const n = aNumero(v); return Number.isFinite(n) ? n : undefined; },
   dinero: (v) => { const n = aNumero(v); return Number.isFinite(n) ? n : undefined; },
   texto: (v) => String(v).trim(),
+  booleano: (v) => {
+    if (typeof v === 'boolean') return v;
+    const s = String(v).trim().toLowerCase();
+    if (['true', 'si', 'sí', '1', 'x'].includes(s)) return true;
+    if (['false', 'no', '0'].includes(s)) return false;
+    return undefined;
+  },
   periodo: (v) => { const s = String(v).trim().toUpperCase(); return PERIODO_REGEX.test(s) ? s : undefined; },
   fecha: (v) => aFecha(v) ?? undefined,
   enum: (v, campo) => campo.options.find((o) => o.toUpperCase() === String(v).trim().toUpperCase()),
