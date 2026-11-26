@@ -26,5 +26,6 @@ const filtros = [
 router.get('/', ...filtros, controller.consolidado);
 router.get('/analisis', ...filtros, controller.analisis);
 router.get('/exportar', ...filtros, controller.exportar);
+router.get('/informe.pdf', ...filtros, controller.informePdf);
 
 module.exports = router;

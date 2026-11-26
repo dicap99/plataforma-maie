@@ -1,5 +1,6 @@
-// Análisis del programa (Módulo 2): funciones puras de reportes/analisis.js.
+// Análisis del programa (Módulo 2): funciones puras de reportes/analisis.js y generación de informe PDF.
 const { analizar, histograma, criterios } = require('../src/modules/ra/reportes/analisis');
+const { generarInformePdf } = require('../src/modules/ra/reportes/informePdf');
 
 const RAS = [
   { id_ra: 1, codigo: 'RA1', descripcion: 'uno' },
@@ -76,5 +77,25 @@ describe('analizar: agregados del programa', () => {
 
     expect(r.global.pct_satisfactorio).toBeCloseTo(7 / 12); // 58,3 % < 70 %
     expect(r.porCohorte.map((c) => c.validacion)).toEqual(['Cumple', 'En riesgo']);
+  });
+});
+
+describe('generarInformePdf (Módulo 2)', () => {
+  it('genera un PDF válido con histogramas por RA y tablas tanto con datos como vacío', async () => {
+    const vacio = analizar({ filas: [], notas: [], ras: RAS, meta: 70 });
+    const pdfVacio = await generarInformePdf({ meta: { meta_satisfactorio_pct: 70, rubricas_incompletas: 0, filtros: {} }, ...vacio });
+    expect(pdfVacio.tipo).toBe('application/pdf');
+    expect(pdfVacio.nombreArchivo).toMatch(/^Informe_RA_MaIE_\d{4}-\d{2}-\d{2}\.pdf$/);
+    expect(pdfVacio.buffer.subarray(0, 5).toString()).toBe('%PDF-');
+
+    const conDatos = analizar({
+      filas: [4.8, 4.1, 3.2, 2.1].map((t, i) => fila(t, { ra: `RA${(i % 3) + 1}` })),
+      notas: [],
+      ras: RAS,
+      meta: 70,
+    });
+    const pdfDatos = await generarInformePdf({ meta: { meta_satisfactorio_pct: 70, rubricas_incompletas: 1, filtros: { cohorte: 1 } }, ...conDatos });
+    expect(pdfDatos.buffer.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdfDatos.buffer.length).toBeGreaterThan(1000);
   });
 });

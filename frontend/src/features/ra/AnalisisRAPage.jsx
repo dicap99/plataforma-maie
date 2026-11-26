@@ -90,6 +90,53 @@ function AvisoCalificacionPendiente({ semestres }) {
   )
 }
 
+function HistogramasPorRA({ porRA, niveles }) {
+  const series = niveles.map((n) => ({ clave: n.nivel, nombre: `${n.etiqueta} (${n.rango})`, color: COLOR_NIVEL[n.nivel] }))
+  return (
+    <section className="flex flex-col gap-space-sm">
+      <div>
+        <h2 className="m-0 font-display text-headline-sm text-primary">Histogramas por resultado de aprendizaje</h2>
+        <p className="m-0 text-body-sm text-on-surface-variant">
+          Conteo de estudiantes en cada nivel de logro (Alto, Medio, Básico e Insuficiente) por resultado de aprendizaje.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-gutter lg:grid-cols-2">
+        {porRA.map((r) => {
+          const datos = niveles.map((n) => ({
+            nivel: n.etiqueta,
+            ...Object.fromEntries(niveles.map((x) => [x.nivel, x.nivel === n.nivel ? (r[n.nivel] ?? 0) : null])),
+          }))
+          const tabla = {
+            columnas: [
+              { clave: 'etiqueta', titulo: 'Nivel' },
+              { clave: 'rango', titulo: 'Rango' },
+              { clave: 'estudiantes', titulo: 'Estudiantes', formato: numero },
+              { clave: 'pct', titulo: '%', formato: fraccion },
+            ],
+            filas: niveles.map((n) => ({
+              etiqueta: n.etiqueta,
+              rango: n.rango,
+              estudiantes: r[n.nivel] ?? 0,
+              pct: r.evaluados ? (r.pct?.[n.nivel] ?? 0) : null,
+            })),
+          }
+          return (
+            <ChartCard
+              key={r.grupo}
+              titulo={`${r.grupo} · Distribución por nivel`}
+              subtitulo={`${numero(r.evaluados)} estudiante(s) evaluado(s) · promedio ${r.promedio === null || r.promedio === undefined ? '—' : r.promedio.toFixed(2)} · ${r.validacion}`}
+              tabla={tabla}
+              altura="h-64"
+            >
+              <GraficoBarras datos={datos} ejeX="nivel" series={series} apilado formato={numero} />
+            </ChartCard>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function SatisfactorioPorRA({ porRA, meta }) {
   const datos = porRA.filter((r) => r.evaluados).map((r) => ({ ra: r.grupo, pct: r.pct_satisfactorio, evaluados: r.evaluados }))
   const tabla = {
@@ -187,6 +234,7 @@ export default function AnalisisRAPage() {
   const activo = PESTANAS.some((p) => p.id === params.get('pestana')) ? params.get('pestana') : PESTANAS[0].id
   const [f, setF] = useState(FILTROS_VACIOS)
   const [exportando, setExportando] = useState(false)
+  const [exportandoPdf, setExportandoPdf] = useState(false)
   const [errorExportar, setErrorExportar] = useState(null)
 
   const consulta = useMemo(() => sinVacios(f), [f])
@@ -228,6 +276,18 @@ export default function AnalisisRAPage() {
     }
   }
 
+  const exportarPdf = async () => {
+    setExportandoPdf(true)
+    setErrorExportar(null)
+    try {
+      await raApi.informePdfRA(consulta)
+    } catch (err) {
+      setErrorExportar(err)
+    } finally {
+      setExportandoPdf(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-space-lg">
       <header className="flex flex-col gap-space-sm md:flex-row md:items-end md:justify-between">
@@ -241,10 +301,13 @@ export default function AnalisisRAPage() {
             entre promociones y semestres. La unidad es el resultado de un estudiante en un RA (promedio de sus rúbricas completas).
           </p>
         </div>
-        <div className="flex gap-space-sm">
+        <div className="flex flex-wrap gap-space-sm">
           <Link to="/coordinacion/ra" className="btn btn-secundario no-underline">
             <Icono nombre="analytics" className="text-[18px]" /> Consolidado
           </Link>
+          <button type="button" className="btn btn-secundario" onClick={exportarPdf} disabled={exportandoPdf}>
+            <Icono nombre="picture_as_pdf" className="text-[18px]" /> {exportandoPdf ? 'Generando PDF…' : 'Informe PDF'}
+          </button>
           <button type="button" className="btn btn-primario" onClick={exportar} disabled={exportando}>
             <Icono nombre="file_download" className="text-[18px]" /> {exportando ? 'Exportando…' : 'Exportar a Excel'}
           </button>
@@ -292,6 +355,7 @@ export default function AnalisisRAPage() {
               <p className="text-body-sm text-on-surface-variant">No cuentan hasta que el docente registre todos los criterios.</p>
             </TarjetaKpi>
           </section>
+          <HistogramasPorRA porRA={f.ra ? d.porRA.filter((r) => String(r.id_ra) === f.ra) : d.porRA} niveles={niveles} />
           <div className="grid grid-cols-1 gap-gutter xl:grid-cols-2">
             <Histograma bins={d.histograma} niveles={niveles} />
             <SatisfactorioPorRA porRA={d.porRA} meta={metaPct} />

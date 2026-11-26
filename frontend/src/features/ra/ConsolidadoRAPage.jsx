@@ -368,6 +368,7 @@ export default function ConsolidadoRAPage() {
   const [agrupar, setAgrupar] = useState('')
   const [f, setF] = useState(FILTROS_VACIOS)
   const [exportando, setExportando] = useState(false)
+  const [exportandoPdf, setExportandoPdf] = useState(false)
   const [errorExportar, setErrorExportar] = useState(null)
 
   const general = useApi(() => raApi.reporteRA({}))
@@ -497,6 +498,18 @@ export default function ConsolidadoRAPage() {
     }
   }
 
+  const exportarPdf = async () => {
+    setExportandoPdf(true)
+    setErrorExportar(null)
+    try {
+      await raApi.informePdfRA(params)
+    } catch (err) {
+      setErrorExportar(err)
+    } finally {
+      setExportandoPdf(false)
+    }
+  }
+
   const datos = reporte.data?.clave === clave ? reporte.data : null
   const verRA = (filas) => (f.ra ? filas.filter((r) => String(r.id_ra) === f.ra) : filas)
   const rasConDatos = datos?.filas ? [...new Set(datos.filas.flatMap((x) => Object.keys(x.detalle ?? {})))].sort() : []
@@ -514,7 +527,7 @@ export default function ConsolidadoRAPage() {
             un RA es el promedio de sus rúbricas completas.
           </p>
         </div>
-        <div className="flex gap-space-sm">
+        <div className="flex flex-wrap gap-space-sm">
           <Link to="analisis" className="btn btn-secundario no-underline">
             <Icono nombre="insights" className="text-[18px]" /> Análisis del programa
           </Link>
@@ -522,9 +535,14 @@ export default function ConsolidadoRAPage() {
             <Icono nombre="rule" className="text-[18px]" /> Matriz de rúbricas
           </Link>
           {params && (
-            <button type="button" className="btn btn-primario" onClick={exportar} disabled={exportando}>
-              <Icono nombre="file_download" className="text-[18px]" /> {exportando ? 'Exportando…' : 'Exportar a Excel'}
-            </button>
+            <>
+              <button type="button" className="btn btn-secundario" onClick={exportarPdf} disabled={exportandoPdf}>
+                <Icono nombre="picture_as_pdf" className="text-[18px]" /> {exportandoPdf ? 'Generando PDF…' : 'Informe PDF'}
+              </button>
+              <button type="button" className="btn btn-primario" onClick={exportar} disabled={exportando}>
+                <Icono nombre="file_download" className="text-[18px]" /> {exportando ? 'Exportando…' : 'Exportar a Excel'}
+              </button>
+            </>
           )}
         </div>
       </header>

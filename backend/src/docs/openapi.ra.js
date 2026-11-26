@@ -67,6 +67,7 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
       type: 'object',
       properties: {
         id_clase: { type: 'integer' }, codigo: { type: 'string', example: 'CE2-01', description: 'Generado por la plataforma' },
+        codigo_externo: { type: 'string', nullable: true, example: '4512', description: 'Código institucional asignado por OCARA' },
         nombre: { type: 'string', example: 'Robótica' }, descripcion: { type: 'string', nullable: true }, activa: { type: 'boolean' },
         id_catalogo: { type: 'integer' }, curso_plan: { type: 'string', example: 'MaIE-CE2' }, curso_plan_nombre: { type: 'string' },
         semestre: { type: 'integer' }, id_modulo: { type: 'integer' }, modulo: { type: 'string' },
@@ -78,6 +79,7 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
       required: ['nombre', 'id_catalogo'],
       properties: {
         nombre: { type: 'string', maxLength: 150, description: 'Único (sin distinguir mayúsculas)' },
+        codigo_externo: { type: 'string', maxLength: 50, nullable: true, description: 'Código institucional asignado por OCARA' },
         id_catalogo: { type: 'integer', description: 'Curso del plan que cubre; no se cambia si la clase ya se ofertó' },
         descripcion: { type: 'string', nullable: true }, activa: { type: 'boolean', default: true },
       },
@@ -374,6 +376,17 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
         parameters: filtrosReporte,
         responses: {
           200: { description: 'Libro Excel', content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: { type: 'string', format: 'binary' } } } },
+          ...errores(400, 401, 403),
+        },
+      },
+    },
+    '/ra/reportes/informe.pdf': {
+      get: {
+        tags: [TAG_RA], summary: 'Informe PDF con histogramas por RA y tablas',
+        description: `Genera el informe PDF con las gráficas por RA, sus tablas consolidadas y el % satisfactorio frente a la meta (sin conclusiones automáticas). ${roles(['coordinador'])}`,
+        parameters: filtrosReporte,
+        responses: {
+          200: { description: 'Informe PDF', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } } },
           ...errores(400, 401, 403),
         },
       },

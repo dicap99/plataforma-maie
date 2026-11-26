@@ -6,6 +6,7 @@ const ExcelJS = require('exceljs');
 const { NIVELES, CLAVES_NIVEL, agruparUnidades, distribucion, validacion, nivelDeNota } = require('../rubrica');
 const repository = require('./reportes.repository');
 const { analizar } = require('./analisis');
+const { generarInformePdf } = require('./informePdf');
 const periodosRepository = require('../periodos/periodos.repository');
 const avance = require('../periodos/avance');
 
@@ -208,5 +209,10 @@ module.exports = {
 
     const fecha = new Date().toISOString().slice(0, 10);
     return { nombreArchivo: `Resultados_RA_MaIE_${fecha}.xlsx`, buffer: await libro.xlsx.writeBuffer() };
+  },
+
+  async informePdf(ctx) {
+    const datos = await this.analisis(ctx);
+    return generarInformePdf(datos);
   },
 };

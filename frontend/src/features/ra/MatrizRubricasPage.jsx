@@ -41,6 +41,7 @@ export default function MatrizRubricasPage() {
   const catalogo = useApi(cursosApi.catalogo)
   const [idRa, setIdRa] = useState(null)
   const [borrador, setBorrador] = useState(null)
+  const [editando, setEditando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState(null)
   const [mensaje, setMensaje] = useState(null)
@@ -73,9 +74,16 @@ export default function MatrizRubricasPage() {
 
   const cambiarRa = (nuevoId) => {
     if (nuevoId === ra.id_ra) return
-    if (modificado && !window.confirm('Hay cambios sin guardar en esta rúbrica. ¿Descartarlos y cambiar de RA?')) return
+    if (editando && modificado && !window.confirm('Hay cambios sin guardar en esta rúbrica. ¿Descartarlos y cambiar de RA?')) return
+    setEditando(false)
     setMensaje(null)
     setIdRa(nuevoId)
+  }
+
+  const cancelarEdicion = () => {
+    setBorrador(ra.criterios.map((c) => ({ ...c })))
+    setErrorGuardar(null)
+    setEditando(false)
   }
 
   const guardar = async () => {
@@ -84,6 +92,7 @@ export default function MatrizRubricasPage() {
     try {
       await raApi.guardarRubrica(ra.id_ra, borrador.map((c) => ({ ...c, peso_porcentaje: Number(c.peso_porcentaje) })))
       await rubricas.recargar()
+      setEditando(false)
       setMensaje(`Rúbrica de ${ra.codigo} guardada.`)
     } catch (err) {
       setErrorGuardar(err)
@@ -172,7 +181,30 @@ export default function MatrizRubricasPage() {
                 <span className="rounded-lg bg-primary px-2.5 py-1 font-display text-headline-sm text-on-primary">{ra.codigo}</span>
                 <span className="text-label-sm font-semibold uppercase text-outline">Definición de competencia específica</span>
               </div>
-              <span className="rounded bg-surface-container-low px-2 py-0.5 text-label-sm text-on-surface-variant">Código SNIES: {SNIES_PROGRAMA}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-surface-container-low px-2 py-0.5 text-label-sm text-on-surface-variant">Código SNIES: {SNIES_PROGRAMA}</span>
+                {!editando ? (
+                  <>
+                    <span className="rounded bg-surface-container-low px-2 py-0.5 text-label-sm font-semibold text-on-surface-variant">Solo lectura</span>
+                    <button
+                      type="button"
+                      className="btn btn-secundario"
+                      onClick={() => { setMensaje(null); setErrorGuardar(null); setEditando(true) }}
+                    >
+                      <Icono nombre="edit" className="text-[18px]" /> Editar
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" className="btn btn-secundario" disabled={guardando} onClick={cancelarEdicion}>
+                      Cancelar
+                    </button>
+                    <button type="button" className="btn btn-primario" disabled={suma !== 100 || !completo || guardando} onClick={guardar}>
+                      <Icono nombre="save" className="text-[18px]" /> {guardando ? 'Guardando…' : 'Guardar'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             <label className="sr-only" htmlFor={`def-${ra.id_ra}`}>Definición de {ra.codigo}</label>
             <textarea id={`def-${ra.id_ra}`} readOnly rows={2} value={ra.descripcion} title="La definición del RA proviene del PEP"
@@ -200,22 +232,26 @@ export default function MatrizRubricasPage() {
                     <div className="flex items-center gap-2 rounded-lg bg-surface-container-low px-3 py-1">
                       <label className="text-label-md text-on-surface-variant" htmlFor={`${id}-peso`}>Peso (%):</label>
                       <input id={`${id}-peso`} type="number" min="0" max="100" step="0.01" value={c.peso_porcentaje}
+                        disabled={!editando}
                         onChange={(e) => editar(i, 'peso_porcentaje', e.target.value)}
-                        className="w-20 rounded-lg border-0 bg-surface-container-lowest py-0.5 text-center font-display text-headline-sm text-primary shadow-sm outline-none [appearance:textfield] focus:ring-2 focus:ring-secondary/40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        className="w-20 rounded-lg border-0 bg-surface-container-lowest py-0.5 text-center font-display text-headline-sm text-primary shadow-sm outline-none [appearance:textfield] focus:ring-2 focus:ring-secondary/40 disabled:cursor-default disabled:opacity-80 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                     </div>
-                    <button type="button" onClick={() => quitar(i)} disabled={borrador.length === 1}
-                      title={borrador.length === 1 ? 'Una rúbrica debe tener al menos un criterio' : undefined}
-                      className="flex items-center gap-1 rounded-lg border-0 cursor-pointer bg-transparent px-2.5 py-1.5 text-label-md text-error transition-all hover:bg-error-container/40 hover:text-on-error-container disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
-                      <Icono nombre="delete" className="text-[18px]" /> Quitar
-                    </button>
+                    {editando && (
+                      <button type="button" onClick={() => { if (window.confirm(`¿Borrar el criterio ${c.orden} de la rúbrica?`)) quitar(i) }} disabled={borrador.length === 1}
+                        title={borrador.length === 1 ? 'Una rúbrica debe tener al menos un criterio' : undefined}
+                        className="flex items-center gap-1 rounded-lg border-0 cursor-pointer bg-transparent px-2.5 py-1.5 text-label-md text-error transition-all hover:bg-error-container/40 hover:text-on-error-container disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+                        <Icono nombre="delete" className="text-[18px]" /> Borrar
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-label-sm font-semibold text-on-surface-variant" htmlFor={`${id}-nombre`}>Descripción del criterio</label>
                   <textarea id={`${id}-nombre`} rows={2} value={c.nombre_criterio} placeholder="Describa el criterio de evaluación…"
+                    readOnly={!editando}
                     onChange={(e) => editar(i, 'nombre_criterio', e.target.value)}
-                    className="w-full rounded-lg border-0 bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface shadow-sm outline-none focus:ring-2 focus:ring-secondary/30"
+                    className={`w-full rounded-lg border-0 px-3 py-2 text-body-md text-on-surface shadow-sm outline-none ${editando ? 'bg-surface-container-lowest focus:ring-2 focus:ring-secondary/30' : 'cursor-default bg-surface-container-low'}`}
                     style={CONTORNO} />
                 </div>
 
@@ -229,9 +265,10 @@ export default function MatrizRubricasPage() {
                           {r?.etiqueta ?? n.clave} ({r?.rango})
                         </label>
                         <textarea id={`${id}-${n.campo}`} rows={4} value={c[n.campo] ?? ''}
+                          readOnly={!editando}
                           placeholder={`Descriptor nivel ${(r?.etiqueta ?? n.clave).toLowerCase()}…`}
                           onChange={(e) => editar(i, n.campo, e.target.value)}
-                          className="w-full resize-none rounded-lg border-0 bg-surface-container-lowest p-2 text-body-sm text-on-surface shadow-sm outline-none focus:ring-1 focus:ring-secondary"
+                          className={`w-full resize-none rounded-lg border-0 p-2 text-body-sm text-on-surface shadow-sm outline-none ${editando ? 'bg-surface-container-lowest focus:ring-1 focus:ring-secondary' : 'cursor-default bg-surface-container-lowest/70'}`}
                           style={{ boxShadow: `inset 0 0 0 1px ${n.contorno}` }} />
                       </div>
                     )
@@ -241,10 +278,12 @@ export default function MatrizRubricasPage() {
             )
           })}
 
-          <button type="button" onClick={agregar}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-0 cursor-pointer bg-surface-container py-4 text-label-lg text-primary shadow-sm transition-all hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
-            <Icono nombre="add_circle" className="text-[24px] text-secondary" /> Agregar nuevo criterio
-          </button>
+          {editando && (
+            <button type="button" onClick={agregar}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-0 cursor-pointer bg-surface-container py-4 text-label-lg text-primary shadow-sm transition-all hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+              <Icono nombre="add_circle" className="text-[24px] text-secondary" /> Agregar nuevo criterio
+            </button>
+          )}
 
           <div className="flex flex-col justify-between gap-3 rounded-xl bg-surface-container-low p-space-md shadow-sm sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
@@ -263,10 +302,10 @@ export default function MatrizRubricasPage() {
             </button>
           </div>
 
-          {/* Barra de guardado: solo aparece con cambios pendientes */}
-          {modificado && (
+          {/* Barra de guardado: activa en modo edición */}
+          {editando && (
             <div className="sticky bottom-4 z-30 flex flex-col justify-between gap-3 rounded-xl bg-surface-container-lowest p-space-md shadow-[0_20px_28px_-6px_rgba(18,16,62,0.16)] sm:flex-row sm:items-center"
-              role="region" aria-label="Cambios pendientes">
+              role="region" aria-label="Edición de rúbrica">
               <span className={`flex items-center gap-2 text-label-md ${suma === 100 && completo ? 'text-secondary' : 'text-error'}`} role="status">
                 <Icono nombre={suma === 100 && completo ? 'check_circle' : 'warning'} className="text-[18px]" />
                 Suma de pesos: {formatoPct(suma)}%
@@ -274,8 +313,8 @@ export default function MatrizRubricasPage() {
                 {suma === 100 && !completo && ' · complete la descripción y los cuatro descriptores de cada criterio'}
               </span>
               <div className="flex items-center gap-2">
-                <button type="button" className="btn btn-secundario" disabled={guardando} onClick={() => setBorrador(ra.criterios.map((c) => ({ ...c })))}>
-                  Descartar
+                <button type="button" className="btn btn-secundario" disabled={guardando} onClick={cancelarEdicion}>
+                  Cancelar
                 </button>
                 <button type="button" className="btn btn-primario" disabled={suma !== 100 || !completo || guardando} onClick={guardar}>
                   <Icono nombre="save" className="text-[18px]" /> {guardando ? 'Guardando…' : 'Guardar rúbrica'}
