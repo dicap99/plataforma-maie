@@ -17,21 +17,47 @@ const resumen = async (periodo, config) => {
   const estudiantes = (pob) => [...ctx.asignaciones.values()].filter((l) => l.some((a) => a.poblacion === pob)).length;
   const ee = (pob) => avance.ee.filter((r) => r.poblacion === pob).reduce((s, r) => s + r.n, 0);
   const conCuenta = ctx.unidades.filter((u) => u.id_usuario_docente);
+  const posEsperadas = contar('posgrado');
+  const preEsperadas = contar('pregrado');
+  const posRecibidas = ee('posgrado');
+  const preRecibidas = ee('pregrado');
+  const estudiantesAlDia = [...ctx.asignaciones.entries()]
+    .filter(([id, lista]) => lista.every((a) => avance.constancias.has(huella(env.evalSecreto, periodo, id, a.id_docente)))).length;
+  const ecPendientes = ctx.unidades
+    .filter((u) => !hechas.has(`EC|${u.id_docente}|${u.id_cohorte}`))
+    .map((u) => ({ id_docente: u.id_docente, docente: u.docente, id_cohorte: u.id_cohorte, cohorte: u.cohorte }));
+  const aePendientes = ctx.unidades
+    .filter((u) => !u.id_usuario_docente || !hechas.has(`AE|${u.id_docente}|${u.id_cohorte}`))
+    .map((u) => ({
+      id_docente: u.id_docente,
+      docente: u.docente,
+      id_cohorte: u.id_cohorte,
+      cohorte: u.cohorte,
+      sin_cuenta: !u.id_usuario_docente,
+    }));
   return {
     unidades: ctx.unidades.length,
     docentes: new Set(ctx.unidades.map((u) => u.id_docente)).size,
     ofertas_sin_docente: ctx.ofertas.filter((o) => !o.docentes.length).length,
     ee: {
-      posgrado: { estudiantes: estudiantes('posgrado'), esperadas: contar('posgrado'), recibidas: ee('posgrado') },
-      pregrado: { estudiantes: estudiantes('pregrado'), esperadas: contar('pregrado'), recibidas: ee('pregrado') },
-      estudiantes_al_dia: [...ctx.asignaciones.entries()]
-        .filter(([id, lista]) => lista.every((a) => avance.constancias.has(huella(env.evalSecreto, periodo, id, a.id_docente)))).length,
+      posgrado: { estudiantes: estudiantes('posgrado'), esperadas: posEsperadas, recibidas: posRecibidas },
+      pregrado: { estudiantes: estudiantes('pregrado'), esperadas: preEsperadas, recibidas: preRecibidas },
+      estudiantes_al_dia: estudiantesAlDia,
     },
-    ec: { esperadas: ctx.unidades.length, recibidas: ctx.unidades.filter((u) => hechas.has(`EC|${u.id_docente}|${u.id_cohorte}`)).length },
+    ec: { esperadas: ctx.unidades.length, recibidas: ctx.unidades.length - ecPendientes.length },
     ae: {
       esperadas: conCuenta.length,
       recibidas: conCuenta.filter((u) => hechas.has(`AE|${u.id_docente}|${u.id_cohorte}`)).length,
       sin_cuenta: ctx.unidades.length - conCuenta.length,
+    },
+    faltantes: {
+      ee: {
+        estudiantes_pendientes: Math.max(0, ctx.asignaciones.size - estudiantesAlDia),
+        respuestas_posgrado: Math.max(0, posEsperadas - posRecibidas),
+        respuestas_pregrado: Math.max(0, preEsperadas - preRecibidas),
+      },
+      ec: ecPendientes,
+      ae: aePendientes,
     },
   };
 };

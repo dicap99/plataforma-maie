@@ -12,13 +12,23 @@ export const CATEGORIAS = [
 ]
 export const COLOR_CATEGORIA = Object.fromEntries(CATEGORIAS.map((c) => [c.sigla, c.color]))
 
+// Color oficial según el valor numérico de %IP (Acuerdo 058, Art. 2).
+export const colorDePct = (valor, fallback = '#2a78d6') => {
+  if (valor === null || valor === undefined) return fallback
+  const n = Number(valor)
+  if (n >= 80) return COLOR_CATEGORIA.GF
+  if (n >= 60) return COLOR_CATEGORIA.F
+  if (n >= 40) return COLOR_CATEGORIA.T
+  if (n >= 20) return COLOR_CATEGORIA.D
+  return COLOR_CATEGORIA.GD
+}
+
 export const ETIQUETA_FORMULARIO = {
   EE: 'Evaluación del estudiante (EE)',
   EC: 'Evaluación de Coordinación (EC)',
   AE: 'Autoevaluación (AE)',
 }
 export const ETIQUETA_POBLACION = { todas: 'Posgrado y pregrado (unidos)', posgrado: 'Solo posgrado', pregrado: 'Solo pregrado' }
-export const REFERENCIA_EXCEL = 'Método del Excel de Coordinación (referencia histórica)'
 
 const nf1 = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 // %IP (0–100) con un decimal.

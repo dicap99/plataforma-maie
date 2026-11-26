@@ -6,10 +6,21 @@
 //  - Informe PDF consolidado con gráficas y PDF por docente con su histórico.
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
-const { VALORES, CATEGORIAS, META_PCT } = require('../acuerdo058');
+const { VALORES, CATEGORIAS, META_PCT, categoria } = require('../acuerdo058');
 
 const ETIQUETA_POBLACION = { todas: 'posgrado y pregrado unidos', posgrado: 'solo posgrado', pregrado: 'solo pregrado' };
-const REFERENCIA = 'Método del Excel de Coordinación (referencia histórica)';
+const COLOR_CATEGORIA = {
+  GF: '#1e7b34',
+  F: '#2a78d6',
+  T: '#9a6a00',
+  D: '#c4511c',
+  GD: '#ba1a1a',
+};
+const colorPorPct = (valor, fallback = '#2a78d6') => {
+  if (valor === null || valor === undefined) return fallback;
+  const cat = categoria(Math.max(0, Math.min(100, Number(valor))));
+  return COLOR_CATEGORIA[cat?.sigla] ?? fallback;
+};
 const fecha = () => new Date().toISOString().slice(0, 10);
 const pct = (x, d = 1) => (x === null || x === undefined ? '—' : `${x.toFixed(d).replace('.', ',')} %`);
 const prop = (x) => (x === null || x === undefined ? '—' : pct(x * 100));
@@ -61,12 +72,9 @@ const hojaSemestre = (libro, config, c) => {
     }
     const resumen = [
       ['Respuestas (estudiantes)', () => n],
-      ['Repeticiones (Acuerdo)', (x, m) => x.conteos[VALORES[m]]],
+      ['Repeticiones (Acuerdo 058)', (x, m) => x.conteos[VALORES[m]]],
       ['%IP oficial (Acuerdo 058)', (x) => (x.pct_ip === null ? null : Math.round(x.pct_ip * 10) / 10)],
       ['Categoría oficial', (x) => x.categoria],
-      ['Ocurrencias (Excel, referencia)', (x, m) => x.excel.ocurrencias[VALORES[m]]],
-      ['%IP método Excel (referencia)', (x) => (x.excel.pct_ip === null ? null : Math.round(x.excel.pct_ip * 10) / 10)],
-      ['Categoría método Excel (referencia)', (x) => x.excel.categoria],
     ];
     for (const [titulo, fn] of resumen) {
       const fila = h.addRow(['', '', titulo]);
@@ -75,7 +83,7 @@ const hojaSemestre = (libro, config, c) => {
       caracteristicas.forEach((k, i) => {
         const x = u.ee.caracteristicas.find((y) => y.caracteristica === k);
         if (!x) return;
-        if (titulo.startsWith('Repeticiones') || titulo.startsWith('Ocurrencias')) {
+        if (titulo.startsWith('Repeticiones')) {
           VALORES.forEach((_, m) => { fila.getCell(5 + i * ancho + m).value = fn(x, m); });
         } else fila.getCell(5 + i * ancho).value = fn(x);
       });
@@ -83,19 +91,19 @@ const hojaSemestre = (libro, config, c) => {
     h.addRow([]);
   }
 
-  // Tabla resumen por promoción (como «Evaluación Docente» del libro), oficial y referencia.
+  // Tabla resumen por promoción (Acuerdo 058).
   const cs = caracteristicas.filter((k) => k !== 0);
   for (const p of c.promociones) {
     h.addRow([]);
     const t = h.addRow([`Promoción ${p.cohorte}`, '', '', '', ...cs.map((k) => `C${k}`), ...cs.map((k) => `Cat. C${k}`),
-      'IDST-D por variable', 'IDST-D por característica', 'IDST-D método Excel']);
+      'IDST-D por variable', 'IDST-D por característica']);
     encabezar(t);
     for (const u of c.unidades.filter((x) => x.ee && x.id_cohorte === p.id_cohorte)) {
       const val = (k) => u.ee.caracteristicas.find((y) => y.caracteristica === k);
       h.addRow([u.docente, u.cohorte, u.afiliacion ?? '', '',
         ...cs.map((k) => (val(k)?.pct_ip == null ? null : Math.round(val(k).pct_ip * 10) / 10)),
         ...cs.map((k) => val(k)?.sigla ?? ''),
-        u.ee.idst_d.por_variable.valor, u.ee.idst_d.por_caracteristica.valor, u.ee.idst_d.excel.valor]);
+        u.ee.idst_d.por_variable.valor, u.ee.idst_d.por_caracteristica.valor]);
     }
     const prom = h.addRow(['Promedio %IP (oficial)', '', '', '', ...cs.map((k) => {
       const x = p.promedio_ip.find((y) => y.caracteristica === k);
@@ -104,7 +112,6 @@ const hojaSemestre = (libro, config, c) => {
     prom.font = negrita;
     h.addRow(['IDSC-Prom (Acuerdo, Parágrafo 1)', '', '', '', ...cs.map((k) => p.idsc.find((y) => y.caracteristica === k)?.valor ?? null)]).font = negrita;
     h.addRow(['IDST-P por variable / por característica', '', '', '', p.idst_p.por_variable, p.idst_p.por_caracteristica]).font = negrita;
-    h.addRow([`IDST-P ${REFERENCIA}`, '', '', '', p.referencia_excel.idst_p]).font = negrita;
   }
   return h;
 };
@@ -139,15 +146,14 @@ const excel = async ({ config, consolidado: c, historico, poblacion }) => {
     { clave: 'categoria', titulo: 'Categoría', ancho: 16 }, { clave: 'comentario', titulo: 'Comentario', ancho: 60 },
   ], filasFuente);
 
-  // IDSC del programa (Acuerdo) y promedio por característica (referencia del Excel).
+  // IDSC del programa (Acuerdo 058).
   tabla(libro, 'IDSC-Prog', [
     { clave: 'caracteristica', titulo: 'Característica', ancho: 44 }, { clave: 'docentes', titulo: 'Docentes' },
     { clave: 'satisfactorios', titulo: 'Con GF o F' }, { clave: 'valor', titulo: 'IDSC-Prog', formato: '0.0%' },
-    { clave: 'promedio', titulo: 'Promedio %IP oficial', formato: '0.0' }, { clave: 'referencia', titulo: 'Promedio %IP método Excel', formato: '0.0' },
+    { clave: 'promedio', titulo: 'Promedio %IP oficial', formato: '0.0' },
   ], c.programa.idsc.map((x) => ({
     caracteristica: `C${x.caracteristica}: ${x.nombre}`, docentes: x.docentes, satisfactorios: x.satisfactorios, valor: x.valor,
     promedio: c.programa.promedio_ip.find((y) => y.caracteristica === x.caracteristica)?.promedio ?? null,
-    referencia: c.programa.referencia_excel.promedio_ip.find((y) => y.caracteristica === x.caracteristica)?.promedio ?? null,
   })));
 
   // Hoja IDST-P (histórico del indicador).
@@ -155,24 +161,21 @@ const excel = async ({ config, consolidado: c, historico, poblacion }) => {
     { clave: 'periodo', titulo: 'Periodo académico' }, { clave: 'docentes', titulo: 'Docentes' },
     { clave: 'idst_p_variable', titulo: 'IDST-P por variable', formato: '0.0%' },
     { clave: 'idst_p_caracteristica', titulo: 'IDST-P por característica', formato: '0.0%' },
-    { clave: 'idst_p_excel', titulo: 'IDST-P método Excel', formato: '0.0%' },
     ...[1, 2, 3, 4, 5, 6].map((k) => ({ clave: `c${k}`, titulo: `Promedio C${k}`, formato: '0.0' })),
   ], historico.map((p) => ({
     periodo: p.periodo, docentes: p.docentes, idst_p_variable: p.idst_p.por_variable, idst_p_caracteristica: p.idst_p.por_caracteristica,
-    idst_p_excel: p.referencia_excel.idst_p,
     ...Object.fromEntries(p.promedio_ip.map((x) => [`c${x.caracteristica}`, x.promedio])),
   })));
 
   const nota = libro.addWorksheet('Notas');
   [
     `Semestre ${config.periodo} · población: ${ETIQUETA_POBLACION[poblacion]} · generado el ${fecha()}.`,
-    'Oficial: Acuerdo 058 de 2022. IP = 1,5·MA + A; IN = 1,5·MI + I; %IP = IP/(IP+IN), con las repeticiones reales.',
-    `${REFERENCIA}: «Ocurrencias» = número de preguntas en las que aparece cada valoración (COUNTIF > 0).`,
+    'Cálculo oficial (Acuerdo 058 de 2022): IP = 1,5·MA + A; IN = 1,5·MI + I; %IP = IP/(IP+IN), con las repeticiones reales de cada valoración.',
     `Categorías: ${CATEGORIAS.map((x) => `${x.nombre} (${x.sigla}) ${x.rango}`).join('; ')}. Límites sin redondeo previo.`,
-    'IDST-D por variable (Acuerdo, Parágrafo 1) y por característica (C1–C6, como el Excel). La característica 0 (autoevaluación del estudiante) no cuenta.',
+    'IDST-D por variable (Acuerdo, Parágrafo 1) y por característica (C1–C6). La característica 0 (autoevaluación del estudiante) no cuenta para el docente.',
     `Meta del indicador: ${META_PCT} % de docentes con evaluación satisfactoria (GF o F).`,
     `Respuestas extremas excluidas (Parágrafo 2): ${config.excluir_extremas ? `sí (${c.programa.excluidas})` : 'no'}.`,
-    'EE, EC y AE se presentan por separado: el Acuerdo no define cómo combinarlos.',
+    'EE, EC y AE se presentan por separado: el Acuerdo 058 no define pesos para combinarlas.',
   ].forEach((t) => nota.addRow([t]));
   nota.getColumn(1).width = 140;
 
@@ -207,9 +210,9 @@ const subtitulo = (doc, texto) => {
   doc.moveDown(0.4).fillColor('#040039').fontSize(12).font('Helvetica-Bold').text(texto).moveDown(0.3).fillColor('black').font('Helvetica');
 };
 
-// Barras agrupadas: categorias = etiquetas del eje; series = [{ nombre, valores }] en 0–100.
-const barras = (doc, { categorias, series, alto = 170, meta = null }) => {
-  if (doc.y + alto + 40 > 740) doc.addPage();
+// Barras agrupadas: categorias = etiquetas del eje; series = [{ nombre, valores, color?, colores? }] en 0–100.
+const barras = (doc, { categorias, series, alto = 170, meta = null, leyendaCategorias = false }) => {
+  if (doc.y + alto + (leyendaCategorias ? 55 : 40) > 740) doc.addPage();
   const x0 = MARGEN + 30;
   const y0 = doc.y + 8;
   const ancho = 512 - 30;
@@ -225,26 +228,41 @@ const barras = (doc, { categorias, series, alto = 170, meta = null }) => {
     doc.text(`Meta ${meta} %`, x0 + ancho - 60, y - 9, { width: 60, align: 'right' });
   }
   const grupo = ancho / Math.max(1, categorias.length);
-  const barra = Math.min(16, (grupo - 6) / Math.max(1, series.length));
+  const barra = Math.min(20, (grupo - 6) / Math.max(1, series.length));
   categorias.forEach((cat, i) => {
     series.forEach((s, j) => {
       const v = s.valores[i];
       if (v === null || v === undefined) return;
       const h = (v / 100) * alto;
       const x = x0 + i * grupo + (grupo - barra * series.length) / 2 + j * barra;
-      doc.fillColor(s.color ?? COLORES[j % COLORES.length]).rect(x, y0 + alto - h, barra - 1, h).fill();
+      const color = s.colores?.[i] ?? s.color ?? COLORES[j % COLORES.length];
+      doc.fillColor(color).rect(x, y0 + alto - h, barra - 1, h).fill();
     });
     doc.fillColor('#474650').fontSize(7).text(cat, x0 + i * grupo, y0 + alto + 3, { width: grupo, align: 'center' });
   });
   let lx = x0;
-  const ly = y0 + alto + 16;
-  series.forEach((s, j) => {
-    doc.fillColor(s.color ?? COLORES[j % COLORES.length]).rect(lx, ly, 7, 7).fill();
-    doc.fillColor('#474650').fontSize(7).text(s.nombre, lx + 10, ly, { lineBreak: false });
-    lx += 16 + doc.widthOfString(s.nombre);
-  });
+  let ly = y0 + alto + 18;
+  if (series.length > 1 || !leyendaCategorias) {
+    series.forEach((s, j) => {
+      if (s.colores) return;
+      doc.fillColor(s.color ?? COLORES[j % COLORES.length]).rect(lx, ly, 7, 7).fill();
+      doc.fillColor('#474650').fontSize(7).text(s.nombre, lx + 10, ly, { lineBreak: false });
+      lx += 16 + doc.widthOfString(s.nombre);
+    });
+    if (lx > x0) ly += 12;
+  }
+  if (leyendaCategorias) {
+    lx = x0;
+    CATEGORIAS.forEach((cat) => {
+      doc.fillColor(COLOR_CATEGORIA[cat.sigla]).rect(lx, ly, 7, 7).fill();
+      const et = `${cat.sigla} (${cat.nombre})`;
+      doc.fillColor('#474650').fontSize(6.8).text(et, lx + 10, ly, { lineBreak: false });
+      lx += 14 + doc.widthOfString(et);
+    });
+    ly += 12;
+  }
   doc.x = MARGEN;
-  doc.y = ly + 16;
+  doc.y = ly + 6;
   doc.fillColor('black');
 };
 
@@ -268,7 +286,7 @@ const tablaPdf = (doc, columnas, filas) => {
   doc.font('Helvetica').moveDown(0.3);
 };
 
-const NOTA_METODOS = 'Oficial: Acuerdo 058 de 2022 (repeticiones reales de MA, A, I, MI). Referencia: método del Excel de Coordinación (número de preguntas con cada valoración), solo para comparar con el histórico.';
+const NOTA_METODOS = 'Cálculo oficial del Acuerdo 058 de 2022 (IP = 1,5·MA + A; IN = 1,5·MI + I; %IP = IP/(IP+IN) con repeticiones reales). Los resultados de estudiantes (EE), Coordinación (EC) y autoevaluación (AE) se reportan por separado.';
 
 const pdfConsolidado = async ({ config, consolidado: c, historico, poblacion }) => {
   const buffer = await generarPdf((doc) => {
@@ -281,20 +299,20 @@ const pdfConsolidado = async ({ config, consolidado: c, historico, poblacion }) 
       { clave: 'indicador', titulo: 'Indicador', ancho: 3 }, { clave: 'valor', titulo: 'Valor', ancho: 1 },
     ], [
       { indicador: 'Docentes evaluados (EE)', valor: c.programa.docentes },
-      { indicador: 'IDST-P del semestre, por variable (Acuerdo)', valor: prop(c.programa.idst_p.por_variable) },
-      { indicador: 'IDST-P del semestre, por característica', valor: prop(c.programa.idst_p.por_caracteristica) },
-      { indicador: `IDST-P ${REFERENCIA}`, valor: prop(c.programa.referencia_excel.idst_p) },
+      { indicador: 'IDST-P del semestre, por variable (Acuerdo 058)', valor: prop(c.programa.idst_p.por_variable) },
+      { indicador: 'IDST-P del semestre, por característica (C1–C6)', valor: prop(c.programa.idst_p.por_caracteristica) },
       { indicador: 'Meta del indicador', valor: `${META_PCT} %` },
     ]);
     const cs = c.programa.idsc;
+    const promediosProg = cs.map((x) => c.programa.promedio_ip.find((y) => y.caracteristica === x.caracteristica)?.promedio ?? null);
     barras(doc, {
       categorias: cs.map((x) => `C${x.caracteristica}`),
       series: [
-        { nombre: 'IDSC-Prog (Acuerdo)', valores: cs.map((x) => x.valor * 100) },
-        { nombre: 'Promedio %IP oficial', valores: cs.map((x) => c.programa.promedio_ip.find((y) => y.caracteristica === x.caracteristica)?.promedio ?? null) },
-        { nombre: 'Promedio %IP método Excel (ref.)', valores: cs.map((x) => c.programa.referencia_excel.promedio_ip.find((y) => y.caracteristica === x.caracteristica)?.promedio ?? null) },
+        { nombre: 'IDSC-Prog (Acuerdo 058)', color: '#040039', valores: cs.map((x) => x.valor * 100) },
+        { nombre: 'Promedio %IP (color por categoría)', valores: promediosProg, colores: promediosProg.map((v) => colorPorPct(v)) },
       ],
       meta: META_PCT,
+      leyendaCategorias: true,
     });
     doc.fontSize(7).fillColor('#474650').text(cs.map((x) => `C${x.caracteristica}: ${x.nombre}`).join(' · ')).fillColor('black');
 
@@ -305,21 +323,30 @@ const pdfConsolidado = async ({ config, consolidado: c, historico, poblacion }) 
       tablaPdf(doc, [
         { clave: 'docente', titulo: 'Docente', ancho: 3 },
         ...ks.map((k) => ({ clave: `c${k}`, titulo: `C${k}`, ancho: 1.2 })),
-        { clave: 'var', titulo: 'IDST-D variable', ancho: 1.2 }, { clave: 'car', titulo: 'IDST-D caract.', ancho: 1.2 }, { clave: 'exc', titulo: 'IDST-D Excel (ref.)', ancho: 1.2 },
+        { clave: 'global', titulo: '%IP Global', ancho: 1.4 },
+        { clave: 'var', titulo: 'IDST-D var.', ancho: 1.2 }, { clave: 'car', titulo: 'IDST-D car.', ancho: 1.2 },
       ], us.map((u) => ({
         docente: `${u.docente}${u.afiliacion ? ` (${u.afiliacion})` : ''}`,
         ...Object.fromEntries(ks.map((k) => {
           const x = u.ee.caracteristicas.find((y) => y.caracteristica === k);
           return [`c${k}`, x?.pct_ip == null ? '—' : `${x.pct_ip.toFixed(1).replace('.', ',')} ${x.sigla}`];
         })),
-        var: prop(u.ee.idst_d.por_variable.valor), car: prop(u.ee.idst_d.por_caracteristica.valor), exc: prop(u.ee.idst_d.excel.valor),
+        global: u.ee.global?.pct_ip == null ? '—' : `${u.ee.global.pct_ip.toFixed(1).replace('.', ',')} ${u.ee.global.sigla}`,
+        var: prop(u.ee.idst_d.por_variable.valor), car: prop(u.ee.idst_d.por_caracteristica.valor),
       })));
-      barras(doc, {
-        categorias: ks.map((k) => `C${k}`),
-        series: us.slice(0, 6).map((u) => ({ nombre: u.docente, valores: ks.map((k) => u.ee.caracteristicas.find((y) => y.caracteristica === k)?.pct_ip ?? null) })),
-        alto: 140,
-      });
-      doc.fontSize(8).text(`IDSC-Prom: ${p.idsc.map((x) => `C${x.caracteristica} ${prop(x.valor)}`).join(' · ')}. IDST-P: ${prop(p.idst_p.por_variable)} por variable; ${prop(p.idst_p.por_caracteristica)} por característica; ${prop(p.referencia_excel.idst_p)} método Excel (ref.).`);
+      if (us.length) {
+        barras(doc, {
+          categorias: us.map((u) => u.docente.split(' ').slice(0, 2).join(' ')),
+          series: [{
+            nombre: '%IP global EE por docente',
+            valores: us.map((u) => u.ee.global?.pct_ip ?? null),
+            colores: us.map((u) => colorPorPct(u.ee.global?.pct_ip)),
+          }],
+          alto: 140,
+          leyendaCategorias: true,
+        });
+      }
+      doc.fontSize(8).text(`IDSC-Prom: ${p.idsc.map((x) => `C${x.caracteristica} ${prop(x.valor)}`).join(' · ')}. IDST-P: ${prop(p.idst_p.por_variable)} por variable; ${prop(p.idst_p.por_caracteristica)} por característica.`);
     }
 
     const conFuentes = c.unidades.filter((u) => u.ec || u.ae);
@@ -340,9 +367,8 @@ const pdfConsolidado = async ({ config, consolidado: c, historico, poblacion }) 
       barras(doc, {
         categorias: historico.map((h) => h.periodo),
         series: [
-          { nombre: 'IDST-P por variable', valores: historico.map((h) => (h.idst_p.por_variable ?? 0) * 100) },
-          { nombre: 'IDST-P por característica', valores: historico.map((h) => (h.idst_p.por_caracteristica ?? 0) * 100) },
-          { nombre: 'IDST-P método Excel (ref.)', valores: historico.map((h) => (h.referencia_excel.idst_p ?? 0) * 100) },
+          { nombre: 'IDST-P por variable', color: '#040039', valores: historico.map((h) => (h.idst_p.por_variable ?? 0) * 100) },
+          { nombre: 'IDST-P por característica', color: '#2a78d6', valores: historico.map((h) => (h.idst_p.por_caracteristica ?? 0) * 100) },
         ],
         meta: META_PCT,
         alto: 140,
@@ -361,14 +387,18 @@ const pdfDocente = async ({ docente, periodos }) => {
       doc.moveDown().fontSize(10).text('No hay resultados disponibles.');
       return;
     }
-    // Histórico por característica (EE, %IP oficial): una serie por semestre y promoción.
     const filas = periodos.flatMap((p) => p.unidades.filter((u) => u.ee).map((u) => ({ etiqueta: `${p.periodo} · ${u.cohorte}`, u })));
-    const ks = [...new Set(filas.flatMap((f) => f.u.ee.caracteristicas.filter((c) => c.cuenta_docente).map((c) => c.caracteristica)))].sort();
     if (filas.length) {
-      subtitulo(doc, 'Variación histórica del %IP oficial por característica (EE)');
+      subtitulo(doc, 'Desempeño global por semestre y promoción (%IP oficial EE)');
       barras(doc, {
-        categorias: ks.map((k) => `C${k}`),
-        series: filas.slice(-6).map((f) => ({ nombre: f.etiqueta, valores: ks.map((k) => f.u.ee.caracteristicas.find((c) => c.caracteristica === k)?.pct_ip ?? null) })),
+        categorias: filas.map((f) => f.etiqueta),
+        series: [{
+          nombre: '%IP global (EE)',
+          valores: filas.map((f) => f.u.ee.global?.pct_ip ?? null),
+          colores: filas.map((f) => colorPorPct(f.u.ee.global?.pct_ip)),
+        }],
+        alto: 140,
+        leyendaCategorias: true,
       });
     }
     for (const p of periodos) {
@@ -376,13 +406,21 @@ const pdfDocente = async ({ docente, periodos }) => {
         subtitulo(doc, `${p.periodo} · Promoción ${u.cohorte}`);
         for (const [fuente, r] of [['Evaluación de los estudiantes (EE)', u.ee], ['Evaluación de Coordinación (EC)', u.ec], ['Autoevaluación (AE)', u.ae]]) {
           if (!r) continue;
-          doc.font('Helvetica-Bold').fontSize(9).text(`${fuente}${fuente.includes('EE') ? ` · ${r.respuestas} respuestas` : ''}`).font('Helvetica');
+          const cars = r.caracteristicas.filter((c) => c.cuenta_docente);
+          doc.font('Helvetica-Bold').fontSize(9).text(`${fuente}${fuente.includes('EE') ? ` · ${r.respuestas} respuestas` : ''} · Global: ${pct(r.global?.pct_ip)} (${r.global?.categoria ?? '—'})`).font('Helvetica');
+          if (cars.length) {
+            barras(doc, {
+              categorias: cars.map((c) => `C${c.caracteristica}`),
+              series: [{ nombre: '%IP por característica', valores: cars.map((c) => c.pct_ip), colores: cars.map((c) => colorPorPct(c.pct_ip)) }],
+              alto: 120,
+              leyendaCategorias: true,
+            });
+          }
           tablaPdf(doc, [
-            { clave: 'nombre', titulo: 'Característica', ancho: 4 }, { clave: 'ip', titulo: '%IP oficial', ancho: 1.2 },
-            { clave: 'cat', titulo: 'Categoría', ancho: 1.6 }, { clave: 'ref', titulo: 'Método Excel (ref.)', ancho: 1.4 },
-          ], r.caracteristicas.filter((c) => c.cuenta_docente).map((c) => ({
+            { clave: 'nombre', titulo: 'Característica', ancho: 4.5 }, { clave: 'ip', titulo: '%IP oficial', ancho: 1.4 },
+            { clave: 'cat', titulo: 'Categoría', ancho: 2 },
+          ], cars.map((c) => ({
             nombre: `C${c.caracteristica}: ${c.nombre}`, ip: pct(c.pct_ip), cat: c.categoria ?? '—',
-            ref: `${pct(c.excel.pct_ip)} ${c.excel.sigla ?? ''}`,
           })));
           doc.fontSize(8).text(`IDST-D: ${prop(r.idst_d.por_variable.valor)} por variable · ${prop(r.idst_d.por_caracteristica.valor)} por característica. Promedio ${pct(r.estadistica.promedio)}, desviación ${pct(r.estadistica.desviacion)}; mejor ${r.estadistica.mejor?.codigo ?? '—'} (${pct(r.estadistica.mejor?.pct_ip)}), peor ${r.estadistica.peor?.codigo ?? '—'} (${pct(r.estadistica.peor?.pct_ip)}).`);
           if (r.comentarios.length) doc.fontSize(8).fillColor('#474650').text(`Comentarios: ${r.comentarios.map((x) => `«${x}»`).join(' ')}`).fillColor('black');

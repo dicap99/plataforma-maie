@@ -215,6 +215,19 @@ module.exports = ({ exito, errores, cuerpo, roles, ref, PERIODO }) => {
         description: roles(['coordinador']), parameters: [{ ...periodoQuery, required: false }],
         responses: { 200: exito({ type: 'array', items: { type: 'object' } }), ...errores(400, 401, 403) },
       },
+      post: {
+        tags: [TAG], summary: 'Inscribir un estudiante de pregrado en una oferta',
+        description: roles(['coordinador']),
+        requestBody: cuerpo({
+          type: 'object', required: ['id_curso', 'id_estudiante'],
+          properties: {
+            id_curso: { type: 'integer', minimum: 1 },
+            id_estudiante: { type: 'string', format: 'uuid' },
+            programa: { type: 'string', maxLength: 150, nullable: true },
+          },
+        }),
+        responses: { 201: exito({ type: 'object' }, 'Inscrito'), ...errores(400, 401, 403, 404, 409) },
+      },
     },
     '/eval-docente/pregrado/plantilla': {
       get: { tags: [TAG], summary: 'Plantilla Excel de la lista de pregrado', description: roles(['coordinador']), parameters: [{ ...periodoQuery, required: false }], responses: { 200: binario(XLSX, 'Plantilla'), ...errores(400, 401, 403) } },

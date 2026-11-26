@@ -81,6 +81,7 @@ function EditorPregunta({ tipo, pregunta, caracteristica, caracteristicas, onClo
 
 export default function FormulariosEvaluacionPage() {
   const [tipo, setTipo] = useState('EE')
+  const [editando, setEditando] = useState(false)
   const preguntas = useApi(() => evalApi.preguntasFormulario(tipo), [tipo])
   const [editor, setEditor] = useState(null) // null | { pregunta? , caracteristica? }
   const [error, setError] = useState(null)
@@ -107,24 +108,43 @@ export default function FormulariosEvaluacionPage() {
       <Encabezado icono="quiz" titulo="Formularios">
         Preguntas de los formularios del Acuerdo 058 de 2022 (Art. 4 a 6). El Comité Curricular puede modificarlas (Art. 8). Hay un
         solo formulario de cada tipo para todos los semestres; los cambios aplican a las evaluaciones que se diligencien desde ese
-        momento. Una pregunta que ya tiene respuestas no cambia de redacción: desactívela y agregue otra; los resultados de cada
-        semestre conservan las preguntas que se respondieron.
+        momento. Por seguridad, el formulario se muestra en solo lectura; active «Editar formulario» si desea hacer cambios.
       </Encabezado>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Formularios">
           {TIPOS.map((t) => (
-            <button key={t} type="button" role="tab" aria-selected={t === tipo} onClick={() => setTipo(t)}
+            <button key={t} type="button" role="tab" aria-selected={t === tipo} onClick={() => { setTipo(t); setEditando(false) }}
               className={`rounded-lg border px-3 py-1 text-label-md transition-colors ${
                 t === tipo ? 'border-secondary bg-secondary/10 font-semibold text-secondary' : 'border-outline-variant text-on-surface-variant hover:bg-surface-container'}`}>
               {ETIQUETA_FORMULARIO[t] ?? t}
             </button>
           ))}
         </div>
-        <button type="button" className="btn btn-primario" onClick={() => setEditor({})}>
-          <Icono nombre="add" className="text-[18px]" /> Nueva pregunta
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {!editando ? (
+            <button type="button" className="btn btn-secundario" onClick={() => setEditando(true)}>
+              <Icono nombre="edit" className="text-[18px]" /> Editar formulario
+            </button>
+          ) : (
+            <>
+              <button type="button" className="btn btn-primario" onClick={() => setEditor({})}>
+                <Icono nombre="add" className="text-[18px]" /> Nueva pregunta
+              </button>
+              <button type="button" className="btn btn-secundario" onClick={() => setEditando(false)}>
+                <Icono nombre="lock" className="text-[18px]" /> Finalizar edición
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {editando && (
+        <p className="m-0 flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-body-sm text-amber-900" role="status">
+          <Icono nombre="edit_note" className="text-[18px]" />
+          Modo de edición activo. Una pregunta que ya tiene respuestas no cambia de redacción: desactívela y agregue otra.
+        </p>
+      )}
 
       <ErrorApi error={preguntas.error ?? error} onReintentar={preguntas.recargar} />
       {preguntas.cargando && !preguntas.data ? <Cargando /> : caracteristicas.map((c) => {
@@ -139,7 +159,12 @@ export default function FormulariosEvaluacionPage() {
             </div>
             <div className="tabla-scroll">
               <table className="text-body-sm">
-                <thead><tr><th>N.°</th><th>Pregunta</th><th>Estado</th><th className="num">Respuestas</th><th><span className="sr-only">Acciones</span></th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>N.°</th><th>Pregunta</th><th>Estado</th><th className="num">Respuestas</th>
+                    {editando && <th><span className="sr-only">Acciones</span></th>}
+                  </tr>
+                </thead>
                 <tbody>
                   {delGrupo.map((p) => (
                     <tr key={p.id_pregunta} className={p.activa ? '' : 'text-slate-400'}>
@@ -147,21 +172,25 @@ export default function FormulariosEvaluacionPage() {
                       <td>{p.texto}{p.escala && <span className="block texto-suave">{p.escala}</span>}</td>
                       <td>{p.activa ? 'Activa' : 'Inactiva'}</td>
                       <td className="num">{p.respuestas}</td>
-                      <td className="acciones whitespace-nowrap">
-                        {p.respuestas === 0 && <button type="button" className="btn-enlace" onClick={() => setEditor({ pregunta: p })}>Editar</button>}
-                        <button type="button" className="btn-enlace" onClick={() => accion(() => evalApi.actualizarPregunta(p.id_pregunta, { activa: !p.activa }))}>
-                          {p.activa ? 'Desactivar' : 'Activar'}
-                        </button>
-                        {p.respuestas === 0 && <button type="button" className="btn-enlace peligro" onClick={() => eliminar(p)}>Eliminar</button>}
-                      </td>
+                      {editando && (
+                        <td className="acciones whitespace-nowrap">
+                          {p.respuestas === 0 && <button type="button" className="btn-enlace" onClick={() => setEditor({ pregunta: p })}>Editar</button>}
+                          <button type="button" className="btn-enlace" onClick={() => accion(() => evalApi.actualizarPregunta(p.id_pregunta, { activa: !p.activa }))}>
+                            {p.activa ? 'Desactivar' : 'Activar'}
+                          </button>
+                          {p.respuestas === 0 && <button type="button" className="btn-enlace peligro" onClick={() => eliminar(p)}>Eliminar</button>}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <button type="button" className="btn btn-secundario self-start" onClick={() => setEditor({ caracteristica: c.numero })}>
-              <Icono nombre="add" className="text-[18px]" /> Agregar pregunta a C{c.numero}
-            </button>
+            {editando && (
+              <button type="button" className="btn btn-secundario self-start" onClick={() => setEditor({ caracteristica: c.numero })}>
+                <Icono nombre="add" className="text-[18px]" /> Agregar pregunta a C{c.numero}
+              </button>
+            )}
           </Seccion>
         )
       })}

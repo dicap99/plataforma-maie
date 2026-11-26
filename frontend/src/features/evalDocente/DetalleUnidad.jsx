@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import ChartCard from '../../components/charts/ChartCard.jsx'
 import GraficoBarras from '../../components/charts/GraficoBarras.jsx'
-import { CategoriaInsignia, ETIQUETA_FORMULARIO, ip, proporcion, REFERENCIA_EXCEL, ejePct } from './comun.jsx'
+import { CategoriaInsignia, COLOR_CATEGORIA, colorDePct, ETIQUETA_FORMULARIO, ip, LeyendaCategorias, proporcion, ejePct } from './comun.jsx'
 
 // Resultado de un docente en una promoción y semestre: EE, EC y AE POR SEPARADO (el Acuerdo 058 no define
-// cómo combinarlos). Para cada característica, el %IP oficial (Acuerdo) y, como referencia, el del método
-// del Excel de Coordinación con su diferencia. IDST-D por variable y por característica, lado a lado.
+// cómo combinarlos). Cálculo oficial del Acuerdo 058 de 2022 y colores fijos por categoría de desempeño.
 function Fuente({ tipo, r }) {
   const [verVariables, setVerVariables] = useState(false)
   if (!r) {
@@ -30,8 +29,7 @@ function Fuente({ tipo, r }) {
       <div className="tabla-scroll">
         <table className="text-body-sm">
           <thead>
-            <tr><th>Característica</th><th>Oficial (Acuerdo 058)</th><th className="num">MA</th><th className="num">A</th><th className="num">I</th><th className="num">MI</th><th className="num">NA</th>
-              <th title={REFERENCIA_EXCEL}>Método Excel (ref.)</th><th className="num">Diferencia</th></tr>
+            <tr><th>Característica</th><th>Resultado (Acuerdo 058)</th><th className="num">MA</th><th className="num">A</th><th className="num">I</th><th className="num">MI</th><th className="num">NA</th></tr>
           </thead>
           <tbody>
             {caracteristicas.map((c) => (
@@ -39,8 +37,6 @@ function Fuente({ tipo, r }) {
                 <td>C{c.caracteristica}. {c.nombre}</td>
                 <td><CategoriaInsignia sigla={c.sigla} valor={c.pct_ip} /></td>
                 {['MA', 'A', 'I', 'MI', 'NA'].map((v) => <td key={v} className="num">{c.conteos[v]}</td>)}
-                <td className="texto-suave">{ip(c.excel.pct_ip)} {c.excel.sigla ?? ''}</td>
-                <td className="num texto-suave">{c.excel.diferencia === null ? '—' : `${c.excel.diferencia > 0 ? '+' : ''}${c.excel.diferencia.toFixed(1).replace('.', ',')}`}</td>
               </tr>
             ))}
           </tbody>
@@ -49,7 +45,6 @@ function Fuente({ tipo, r }) {
       <dl className="m-0 grid gap-2 text-body-sm sm:grid-cols-3">
         <div><dt className="text-on-surface-variant">IDST-D por variable (Acuerdo)</dt><dd className="m-0 font-semibold">{proporcion(r.idst_d.por_variable.valor)} <span className="font-normal text-on-surface-variant">({r.idst_d.por_variable.satisfactorias}/{r.idst_d.por_variable.total})</span></dd></div>
         <div><dt className="text-on-surface-variant">IDST-D por característica</dt><dd className="m-0 font-semibold">{proporcion(r.idst_d.por_caracteristica.valor)} <span className="font-normal text-on-surface-variant">({r.idst_d.por_caracteristica.satisfactorias}/{r.idst_d.por_caracteristica.total})</span></dd></div>
-        <div><dt className="text-on-surface-variant">IDST-D método Excel (ref.)</dt><dd className="m-0 font-semibold">{proporcion(r.idst_d.excel.valor)}</dd></div>
         <div><dt className="text-on-surface-variant">Promedio y desviación (%IP por variable)</dt><dd className="m-0">{ip(r.estadistica.promedio)} ± {ip(r.estadistica.desviacion)}</dd></div>
         <div><dt className="text-on-surface-variant">Mejor calificada</dt><dd className="m-0">{r.estadistica.mejor ? `${r.estadistica.mejor.codigo} (${ip(r.estadistica.mejor.pct_ip)})` : '—'}</dd></div>
         <div><dt className="text-on-surface-variant">Peor calificada</dt><dd className="m-0">{r.estadistica.peor ? `${r.estadistica.peor.codigo} (${ip(r.estadistica.peor.pct_ip)})` : '—'}</dd></div>
@@ -90,17 +85,18 @@ function Fuente({ tipo, r }) {
 
 export default function DetalleUnidad({ unidad }) {
   const datos = (unidad.ee?.caracteristicas ?? []).filter((c) => c.cuenta_docente).map((c) => ({
-    caracteristica: `C${c.caracteristica}`, oficial: c.pct_ip, excel: c.excel.pct_ip,
+    caracteristica: `C${c.caracteristica}`, nombre: c.nombre, oficial: c.pct_ip, sigla: c.sigla, categoria: c.categoria ?? '—',
   }))
   return (
     <div className="flex flex-col gap-space-md">
       {datos.length > 0 && (
-        <ChartCard titulo="%IP por característica (EE)" subtitulo={`Oficial (Acuerdo 058) y ${REFERENCIA_EXCEL.toLowerCase()}`} altura="h-60"
-          tabla={{ columnas: [{ clave: 'caracteristica', titulo: 'Característica' }, { clave: 'oficial', titulo: '%IP oficial', formato: ip }, { clave: 'excel', titulo: '%IP método Excel', formato: ip }], filas: datos }}>
+        <ChartCard titulo="%IP por característica (EE)" subtitulo="Cálculo oficial (Acuerdo 058 de 2022) · color según categoría de desempeño" altura="h-60"
+          tabla={{ columnas: [{ clave: 'caracteristica', titulo: 'Característica' }, { clave: 'nombre', titulo: 'Nombre' }, { clave: 'oficial', titulo: '%IP oficial', formato: ip }, { clave: 'categoria', titulo: 'Categoría' }], filas: datos }}>
           <GraficoBarras datos={datos} ejeX="caracteristica" dominio={[0, 100]} formato={ip} formatoEje={ejePct}
-            series={[{ clave: 'oficial', nombre: '%IP oficial (Acuerdo)' }, { clave: 'excel', nombre: '%IP método Excel (ref.)' }]} />
+            series={[{ clave: 'oficial', nombre: '%IP oficial (Acuerdo 058)', colorPorDato: (f) => COLOR_CATEGORIA[f.sigla] ?? colorDePct(f.oficial) }]} />
         </ChartCard>
       )}
+      {datos.length > 0 && <LeyendaCategorias />}
       <Fuente tipo="EE" r={unidad.ee} />
       <div className="grid gap-space-md lg:grid-cols-2">
         <Fuente tipo="EC" r={unidad.ec} />

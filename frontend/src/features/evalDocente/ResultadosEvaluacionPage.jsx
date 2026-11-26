@@ -10,14 +10,11 @@ import GraficoLineas from '../../components/charts/GraficoLineas.jsx'
 import TarjetaKpi, { BarraProgreso, Insignia } from '../admin/panel/TarjetaKpi.jsx'
 import DetalleUnidad from './DetalleUnidad.jsx'
 import {
-  CategoriaInsignia, Encabezado, ETIQUETA_POBLACION, ip, LeyendaCategorias, proporcion, REFERENCIA_EXCEL, Seccion, ejePct,
+  CategoriaInsignia, COLOR_CATEGORIA, colorDePct, Encabezado, ETIQUETA_POBLACION, ip, LeyendaCategorias, proporcion, Seccion, ejePct,
 } from './comun.jsx'
 
-// Resultados de la evaluación docente (RF-EVAL-02 a 04): el reporte consolidado con gráficas que
-// Coordinación llenaba a mano desde Google Forms en «Estadísticas Evaluación Docente MaIE.xlsx».
-// Decisiones del usuario (2026-11-16): %IP oficial del Acuerdo con el del Excel como referencia; IDST-D por
-// variable y por característica; IDSC del Acuerdo con el promedio del %IP y el IDST-P del Excel; EE, EC
-// y AE por separado. Todo se calcula en el backend.
+// Resultados de la evaluación docente (RF-EVAL-02 a 04): consolidado oficial según el Acuerdo 058 de 2022.
+// EE, EC y AE se reportan por separado (el Acuerdo no define ponderación entre fuentes).
 const pct100 = (v) => (v === null || v === undefined ? null : v * 100)
 
 function Selector({ etiqueta, valor, onChange, opciones }) {
@@ -29,6 +26,40 @@ function Selector({ etiqueta, valor, onChange, opciones }) {
         {opciones.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
       </select>
     </label>
+  )
+}
+
+function GraficoPromocion({ cohorte, unidades, caracteristicas }) {
+  const [metrica, setMetrica] = useState('global')
+  const conEE = unidades.filter((u) => u.ee)
+  if (!conEE.length) return null
+  const filas = conEE.map((u) => {
+    if (metrica === 'global') {
+      return { docente: u.docente, valor: u.ee.global?.pct_ip ?? null, sigla: u.ee.global?.sigla }
+    }
+    const c = u.ee.caracteristicas.find((x) => String(x.caracteristica) === metrica)
+    return { docente: u.docente, valor: c?.pct_ip ?? null, sigla: c?.sigla }
+  })
+  const tituloMetrica = metrica === 'global'
+    ? 'Global (EE)'
+    : `C${metrica}. ${caracteristicas.find((x) => String(x.caracteristica) === metrica)?.nombre ?? ''}`
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-body-sm font-semibold text-on-surface-variant">Gráfica de desempeño por docente</span>
+        <select aria-label={`Métrica por docente Promoción ${cohorte}`}
+          className="rounded-lg border border-outline-variant bg-surface-container-lowest px-2.5 py-1 text-body-sm text-on-surface"
+          value={metrica} onChange={(e) => setMetrica(e.target.value)}>
+          <option value="global">%IP global (EE)</option>
+          {caracteristicas.map((c) => <option key={c.caracteristica} value={String(c.caracteristica)}>C{c.caracteristica}. {c.nombre}</option>)}
+        </select>
+      </div>
+      <ChartCard titulo={`%IP oficial por docente · Promoción ${cohorte}`} subtitulo={`${tituloMetrica} · color fijo por categoría de desempeño`} altura="h-72"
+        tabla={{ columnas: [{ clave: 'docente', titulo: 'Docente' }, { clave: 'valor', titulo: '%IP oficial', formato: ip }, { clave: 'sigla', titulo: 'Categoría' }], filas }}>
+        <GraficoBarras datos={filas} ejeX="docente" dominio={[0, 100]} formato={ip} formatoEje={ejePct}
+          series={[{ clave: 'valor', nombre: `%IP (${tituloMetrica})`, colorPorDato: (f) => COLOR_CATEGORIA[f.sigla] ?? colorDePct(f.valor) }]} />
+      </ChartCard>
+    </div>
   )
 }
 
@@ -53,19 +84,18 @@ export default function ResultadosEvaluacionPage() {
   const idsc = useMemo(() => caracteristicas.map((c) => ({
     caracteristica: `C${c.caracteristica}`, nombre: c.nombre, idsc: pct100(c.valor),
     promedio: d.programa.promedio_ip.find((x) => x.caracteristica === c.caracteristica)?.promedio ?? null,
-    excel: d.programa.referencia_excel.promedio_ip.find((x) => x.caracteristica === c.caracteristica)?.promedio ?? null,
   })), [caracteristicas, d])
 
   const historico = (d?.historico ?? []).map((h) => ({
-    periodo: h.periodo, variable: pct100(h.idst_p.por_variable), caracteristica: pct100(h.idst_p.por_caracteristica), excel: pct100(h.referencia_excel.idst_p),
+    periodo: h.periodo, variable: pct100(h.idst_p.por_variable), caracteristica: pct100(h.idst_p.por_caracteristica),
     ...Object.fromEntries(h.promedio_ip.map((c) => [`c${c.caracteristica}`, c.promedio])),
   }))
 
   return (
     <div className="flex min-w-0 flex-col gap-space-lg">
       <Encabezado icono="insights" titulo="Resultados de desempeño docente">
-        Consolidado del semestre por docente, promoción y programa (Art. 12 del Acuerdo 058), con su variación histórica. Las fuentes
-        EE, EC y AE se presentan por separado. El %IP oficial es el del Acuerdo; el del Excel de Coordinación se muestra como referencia histórica.
+        Consolidado oficial del semestre por docente, promoción y programa (Art. 12 del Acuerdo 058 de 2022), con su variación histórica.
+        Las fuentes EE, EC y AE se presentan por separado (el Acuerdo no define ponderación entre fuentes).
       </Encabezado>
 
       <Seccion>
@@ -91,33 +121,37 @@ export default function ResultadosEvaluacionPage() {
 
       {res.cargando && periodo ? <Cargando /> : d && (
         <>
-          <div className="grid gap-space-md sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-space-md sm:grid-cols-2 xl:grid-cols-3">
             <TarjetaKpi etiqueta="Docentes evaluados (EE)" valor={d.programa.docentes} icono="groups">
               <Insignia>{d.programa.respuestas_ee} respuestas{d.programa.excluidas ? ` · ${d.programa.excluidas} extremas excluidas` : ''}</Insignia>
             </TarjetaKpi>
-            <TarjetaKpi etiqueta="IDST-P por variable (Acuerdo)" valor={proporcion(d.programa.idst_p.por_variable)} icono="verified" destacado>
+            <TarjetaKpi etiqueta="IDST-P por variable (Acuerdo 058)" valor={proporcion(d.programa.idst_p.por_variable)} icono="verified" destacado>
               <BarraProgreso fraccion={d.programa.idst_p.por_variable} />
               <p className="m-0 mt-1 text-body-sm text-on-surface-variant">Meta: {d.configuracion.meta_pct} % de calificaciones GF o F</p>
             </TarjetaKpi>
             <TarjetaKpi etiqueta="IDST-P por característica" valor={proporcion(d.programa.idst_p.por_caracteristica)} icono="category">
               <BarraProgreso fraccion={d.programa.idst_p.por_caracteristica} />
             </TarjetaKpi>
-            <TarjetaKpi etiqueta="IDST-P método Excel (ref.)" valor={proporcion(d.programa.referencia_excel.idst_p)} icono="history">
-              <p className="m-0 text-body-sm text-on-surface-variant">Como lo calculaba el libro de Coordinación</p>
-            </TarjetaKpi>
           </div>
+
+          <Seccion>
+            <LeyendaCategorias />
+          </Seccion>
 
           <div className="grid gap-space-md xl:grid-cols-2 [&>*]:min-w-0">
             <ChartCard titulo="Indicadores por característica del programa"
-              subtitulo="IDSC-Prog = docentes con GF o F en la característica / docentes evaluados (Acuerdo, Parágrafo 1); promedios del %IP como referencia"
-              tabla={{ columnas: [{ clave: 'caracteristica', titulo: 'Característica' }, { clave: 'nombre', titulo: 'Nombre' }, { clave: 'idsc', titulo: 'IDSC-Prog', formato: ip }, { clave: 'promedio', titulo: 'Promedio %IP oficial', formato: ip }, { clave: 'excel', titulo: 'Promedio %IP método Excel', formato: ip }], filas: idsc }}>
+              subtitulo="IDSC-Prog = docentes con GF o F / evaluados; Promedio %IP coloreado según categoría de desempeño"
+              tabla={{ columnas: [{ clave: 'caracteristica', titulo: 'Característica' }, { clave: 'nombre', titulo: 'Nombre' }, { clave: 'idsc', titulo: 'IDSC-Prog', formato: ip }, { clave: 'promedio', titulo: 'Promedio %IP oficial', formato: ip }], filas: idsc }}>
               <GraficoBarras datos={idsc} ejeX="caracteristica" dominio={[0, 100]} formato={ip} formatoEje={ejePct} referencia={{ valor: d.configuracion.meta_pct, etiqueta: `Meta ${d.configuracion.meta_pct} %` }}
-                series={[{ clave: 'idsc', nombre: 'IDSC-Prog (Acuerdo)' }, { clave: 'promedio', nombre: 'Promedio %IP oficial' }, { clave: 'excel', nombre: 'Promedio %IP método Excel (ref.)' }]} />
+                series={[
+                  { clave: 'idsc', nombre: 'IDSC-Prog (Acuerdo 058)', color: '#040039' },
+                  { clave: 'promedio', nombre: 'Promedio %IP oficial (por categoría)', colorPorDato: (f) => colorDePct(f.promedio) },
+                ]} />
             </ChartCard>
             <ChartCard titulo="Variación histórica del IDST-P" subtitulo="Semestres con respuestas; el del semestre es el promedio de sus promociones"
-              tabla={{ columnas: [{ clave: 'periodo', titulo: 'Semestre' }, { clave: 'variable', titulo: 'Por variable', formato: ip }, { clave: 'caracteristica', titulo: 'Por característica', formato: ip }, { clave: 'excel', titulo: 'Método Excel', formato: ip }], filas: historico }}>
+              tabla={{ columnas: [{ clave: 'periodo', titulo: 'Semestre' }, { clave: 'variable', titulo: 'Por variable', formato: ip }, { clave: 'caracteristica', titulo: 'Por característica', formato: ip }], filas: historico }}>
               <GraficoLineas datos={historico} ejeX="periodo" dominio={[0, 100]} formato={ip} formatoEje={ejePct} referencia={{ valor: d.configuracion.meta_pct, etiqueta: 'Meta' }}
-                series={[{ clave: 'variable', nombre: 'IDST-P por variable (Acuerdo)' }, { clave: 'caracteristica', nombre: 'IDST-P por característica' }, { clave: 'excel', nombre: 'IDST-P método Excel (ref.)' }]} />
+                series={[{ clave: 'variable', nombre: 'IDST-P por variable (Acuerdo 058)', color: '#040039' }, { clave: 'caracteristica', nombre: 'IDST-P por característica', color: '#2a78d6' }]} />
             </ChartCard>
           </div>
           <ChartCard titulo="Promedio del %IP oficial por característica, por semestre" subtitulo="Variación histórica de cada característica (C1–C6) en el programa"
@@ -129,15 +163,12 @@ export default function ResultadosEvaluacionPage() {
           {visibles.map((p) => {
             const unidades = d.unidades.filter((u) => u.id_cohorte === p.id_cohorte && (u.ee || u.ec || u.ae))
             const ks = p.idsc.map((c) => c.caracteristica)
-            const porDocente = unidades.filter((u) => u.ee).map((u) => ({
-              docente: u.docente, ...Object.fromEntries(u.ee.caracteristicas.filter((c) => c.cuenta_docente).map((c) => [`c${c.caracteristica}`, c.pct_ip])),
-            }))
             return (
               <Seccion key={p.id_cohorte}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="m-0 font-display text-headline-sm text-primary">Promoción {p.cohorte}</h2>
                   <span className="text-body-sm text-on-surface-variant">
-                    IDST-P: {proporcion(p.idst_p.por_variable)} por variable · {proporcion(p.idst_p.por_caracteristica)} por característica · {proporcion(p.referencia_excel.idst_p)} método Excel (ref.)
+                    IDST-P: {proporcion(p.idst_p.por_variable)} por variable · {proporcion(p.idst_p.por_caracteristica)} por característica
                   </span>
                 </div>
                 <LeyendaCategorias />
@@ -147,7 +178,7 @@ export default function ResultadosEvaluacionPage() {
                       <tr>
                         <th>Docente</th><th className="num">EE</th>
                         {ks.map((k) => <th key={k}>C{k}</th>)}
-                        <th className="num">IDST-D variable</th><th className="num">IDST-D caract.</th><th className="num" title={REFERENCIA_EXCEL}>IDST-D Excel</th>
+                        <th className="num">IDST-D variable</th><th className="num">IDST-D caract.</th>
                         <th>EC</th><th>AE</th><th><span className="sr-only">Detalle</span></th>
                       </tr>
                     </thead>
@@ -158,11 +189,10 @@ export default function ResultadosEvaluacionPage() {
                           <td className="num" title={`Posgrado ${u.poblaciones.posgrado} · pregrado ${u.poblaciones.pregrado}`}>{u.ee?.respuestas ?? 0}</td>
                           {ks.map((k) => {
                             const c = u.ee?.caracteristicas.find((x) => x.caracteristica === k)
-                            return <td key={k}>{c ? <><CategoriaInsignia sigla={c.sigla} valor={c.pct_ip} compacta /><span className="block text-label-sm text-on-surface-variant" title={REFERENCIA_EXCEL}>Excel: {ip(c.excel.pct_ip)}</span></> : '—'}</td>
+                            return <td key={k}>{c ? <CategoriaInsignia sigla={c.sigla} valor={c.pct_ip} compacta /> : '—'}</td>
                           })}
                           <td className="num">{proporcion(u.ee?.idst_d.por_variable.valor)}</td>
                           <td className="num">{proporcion(u.ee?.idst_d.por_caracteristica.valor)}</td>
-                          <td className="num texto-suave">{proporcion(u.ee?.idst_d.excel.valor)}</td>
                           <td>{u.ec ? <CategoriaInsignia sigla={u.ec.global.sigla} valor={u.ec.global.pct_ip} compacta /> : 'Pendiente'}</td>
                           <td>{u.ae ? <CategoriaInsignia sigla={u.ae.global.sigla} valor={u.ae.global.pct_ip} compacta /> : 'Pendiente'}</td>
                           <td className="acciones"><button type="button" className="btn btn-secundario" onClick={() => setDetalle({ ...u, periodo })}>Detalle</button></td>
@@ -171,22 +201,17 @@ export default function ResultadosEvaluacionPage() {
                       <tr className="font-semibold">
                         <td>IDSC-Prom (Acuerdo)</td><td />
                         {ks.map((k) => <td key={k}>{proporcion(p.idsc.find((c) => c.caracteristica === k)?.valor)}</td>)}
-                        <td colSpan={6} />
+                        <td colSpan={5} />
                       </tr>
                       <tr className="texto-suave">
-                        <td>Promedio %IP oficial · método Excel</td><td />
-                        {ks.map((k) => <td key={k}>{ip(p.promedio_ip.find((c) => c.caracteristica === k)?.promedio)} · {ip(p.referencia_excel.promedio_ip.find((c) => c.caracteristica === k)?.promedio)}</td>)}
-                        <td colSpan={6} />
+                        <td>Promedio %IP oficial</td><td />
+                        {ks.map((k) => <td key={k}>{ip(p.promedio_ip.find((c) => c.caracteristica === k)?.promedio)}</td>)}
+                        <td colSpan={5} />
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                {porDocente.length > 0 && (
-                  <ChartCard titulo={`%IP oficial por docente · Promoción ${p.cohorte}`} subtitulo="Una barra por característica (C1–C6); la leyenda permite ocultarlas" altura="h-80">
-                    <GraficoBarras datos={porDocente} ejeX="docente" dominio={[0, 100]} formato={ip} formatoEje={ejePct}
-                      series={ks.map((k) => ({ clave: `c${k}`, nombre: `C${k}` }))} />
-                  </ChartCard>
-                )}
+                <GraficoPromocion cohorte={p.cohorte} unidades={unidades} caracteristicas={p.idsc} />
               </Seccion>
             )
           })}

@@ -29,6 +29,7 @@ export const informePropioPdf = () => descargar('/eval-docente/resultados/me/inf
 
 // Estudiantes de pregrado por oferta
 export const listarPregrado = (periodo) => client.get('/eval-docente/pregrado', { params: { periodo } })
+export const inscribirPregrado = (datos) => client.post('/eval-docente/pregrado', datos)
 export const plantillaPregrado = (periodo) => descargar('/eval-docente/pregrado/plantilla', { periodo })
 export const importarPregrado = (archivo, simular) => {
   const form = new FormData()

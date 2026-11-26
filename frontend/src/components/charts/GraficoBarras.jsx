@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
-import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import LeyendaInteractiva, { useSeriesOcultas } from './LeyendaInteractiva.jsx'
 import { GRILLA, SERIES, SUPERFICIE, TEXTO_SECUNDARIO } from './paleta'
 
 // Barras agrupadas o apiladas con un solo eje de valores.
-// series: [{ clave, nombre, color? }] — el color se fija por posición en la definición, no por rango.
+// series: [{ clave, nombre, color?, colorPorDato? }] — colorPorDato(fila) permite colorear cada barra según su categoría.
 // horizontal: categorías en el eje vertical (útil con etiquetas largas).
 // onSeleccionar(fila): clic en una barra (p. ej. para filtrar la tabla de datos).
 // referencia: { valor, etiqueta } dibuja una línea de meta en el eje de valores; dominio: [min, max] del eje.
@@ -53,13 +53,17 @@ export default function GraficoBarras({
             fill={s.color ?? SERIES[i]}
             hide={ocultas.has(s.clave)}
             stackId={apilado ? 'total' : undefined}
-            maxBarSize={horizontal ? 20 : 24}
+            maxBarSize={horizontal ? 20 : 28}
             radius={radio(i)}
             stroke={apilado ? SUPERFICIE : undefined}
             strokeWidth={apilado ? 2 : 0}
             cursor={onSeleccionar ? 'pointer' : undefined}
             onClick={onSeleccionar ? (d) => onSeleccionar(d.payload ?? d) : undefined}
-          />
+          >
+            {s.colorPorDato && datos.map((fila, idx) => (
+              <Cell key={idx} fill={s.colorPorDato(fila) ?? s.color ?? SERIES[i]} />
+            ))}
+          </Bar>
         ))}
         {referencia && (
           <ReferenceLine {...{ [horizontal ? 'x' : 'y']: referencia.valor }} stroke={TEXTO_SECUNDARIO} strokeDasharray="4 4" ifOverflow="extendDomain"
